@@ -1,0 +1,52 @@
+name: Build BCI image
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: bci-image-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download repository files
+        uses: actions/checkout@v4
+
+      - name: Sign in to GitHub Container Registry
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          printf '%s' "$GHCR_TOKEN" | docker login ghcr.io \
+            --username "${{ github.actor }}" \
+            --password-stdin
+
+      - name: Build image
+        run: |
+          docker build \
+            --file Dockerfile \
+            --tag ghcr.io/gsilk4511/bci-ops:main \
+            --tag ghcr.io/gsilk4511/bci-ops:latest \
+            --tag ghcr.io/gsilk4511/bci-ops:${{ github.sha }} \
+            .
+
+      - name: Check packaged app version
+        run: |
+          docker run --rm --network none --entrypoint node \
+            ghcr.io/gsilk4511/bci-ops:${{ github.sha }} \
+            -p "require('/app/package.json').version"
+
+      - name: Publish image
+        run: |
+          docker push ghcr.io/gsilk4511/bci-ops:${{ github.sha }}
+          docker push ghcr.io/gsilk4511/bci-ops:main
+          docker push ghcr.io/gsilk4511/bci-ops:latest
