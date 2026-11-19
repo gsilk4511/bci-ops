@@ -3,9 +3,8 @@
 # Place .env.secure and mariadb.env alongside this file.
 services:
   bci-operations:
-    build: /home/gccadmin/docker/bci-operations-secure/source
-    image: bci-operations:0.8.5
-    pull_policy: never
+    image: ghcr.io/gsilk4511/bci-ops:main
+    pull_policy: always
     container_name: bci-operations-secure
     restart: unless-stopped
     user: "99:100"
