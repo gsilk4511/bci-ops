@@ -1,0 +1,6 @@
+# Tickets workflow in revision .7.5
+Open Tickets to see current work-order review, Chasing Work, Projects, and final Invoicing. Other follow-ups and purchasing remain below these grids. Cleared / History preserves past notes and shows work orders returned to the crew. Returning a work order removes it from review until resubmission. Completed opportunity and general tickets can be reopened without touching billing.
+
+Use New opportunity for a phone call or a project with no established billing client. To record an unmatched email, open Email intake and choose Chase or link opportunity. Confirm it is new, or select an existing opportunity and append the message. Replies in a known Chasing Work thread attach to the prior ticket without automatically reopening it. For matched-client email tickets, use Move to Chasing Work only for new pursuit. Other imported emails remain general follow-ups; Reply in email opens the user's mail client and does not send anything from the application. Existing Microsoft 365 setup is unchanged.
+
+Close projects from the project detail screen, not the Projects ticket grid. The Invoicing grid shows closed projects with billable work still remaining. Open the project to inspect billing records and any closeout blocker. Use progress billing separately while a project is open.

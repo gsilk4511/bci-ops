@@ -1,0 +1,7 @@
+# Record scopes in revision .8.5
+
+Module permissions control visibility, eligible actions, and separate privileged operations. Record scope is applied in addition to those permissions. **Own** matches the original creator's stored sign-in address, **Assigned** matches a record assignment, and **All** does not impose that module's additional record filter. Existing Ticket permissions (including View all tickets) still control which tickets an unscoped or All profile can see. Staff ownership of individual labor and material rows remains separate from work-order scope.
+
+Assign records from Team as an administrator. Assignment does not change the original creator or employee on a time entry. A legacy record that does not have a creator is not treated as somebody's own based on matching names or customer email addresses; use Assigned or an authorized All profile for those records. Linked client/project restrictions narrow related work orders and estimates. For a grouped invoice, access must cover the entire group. That prevents a payment, deposit allocation, or invoice preview from acting on hidden work. Narrowly scoped pricing and stock users cannot run operations that write broader sets of records.
+
+No existing grants are silently added when .8.5 first loads. Test Team changes with non-admin accounts and preserve access for active personnel before introducing new restrictive scopes.

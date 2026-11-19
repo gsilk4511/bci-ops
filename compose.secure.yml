@@ -1,0 +1,63 @@
+# BCI Operations Secure + dedicated MariaDB (same Docker Compose stack)
+# Load bundled image first: docker load -i bci-image.tar
+# Place .env.secure and mariadb.env alongside this file.
+services:
+  bci-operations:
+    build: /home/gccadmin/docker/bci-operations-secure/source
+    image: bci-operations:0.8.5
+    pull_policy: never
+    container_name: bci-operations-secure
+    restart: unless-stopped
+    user: "99:100"
+    env_file:
+      - .env.secure
+    environment:
+      NODE_ENV: production
+      HOST: "0.0.0.0"
+      PORT: "3100"
+      DB_PROVIDER: mariadb
+      DB_HOST: db
+      DB_PORT: "3306"
+      APP_AUTH_MODE: cloudflare
+    ports:
+      - "3100:3100"
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - bci_backend
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=32m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 100
+    mem_limit: 512m
+
+  db:
+    image: mariadb:11.8
+    container_name: bci-operations-db
+    restart: unless-stopped
+    env_file:
+      - mariadb.env
+    volumes:
+      - bci_db_data:/var/lib/mysql
+    networks:
+      - bci_backend
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
+    security_opt:
+      - no-new-privileges:true
+
+networks:
+  bci_backend:
+    driver: bridge
+
+volumes:
+  bci_db_data:

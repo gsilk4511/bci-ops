@@ -1,0 +1,8 @@
+# Staff setup and time review (.7.5)
+1. Add each employee through the existing Team access flow. Ask staff to open **My Time & Profile** and set their display name and contact email. The contact email is not the Cloudflare sign-in.
+2. As admin, open **My Time & Profile → Staff profiles** to enter pay scale and opening available vacation and sick hours. Staff can see their own values and cannot change them. Verify the opening balances against your payroll records before approving the first request; this does not calculate accrued leave.
+3. A staff member uses **Add Time Off** for vacation or sick leave. Pending hours do not touch the balance. Admins review requests in the same area. Approval records one payroll-preview entry and deducts once from the applicable available balance. The app will not approve leave into a finalized pay period; handle that correction with payroll.
+4. Create or verify exactly one **BCI ELITE ADMIN** project under the **Randy Bevins** billing client. When that record exists, staff with work-order creation access can use **+ New Internal Work Order**. Create one order for each distinct truck, inventory, shop or office task, and log multiple sessions on that order. Internal work is still employee work time, but must not appear on customer invoices.
+5. Staff filter **My Time** by week or pay-period dates and follow linked orders. Older entries with no trusted employee identifier are not automatically assigned by a name guess. Review those using the existing payroll and order history before reconciling a period.
+
+The pay scale field is a profile reference, not a gross pay calculation. QuickBooks remains the payroll processor. The staging app does not change payroll rates or post payroll externally.
