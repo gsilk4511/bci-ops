@@ -1,0 +1,38 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {randomUUID} from 'node:crypto';
+import {seed, applyAction} from '../Models/lib.js';
+import {reconcileStock} from '../Models/stock-demand.js';
+import {authorizePermission} from '../Models/permissions.js';
+import {ticketOverview} from '../Models/tickets.js';
+
+test('work-order drafts open one purchasing ticket and save issues stock once',()=>{
+  const state=seed(), order=state.workorders[0], actor={email:'tech@example.invalid'};
+  Object.assign(order,{approvedAt:'2026-11-11',status:'released'});
+  const line={workorderId:order.id,draftId:randomUUID(),catalogId:'cat_2',location:'Shop',quantity:6};
+  assert.throws(()=>authorizePermission('entry.materialDraft','tech',['workorders.view'],line),/permission/i);
+  const draft=applyAction(state,'entry.materialDraft',line,actor);
+  assert.equal(draft.projected,-2);
+  assert.equal(state.inventory[0].quantity,4);
+  assert.equal(order.entries.length,0);
+  const ticket=state.tickets.find(row=>row.kind==='stock-shortage');
+  assert.match(ticket.description,/Buy 2 ea/);
+  const buyer={email:'buyer@example.invalid',permissions:['inventory.view','tickets.view']};
+  assert.ok(ticketOverview(state,buyer).tickets.some(row=>row.id===ticket.id));
+  applyAction(state,'entry.materialDraft',{...line,quantity:7},actor);
+  assert.match(ticket.description,/Buy 3 ea/);
+  applyAction(state,'entry.materialDraft',{...line,clear:true},actor);
+  assert.equal(ticket.status,'Completed');
+  applyAction(state,'entry.materialDraft',line,actor);
+  assert.equal(ticket.status,'New');
+  applyAction(state,'entry.add',{...line,type:'material'},actor);
+  assert.equal(state.inventory[0].quantity,-2);
+  assert.equal(state.materialDrafts.length,0);
+  assert.equal(state.tickets.filter(row=>row.kind==='stock-shortage').length,1);
+  applyAction(state,'inventory.receive',{catalogId:'cat_2',quantity:2,unitCost:7,location:'Shop'},buyer);
+  assert.equal(ticket.status,'Completed');
+  applyAction(state,'entry.materialDraft',line,actor);
+  reconcileStock(state,state.materialDrafts[0].expiresAt+1);
+  assert.equal(state.materialDrafts.length,0);
+  assert.equal(ticket.status,'Completed');
+});

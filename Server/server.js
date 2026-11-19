@@ -337,7 +337,7 @@ const server=http.createServer(async(req,res)=>{
     const file=path.resolve(publicRoot,rel);
     if(!file.startsWith(publicRoot+path.sep))return response(res,403,{error:'Forbidden'});
     let body;try{body=await fs.readFile(file);}catch(e){if(e.code==='ENOENT')return response(res,404,{error:'Not found'});throw e;}
-    if(rel==='index.html')body=body.toString('utf8').replace('{{BCI_RELEASE}}',release);
+    if(rel==='index.html')body=body.toString('utf8').replace('{{BCI_RELEASE}}','0.8.5.1');
     res.writeHead(200,{'content-type':mime[path.extname(file)]||'application/octet-stream','cache-control':'no-store','x-content-type-options':'nosniff','referrer-policy':'no-referrer','x-frame-options':'DENY','content-security-policy':"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'"});
     return res.end(req.method==='HEAD'?undefined:body);
   }catch(e){
