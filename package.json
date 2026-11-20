@@ -1,6 +1,6 @@
 {
   "name": "bci-operations-pilot",
-  "version": "0.8.6-catalog.6",
+  "version": "0.8.6-catalog.7",
   "private": true,
   "description": "BCI Operations authenticated staging application",
   "type": "module",

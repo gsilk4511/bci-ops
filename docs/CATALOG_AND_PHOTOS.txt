@@ -1,10 +1,10 @@
-BCI OPERATIONS 0.8.6-catalog.6 | Catalog and part photos
+BCI OPERATIONS 0.8.6-catalog.7 | Catalog and part photos
 ======================================================
 
 RANDY
 1. Extract the source ZIP into an empty temporary folder. Give Greg the
    included source folder. Do not put it inside the existing source folder.
-2. After Greg builds the update, verify v0.8.6-catalog.6 beside the BCI logo.
+2. After Greg builds the update, verify v0.8.6-catalog.7 beside the BCI logo.
    Already imported the catalog? You do not need to import it again.
 3. To import for the first time, use Warehouse > Import Catalog as admin.
    Select the separate BCI Catalog Import - Label Window Faceplates Only.json
@@ -43,7 +43,7 @@ GREG
    DB_HOST=db, or MariaDB service, network or volume. If replacing the source
    directory wholesale, retain any active configuration stored there.
 3. In the existing Compose deployment, set only the app image tag to
-   bci-operations:0.8.6-catalog.6. Keep the existing build context pointing
+   bci-operations:0.8.6-catalog.7. Keep the existing build context pointing
    to the outer source/ directory. The installed Dockerfile's COPY Server
    includes the part photos; retain Server/CatalogPhotos in the build.
 4. From the current Compose project directory on the Docker host, using the
@@ -53,7 +53,7 @@ GREG
      docker compose -f <active-file> up -d --no-deps --force-recreate bci-operations
    Recreate alone on the old tag does not build new files. No SQL migration
    or reseed. Do not bring down or replace the database, or remove any volume.
-5. Verify the logo badge and /api/health both show 0.8.6-catalog.6 and that
+5. Verify the logo badge and /api/health both show 0.8.6-catalog.7 and that
    the staging database is the expected one. Recheck a known in-stock item
    before and after a staging import. Test Warehouse, material picker and
    photo zoom on phone, including family labels and no-photo search.

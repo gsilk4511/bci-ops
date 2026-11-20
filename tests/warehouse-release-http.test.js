@@ -30,8 +30,8 @@ test('the shipped app handles counts, field receipts and warehouse receipts with
   const get=path=>fetch('http://'+address+path);
   const act=(action,data)=>fetch('http://'+address+'/api/action',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({action,data})});
   const health=await (await get('/api/health')).json();
-  assert.equal(health.release,'0.8.6-catalog.6');
-  assert.match(await (await get('/')).text(),/id="appRelease">v0\.8\.6-catalog\.6<\/span>/);
+  assert.equal(health.release,'0.8.6-catalog.7');
+  assert.match(await (await get('/')).text(),/id="appRelease">v0\.8\.6-catalog\.7<\/span>/);
   const saved=await act('inventory.adjust',{catalogId,mode:'count',quantity:5,expectedQuantity:2,reason:'Test physical count'});
   assert.equal(saved.status,200,await saved.clone().text());
   const stale=await act('inventory.adjust',{catalogId,mode:'count',quantity:7,expectedQuantity:2,reason:'Stale tab'});

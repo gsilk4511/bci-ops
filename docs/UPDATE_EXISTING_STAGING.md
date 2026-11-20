@@ -8,7 +8,7 @@
    the source directory. Use Greg's active gcccluster1 Compose file (known as
    `compose.bci-operations-fixed.yml`), not the bundled examples or the legacy
    Unraid file. Confirm its build context is the existing source directory,
-   then change only the app image tag to `bci-operations:0.8.6-catalog.6`.
+   then change only the app image tag to `bci-operations:0.8.6-catalog.7`.
    Keep the database service, volume, environment and networking in place.
    Run the commands from the deployment directory containing the active
    Compose file. If the app service name differs, substitute its actual name.
@@ -20,7 +20,7 @@ docker compose -f compose.bci-operations-fixed.yml up -d --build --no-deps --for
 docker compose -f compose.bci-operations-fixed.yml exec -T bci-operations node -e "fetch('http://127.0.0.1:3100/api/health').then(r=>r.json()).then(console.log)"
 ```
 
-Expect the release in `package.json` (`0.8.6-catalog.6`) and storage
+Expect the release in `package.json` (`0.8.6-catalog.7`) and storage
 `mariadb`. Reload and check that the same version appears beside the BCI logo
 on desktop and phone. This update needs no SQL migration or reseed.
 
@@ -28,7 +28,9 @@ For each new patch release, bump `package.json` and match the active app image t
 tags. The header badge and `/api/health` both read the package version; do not
 edit the HTML placeholder. Run `npm test` to check that deployment tags agree.
 
-No catalog re-import is required. In staging, open Admin → Changelog as an
+No catalog re-import is required. In staging, try Warehouse → Export Warehouse
+& Catalog as admin before using the update-only preview described in
+WAREHOUSE-EXPORT.md. Open Admin → Changelog as an
 administrator, open Read more and return to the list. Verify a staff account
 cannot open the page or its endpoint. In Warehouse verify known and missing
 Color / Finish and try the color filter and Log Materials search. Then combine search

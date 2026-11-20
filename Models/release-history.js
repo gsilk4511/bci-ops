@@ -3,6 +3,9 @@
 const section = (title, ...items) => ({title, items});
 const release = (version, title, summary, ...sections) => ({version, title, summary, sections});
 export const releases = [
+ release('0.8.6-catalog.7','Warehouse and catalog export','Download live part IDs, catalog fields and stock for a duplicate-safe cleanup.',
+  section('Warehouse export','Administrators can export the live material catalog and recorded stock by location, including existing records outside the manufacturer import. The same file contains the services catalog for reference.','The snapshot contains IDs and revision markers for reconciliation; it is not an import file and does not include receipts or work orders.'),
+  section('Update existing records','Use a separate update-only patch: preview edits by existing ID, SKU and revision, then apply. Stale, missing or ambiguous updates block the batch. No new records are created and stock, pricing and history are left alone.')),
  release('0.8.6-catalog.6','Admin changelog and visible part colors','Read release history in Admin and see Color / Finish on Warehouse rows.',
   section('Admin','Added release cards with a scrollable Read more view and a way back to the list. History is available only to app administrators.','Cataloged verifiable packages from both development conversations. Earlier staging packages and separate builds are identified as such; proposals are not release entries.'),
   section('Warehouse and material search','Show Color / Finish directly on Warehouse rows and use it to filter and search parts.','Make catalog colors available when searching and selecting work-order materials. Distinct recorded finishes stay distinct; missing values are not guessed.')),

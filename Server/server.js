@@ -1,3 +1,4 @@
+import {applyWarehousePatch,exportWarehouse,previewWarehousePatch} from '../Models/warehouse-export.js';
 import {releases} from '../Models/release-history.js';
 import {catalogPhotoHash,planCatalogPack,importCatalogPack} from '../Models/catalog-pack.js';
 import {recordPrincipal,scopeState,authorizeRecordAction,assignRecord,stampRecordOwner} from '../Models/record-scope.js';
@@ -97,11 +98,13 @@ async function update(action, data, actor) {
     s.users ||= [];
     let result;
     if(action==='record.assign')result=assignRecord(s,principal,data);
+    else if(action==='warehouse.patchApply')result=applyWarehousePatch(s,data,principal);
     else if(action==='catalog.packImport')result=importCatalogPack(s,data,principal,catalogPhotoIds);
     else if(action==='customers.import')result=runCustomerImport(s,data);
     else if(action==='mail.assign')result=assignMail(s,data,principal);
     else if(action.startsWith('notification.'))result=notificationAction(s,action,data,principal);
     else result=applyAction(s,action,data,principal);
+    if(action==='warehouse.patchApply'&&(result.existing||!result.updated))return result;
     stampRecordOwner(action,data,s,result,principal);
     if(action==='customers.import'&&result.conflicts.length)throw Error('Import blocked by conflicts. Run preview and resolve the listed matches.');
     if(['users.set','profiles.save','record.assign'].includes(action)){
@@ -228,6 +231,13 @@ const server=http.createServer(async(req,res)=>{
     if(packRoute&&req.method!=='POST')return response(res,405,{error:'Method not allowed'});
     const access=effectiveAccess(current,user,role);
     const {permissions,recordScopes}=access;
+    if(url.pathname==='/api/warehouse-export'){
+      if(role!=='admin')return response(res,403,{error:'Admin access required'});
+      if(req.method!=='GET')return response(res,405,{error:'Method not allowed'});
+      const snapshot=exportWarehouse(current,{release,finance:permissions.includes('finance.view')});
+      res.setHeader('content-disposition','attachment; filename="BCI-Warehouse-'+snapshot.exportedAt.slice(0,10)+'.json"');
+      return response(res,200,snapshot);
+    }
     if(photoRoute){
       if(req.method!=='GET'&&req.method!=='HEAD')return response(res,405,{error:'Method not allowed'});
       const permitted=permissions.includes('inventory.view')||permissions.includes('pricing.view')||
@@ -333,6 +343,7 @@ const server=http.createServer(async(req,res)=>{
         authorizeRecordAction(current,principal,body.action,body.data);
       }
       catch(error){return response(res,403,{error:error.message});}
+      if(body.action==='warehouse.patchPreview')return response(res,200,{ok:true,result:previewWarehousePatch(current,body.data)});
       if(body.action==='inventory.receiptRead')return response(res,200,{ok:true,result:readWarehouseReceipt(current,scoped,principal,body.data)});
       if(body.action==='receipt.read')return response(res,200,{ok:true,result:readWorkReceipt(current,body.data)});
       if(body.action==='workorder.deletePreview')return response(res,200,{ok:true,result:previewWorkorderRemoval(current,body.data.ids)});

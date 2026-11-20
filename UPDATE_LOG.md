@@ -1,3 +1,12 @@
+# BCI Operations 0.8.6-catalog.7
+
+- Export Warehouse and catalog as an administrator. The JSON snapshot includes
+  stable identifiers and current stock by location, not just visible filter rows.
+- Review and apply separate update-only patches. Reject stale, unknown or
+  duplicate targets. A patch cannot add parts, change stock or prices, or remove
+  records; ordinary Import Catalog remains separate.
+- No SQL migration or catalog re-import needed.
+
 # BCI Operations 0.8.6-catalog.6
 
 - Admin → Changelog lists historical releases, staging builds and test packages.

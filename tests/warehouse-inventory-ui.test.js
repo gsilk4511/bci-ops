@@ -36,7 +36,8 @@ test('warehouse inventory gives each part one row, preserves legacy stock, and r
  const photos=new vm.SourceTextModule(readFileSync(new URL('../public/modules/catalog-photos.js',import.meta.url),'utf8'),{context});
  const screen=new vm.SourceTextModule(readFileSync(new URL('../public/modules/warehouse.js',import.meta.url),'utf8'),{context});
  const receiptModule=new vm.SyntheticModule(['readReceiptPhoto'],function(){this.setExport('readReceiptPhoto',(...args)=>receipts.push(args));},{context});
- await screen.link(s=>s==='../app.js'?app:s==='./work-entry.js'?receiptModule:photos);
+ const roundtrip=new vm.SyntheticModule(['warehouseFiles'],function(){this.setExport('warehouseFiles',()=>'<div>Warehouse file controls</div>');},{context});
+ await screen.link(s=>s==='../app.js'?app:s==='./work-entry.js'?receiptModule:s==='./warehouse-roundtrip.js'?roundtrip:photos);
  await screen.evaluate();
  let html=screen.namespace.warehouse();
  assert.equal((html.match(/data-bci-wh-form="count" data-id="cat-a"/g)||[]).length,1);

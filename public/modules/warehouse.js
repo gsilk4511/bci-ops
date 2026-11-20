@@ -1,5 +1,6 @@
 // Warehouse presentation. Write actions go through the permission-checked app.
 import { billingName, can, card, catalog, data, esc, fmt, head, me, modal, send, table, wo } from '../app.js';
+import {warehouseFiles} from './warehouse-roundtrip.js';
 import {readReceiptPhoto} from './work-entry.js';
 import {partCategory,partColor,partColorValues,partMeta,partSearch,photoThumbnail} from './catalog-photos.js';
 
@@ -171,7 +172,7 @@ export function warehouse(){
  const select=(key,members,label=capital(key))=>`<div class="field"><label for="bciWarehouse-${key}">${esc(label)}</label><select id="bciWarehouse-${key}" data-bci-wh-filter="${key}">${options(members,filters[key])}</select></div>`;
  return head('Warehouse','Stock and catalog','Count, price, and filter catalog parts and warehouse stock in one place.',`<div class="gap">${can('pricing.view')&&can('catalog.create')?'<button class="secondary" data-open="warehouse-item">Add Item</button>':''}${me?.role==='admin'?'<button class="secondary" data-open="catalog-import">Import Catalog</button>':''}${receiveParts()?'<button class="primary" data-open="warehouse-receive">Receive Parts</button>':''}</div>`)+
  `<div class="cards">${card('Material SKUs',materials.length,'All catalog parts')}${card('Warehouse shortages',rows.filter(x=>x.onHand<0||x.projected<0).length,'Review and reconcile','orange')}${card('Movements',data.movements.length,'Receipts, corrections and issues')}</div>
- <section class="panel" data-bci-warehouse><h2>${warehouseName}</h2>
+ ${warehouseFiles()}<section class="panel" data-bci-warehouse><h2>${warehouseName}</h2>
  ${legacy?`<p class="muted">${legacy} ${qtyLabel} balances or draft demand at older locations. Choose “Has legacy balance” in the stock filter to review those rows. They are preserved separately and not included in warehouse counts.</p>`:''}
  <div class="bci-wh-filters"><div class="field"><label for="bciWarehouseSearch">Search parts</label><input id="bciWarehouseSearch" data-bci-wh-filter="query" type="search" value="${esc(filters.query)}" placeholder="Name, brand, color, part # or SKU"></div>
  ${['brand','category','type'].map(key=>select(key,[['',`All ${{brand:'brands',category:'categories',type:'types'}[key]}`],...sortValues(materials.map(facet[key])).map(value=>[value,value])])).join('')}

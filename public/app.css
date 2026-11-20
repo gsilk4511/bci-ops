@@ -297,3 +297,15 @@ button.danger{background:#a72323;border:2px solid #8a1818;border-radius:8px;colo
 @media(max-width:640px){.bci-release-cards{grid-template-columns:1fr}}
 
 .bci-wh-variant{margin:.28rem 0;overflow-wrap:anywhere}
+
+.bci-wh-files{display:flex;justify-content:space-between;align-items:center;gap:.7rem;flex-wrap:wrap}
+.bci-wh-files h2,.bci-wh-patch-dialog h2{margin:0}
+.bci-wh-files p{margin:.4rem 0 0}
+.bci-wh-files button{min-height:44px}
+.bci-wh-patch-dialog .bci-release-dialog-bar{align-items:center}
+.bci-wh-patch-dialog p{margin:0 0 .85rem}
+.bci-wh-patch-dialog [data-warehouse-patch-output] details{margin:0 0 .85rem}
+.bci-wh-patch-dialog [data-warehouse-patch-status]:not(:empty){margin-top:.85rem}
+.bci-wh-patch-dialog [data-warehouse-patch-apply][hidden]{display:none}
+
+.bci-wh-prior,.bci-wh-proposed{white-space:pre-wrap;overflow-wrap:anywhere}

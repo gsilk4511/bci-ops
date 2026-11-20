@@ -10,6 +10,7 @@ export function visibleState(current,role,permissions) {
  delete state.tickets;
  delete state.materialDrafts;
  delete state.workorderReceiptData;
+ delete state.warehousePatchReceipts;
  delete state.timeCorrections;
  if(!has('estimates.view'))delete state.estimates;
  delete state.trainingWorkspaces;
