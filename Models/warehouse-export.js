@@ -10,7 +10,7 @@ const internalPatchHistory='warehousePatchReceipts';
 const limits={name:250,description:1500,system:120,partType:120,color:100};
 const editable=Object.keys(limits);
 const topFields=['id','sku','type','group','name','description','unit','manufacturer','manufacturerPartNumber',
- 'needsPricing','needsUnitCost','needsUnitReview','packageLengthFt','warehouseUnitCostOverride','price','changePrice'];
+ 'warehouseArchived','warehouseArchiveBatch','needsPricing','needsUnitCost','needsUnitReview','packageLengthFt','warehouseUnitCostOverride','price','changePrice'];
 const metadataFields=['brand','mpn','name','system','partType','spec','grade','tradeSize','length','lengthUnit','ports','packQty',
  'catalogUnit','family','color','shielding','addedInRound','documentedFit','workType','installMethod','finishCode',
  'monitoringOption','photoStatus','photoId'];
@@ -100,6 +100,7 @@ function patchPlan(state,patch){
   if(!target){conflict('Item ID no longer exists. No item will be created.');continue;}
   if(target.sku!==sku){conflict('SKU does not match the current item. Export again.');continue;}
   if(target.type!=='material'){conflict('Only material metadata can be updated in this tool.');continue;}
+  if(target.warehouseArchived===true){conflict('Archived material metadata is read-only.');continue;}
   if(metadataRevision(target)!==revision){conflict('Metadata changed since export. Export again before editing this row.');continue;}
   const fields=editable.filter(key=>own(changes,key)&&changes[key]!==getField(target,key));
   if(!fields.length){unchanged.push({id,sku});continue;}

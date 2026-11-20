@@ -3,12 +3,13 @@
 // Write actions still pass through the shared permission-checked API.
 import { can, catalog, data, esc, fmt, head, table, modal, f, send, show } from '../app.js';
 
+const activeItems=()=>data.catalog.filter(item=>item.type!=='material'||item.warehouseArchived!==true);
 const addCatalogItem=()=>can('pricing.view')&&can('catalog.create')?'<button class="primary" data-open="catalog">+ Add item</button>':'';
 function baseRates({showHeader = true} = {}) {
  const controls = `${can('pricing.client')?'<button class="secondary" data-open="client-markup">Client parts markup</button>':''}${can('pricing.project')?'<button class="secondary" data-open="project-rate">Project rate category</button>':''}`;
  const header = showHeader ? head('Pricing','Pricing control','Set service rates and billing-client parts pricing. Open work updates when you save.',`<div class="gap">${addCatalogItem()}${controls}</div>`)
   : controls ? `<div class="gap">${controls}</div>` : '';
- return header + `<section class="panel">${table(['Group','Item / SKU','Type','Base','Change order','Cost',''],data.catalog.map(x=>`<tr><td>${esc(x.group)}</td><td><b>${esc(x.name)}</b><div class="tiny muted">${esc(x.sku)}</div></td><td>${esc(x.type)}${x.needsPricing?'<div class="warn tiny">Needs pricing</div>':''}</td><td>${fmt(x.price)}</td><td>${fmt(x.changePrice)}</td><td>${can('finance.view')?fmt(x.cost):'—'}</td><td>${can('catalog.update')?`<button class="secondary small" data-edit-catalog="${esc(x.id)}">Edit rates</button>`:''}${x.type==='material'&&can('pricing.part')?` <button class="secondary small" data-part-pricing="${esc(x.id)}">Client price</button>`:''}</td></tr>`))}</section>`;
+ return header + `<section class="panel">${table(['Group','Item / SKU','Type','Base','Change order','Cost',''],activeItems().map(x=>`<tr><td>${esc(x.group)}</td><td><b>${esc(x.name)}</b><div class="tiny muted">${esc(x.sku)}</div></td><td>${esc(x.type)}${x.needsPricing?'<div class="warn tiny">Needs pricing</div>':''}</td><td>${fmt(x.price)}</td><td>${fmt(x.changePrice)}</td><td>${can('finance.view')?fmt(x.cost):'—'}</td><td>${can('catalog.update')?`<button class="secondary small" data-edit-catalog="${esc(x.id)}">Edit rates</button>`:''}${x.type==='material'&&can('pricing.part')?` <button class="secondary small" data-part-pricing="${esc(x.id)}">Client price</button>`:''}</td></tr>`))}</section>`;
 }
 
 const profileAccess = () => can('pricing.profile.save');
@@ -93,9 +94,10 @@ function pricingDialog(title, fields, proposal, intro = '') {
 }
 
 function profileEditor(profile, duplicate) {
-  const items = data.catalog;
+  const items = activeItems();
   const inventory = new Map(data.pricingOverview.items.map(item => [item.id, item]));
   const rules = profile?.rules || {};
+  const preservedArchivedRules=Object.fromEntries(data.catalog.filter(item=>item.type==='material'&&item.warehouseArchived===true&&Object.hasOwn(rules,item.id)).map(item=>[item.id,rules[item.id]]));
   const overview = data.pricingOverview;
   const uses = [overview.companyProfileId === profile?.id && profile ? 'Company default' : '',
     ...[...overview.clients, ...overview.projects, ...overview.orders].filter(item => profile && item.profileId === profile.id).map(item => item.name)
@@ -136,7 +138,7 @@ function profileEditor(profile, duplicate) {
         }));
         return Object.keys(rule).length ? [[item.id, rule]] : [];
       }));
-      return { kind: 'save', id: duplicate || values.has('saveCopy') ? undefined : profile?.id, name: values.get('name'), markup: values.get('markup'), rules: result, bulk };
+      return { kind: 'save', id: duplicate || values.has('saveCopy') ? undefined : profile?.id, name: values.get('name'), markup: values.get('markup'), rules: {...preservedArchivedRules,...result}, bulk };
     });
   const itemRows = [...form.querySelectorAll('[data-price-row]')];
   const selection = row => row.querySelector('[data-bulk-select]');

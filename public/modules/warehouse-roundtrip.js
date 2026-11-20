@@ -1,3 +1,4 @@
+import {warehousePurgeAction,warehousePurgeDialog} from './warehouse-purge.js';
 import {can,esc,me,practiceMode,reload,show,today} from '../app.js';
 
 const allowed=()=>!practiceMode&&me?.role==='admin'&&can('inventory.view');
@@ -8,9 +9,9 @@ const fields={name:'Name',description:'Description',system:'Category',partType:'
 export function warehouseFiles(){
  if(!allowed())return '';
  return `<section class="panel bci-wh-files" aria-label="Warehouse files">
- <div><h2>Warehouse files</h2><p class="muted">Export a current snapshot to share with your update instructions. Import the resulting update file to edit existing rows only; use Import Catalog to add parts.</p></div>
+ <div><h2>Warehouse files</h2><p class="muted">Export a current snapshot of active and archived records to share with your update instructions. Import the resulting update file to edit existing rows only; use Import Catalog to add parts.</p></div>
  <div class="gap"><button class="secondary small" type="button" data-warehouse-export>Export Warehouse &amp; Catalog</button>
- <button class="secondary small" type="button" data-warehouse-patch-open aria-haspopup="dialog">Import Warehouse Updates</button></div>
+ <button class="secondary small" type="button" data-warehouse-patch-open aria-haspopup="dialog">Import Warehouse Updates</button>${warehousePurgeAction()}</div>
  <dialog class="bci-release-dialog bci-wh-patch-dialog" data-warehouse-patch aria-labelledby="bciWhPatchTitle">
   <div class="bci-release-dialog-shell">
    <div class="bci-release-dialog-bar"><h2 id="bciWhPatchTitle">Import Warehouse Updates</h2>
@@ -23,7 +24,7 @@ export function warehouseFiles(){
     <p data-warehouse-patch-status role="status"></p><div data-warehouse-patch-output></div>
     <button type="button" class="primary" data-warehouse-patch-apply hidden>Apply updates</button>
    </div>
-  </div></dialog></section>`;
+  </div></dialog>${warehousePurgeDialog()}</section>`;
 }
 
 async function download(button){

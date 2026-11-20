@@ -1,3 +1,4 @@
+import {servicesPage} from './modules/services.js';
 import {changelogPage,wireChangelog} from './modules/changelog.js';
 import {assignmentLink} from './modules/record-assignments.js';
 import {canEditEntry,receiptPicker,receiptPayload} from './modules/work-entry.js';
@@ -16,6 +17,7 @@ import { projectsHub } from './modules/projects.js';
 import { workorders } from './modules/work-orders.js';
 import { warehouse, warehouseName } from './modules/warehouse.js';
 import {partCategory,partColor,partMeta,partSearch,photoThumbnail} from './modules/catalog-photos.js';
+import {materialBrand,materialFacets,materialHasIdentity,materialShortcuts,materialSignals,materialUnitLabel,rankMaterials} from './modules/material-picker.js';
 import { moneyPage } from './modules/money.js';
 import { reports } from './modules/reports.js';
 import { payrollPage } from './modules/payroll.js';
@@ -55,7 +57,7 @@ const today=()=>{
  return [now.getFullYear(),pad(now.getMonth()+1),pad(now.getDate())].join('-');
 };
 const roundMoney=value=>Math.round((value+Number.EPSILON)*100)/100;
-const navItems=[['dashboard','◫','Home'],['training','▷','Training'],['customers','♙','Customers'],['projects','▦','Projects'],['estimates','≡','Estimates'],['invoices','▤','Invoices'],['workorders','▤','Work Orders'],['tickets','◇','Tickets'],['notifications','◉','Notifications'],['inventory','▣','Warehouse'],['money','◈','Money'],['reports','▥','Reports'],['payroll','▤','Payroll'],['staff','◷','My Time & Profile'],['catalog','▦','Pricing'],['team','♧','Team'],['testing','▦','Database Testing'],['changelog','▤','Changelog'],['trash','▤','Trash']];
+const navItems=[['dashboard','◫','Home'],['training','▷','Training'],['customers','♙','Customers'],['projects','▦','Projects'],['estimates','≡','Estimates'],['invoices','▤','Invoices'],['workorders','▤','Work Orders'],['tickets','◇','Tickets'],['notifications','◉','Notifications'],['inventory','▣','Warehouse'],['money','◈','Money'],['reports','▥','Reports'],['payroll','▤','Payroll'],['staff','◷','My Time & Profile'],['services','≡','Services'],['catalog','▦','Pricing'],['team','♧','Team'],['testing','▦','Database Testing'],['changelog','▤','Changelog'],['trash','▤','Trash']];
 let data=null,me=null,view='dashboard',selectedWO=null,reportType='purchases',reportStart='',reportEnd='',moneyCustomer='all',moneyStatus='all';
 const customer=id=>data.customers.find(c=>c.id===id),project=id=>data.projects.find(p=>p.id===id),catalog=id=>data.catalog.find(c=>c.id===id),wo=id=>data.workorders.find(w=>w.id===id);
 let selectedClientPortal=null;
@@ -66,17 +68,17 @@ const status=s=>`<span class="status ${esc(s)}">${esc((s||'').replaceAll('-',' '
 const empty=(s)=>`<div class="empty">${esc(s)}</div>`;
 function bill(w){const buckets={labor:0,material:0,travel:0,cost:0};for(const e of w.entries){buckets[e.type]+=roundMoney(e.rate*e.quantity);buckets.cost+=roundMoney((e.cost||0)*e.quantity);}buckets.total=w.internalTask&&!w.invoice?0:roundMoney(buckets.labor+buckets.material+buckets.travel-(w.invoice?.depositCredit||0));buckets.profit=roundMoney(buckets.total-buckets.cost);return buckets;}
 const can=key=>me?.permissions?.includes(key);
-const viewPermissions={staff:'staff.view',estimates:'estimates.view',training:'training.view',notifications:'notification.view',tickets:'tickets.view',dashboard:'dashboard.view',customers:'customers.view',projects:'projects.view',workorders:'workorders.view',inventory:'inventory.view',money:'money.view',reports:'reports.view',payroll:'payroll.view',catalog:'pricing.view',team:'team.view',testing:'database.view'};
+const viewPermissions={staff:'staff.view',estimates:'estimates.view',training:'training.view',notifications:'notification.view',tickets:'tickets.view',dashboard:'dashboard.view',customers:'customers.view',projects:'projects.view',workorders:'workorders.view',inventory:'inventory.view',money:'money.view',reports:'reports.view',payroll:'payroll.view',services:'pricing.view',catalog:'pricing.view',team:'team.view',testing:'database.view'};
 const visibleView=id=>id==='invoices'?!practiceMode&&can('invoices.view')&&can('finance.view')&&can('workorders.view'):practiceMode&&!['training','customers','projects','workorders'].includes(id)?false:id==='trash'?me?.role==='admin':['team','changelog'].includes(id)?me?.role==='admin':can(viewPermissions[id]);
 
 const formPermissions={customer:'customer.create',contact:'contact.create',project:'project.create','new-project':'project.create','project-contact':'project.contact','clock-setup':'clock.in',
  workorder:'workorder.create',approve:'workorder.approve',change:'change.create','log-time':'entry.add','log-materials':'entry.add','client-markup':'pricing.client','project-rate':'pricing.project','other-time':'payroll.other','project-invoice':'invoice.group',
  'entry-note':'entry.update','workorder-print':'workorders.view','project-invoice-print':'invoices.view','legacy-print':'invoices.view',
  close:'workorder.close',review:'workorder.review','warehouse-receive':'inventory.receive',
- 'warehouse-item':'catalog.create',invoice:'invoice.record',payment:'invoice.pay',catalog:'catalog.create',reserve:'settings.reserve'};
+ 'warehouse-item':'catalog.create',service:'catalog.create',invoice:'invoice.record',payment:'invoice.pay',catalog:'catalog.create',reserve:'settings.reserve'};
 function nav(){
  const groups=[['Field work',['dashboard','workorders','tickets','projects','customers','inventory','notifications','staff']],
-  ['Office',['estimates','invoices','catalog','money','reports','payroll']],['Admin',['training','team','testing','changelog','trash']]];
+  ['Office',['estimates','invoices','services','catalog','money','reports','payroll']],['Admin',['training','team','testing','changelog','trash']]];
  $('#nav').innerHTML=groups.map(([label,ids])=>{
   const buttons=ids.filter(visibleView).map(id=>{
    const [,icon,name]=navItems.find(item=>item[0]===id);
@@ -490,7 +492,7 @@ function openProjectInvoice(w,billingStage='progress'){
 // The shell selects a screen and binds shared UI controls. Each screen owns its markup.
 function render(){
  nav();
- const views={staff:staffPage,invoices:invoicesPage,estimates:estimatesPage,training:trainingPage,notifications:notificationsPage,tickets:ticketsPage,dashboard,customers,projects:projectsHub,workorders,inventory:warehouse,money:moneyPage,reports,payroll:payrollPage,catalog:catalogPage,team:teamPage,testing:testingPage,changelog:changelogPage,trash:trashPage};
+ const views={staff:staffPage,invoices:invoicesPage,estimates:estimatesPage,training:trainingPage,notifications:notificationsPage,tickets:ticketsPage,dashboard,customers,projects:projectsHub,workorders,inventory:warehouse,money:moneyPage,reports,payroll:payrollPage,services:servicesPage,catalog:catalogPage,team:teamPage,testing:testingPage,changelog:changelogPage,trash:trashPage};
  const allowed=visibleView(view);
  const content=!allowed?'<section class="panel"><h1>No module access</h1><p>Ask your administrator to assign a permission profile.</p></section>':
   managingRecords()?recordManager():
@@ -662,7 +664,7 @@ function warehousePartModal(title,fields,action){
  const filter='<div class="field"><label for="warehousePartSearch">Search parts</label><input id="warehousePartSearch" type="search" placeholder="Name, brand, color, part # or SKU"></div>';
  modal(title,filter+f('catalogId','Part',{required:true,select:[['','Select part']]})+'<div class="bci-photo-line bci-part-match" id="warehousePartPreview"></div>'+fields,action);
  const search=$('#warehousePartSearch'), select=$('#f_catalogId'), preview=$('#warehousePartPreview');
- const materials=data.catalog.filter(item=>item.type==='material');
+ const materials=data.catalog.filter(item=>item.type==='material'&&item.warehouseArchived!==true);
  const label=item=>[item.name,partMeta(item)||item.sku,partColor(item)].filter(Boolean).join(' · ');
  function showPart(){
   const item=materials.find(candidate=>candidate.id===select.value);
@@ -686,8 +688,18 @@ function openWorkEntry(w,material){
  const changeField=approved.length?f('changeId','Approved scope',{select:[['','Original scope'],...approved.map(change=>[change.id,change.description])]}):'';
  const shared=f('date','Work date',{type:'date',value:today(),required:true})+changeField;
  const item=f('catalogId',material?'Part':'Labor or travel rate',{required:true,select:[['','Select']]});
- const materialFilters='<div class="bci-part-filters">'+f('partSearchText','Search parts',{type:'search',placeholder:'Name, brand, color, part # or SKU'})+f('partCategoryFilter','Category',{select:[['','All categories']]})+'</div>';
- const fields=material?materialFilters+item+'<div class="bci-photo-line bci-part-match" id="materialPreview"></div><p class="muted tiny" id="materialMatches" role="status"></p>'+f('quantity','Quantity used',{type:'number',min:0.01,step:'any',required:true})+
+ const materialFilters='<div class="bci-material-picker">'+f('partSearchText','Search parts',{type:'search',placeholder:'Name, brand, color, part # or SKU'})+
+  '<div class="bci-material-shortcuts" role="group" aria-label="Quick material filters">'+materialShortcuts.map(([key,label])=>
+   `<button class="secondary small" type="button" data-material-filter="${key}" aria-pressed="${key==='all'}">${esc(label)}</button>`).join('')+'</div>'+
+  '<details class="bci-material-facets"><summary>Filter by category, type, or brand</summary><div class="bci-part-filters">'+
+  f('partCategoryFilter','Category',{select:[['','All categories']]})+
+  f('partTypeFilter','Type',{select:[['','All types']]})+
+  f('partBrandFilter','Brand',{select:[['','All brands']]})+
+  '</div></details><p class="muted tiny" id="materialMatches" role="status"></p>'+
+  '<div id="materialQuickChoices" class="bci-material-quick-choices" role="group" aria-label="Top matching parts"></div></div>';
+ const fields=material?materialFilters+item+
+  '<button type="button" class="secondary small" id="materialMore" hidden>Show more matches</button>'+
+  '<div class="bci-photo-line bci-part-match" id="materialPreview"></div>'+f('quantity','Quantity used',{type:'number',min:0.01,step:'any',required:true})+
   '<input type="hidden" name="location" value="'+esc(warehouseName)+'"><p class="muted tiny">Stock source: '+esc(warehouseName)+'</p><p id="materialStock" role="status"></p>'+shared+
   (!practiceMode&&can('receipt.add')?'<button type="button" class="secondary" id="addEntryReceipt">+ Add Receipt</button><div id="entryReceiptFields" hidden>'+receiptPicker()+'</div>':''):
   f('type','Time type',{select:[['labor','Work'],['travel','Travel']]})+item+
@@ -702,51 +714,118 @@ function openWorkEntry(w,material){
  modal(material?'Log materials':'Log time',fields,async values=>{
   clearTimeout(timer);
   await queue;
-  const {receiptPhoto,partSearchText,partCategoryFilter,...entryValues}=values;
+  const {receiptPhoto,partSearchText,partCategoryFilter,partTypeFilter,partBrandFilter,...entryValues}=values;
   if(material&&needsPartPricing(data.catalog.find(item=>item.id===entryValues.catalogId),entryValues.changeId))throw Error('Pricing needed: set a price or use a priced profile or approved change before logging this part.');
   const receipt=material?await receiptPayload(receiptPhoto,submissionId):null;
   await send('entry.add',{...entryValues,receipt,draftId,submissionId,type:material?'material':values.type,workorderId:w.id});
   saved=true;
  });
  const form=$('#actionForm');
- const {catalogId,partCategoryFilter,partSearchText}=form.elements;
+ const {catalogId,partCategoryFilter,partTypeFilter,partBrandFilter,partSearchText}=form.elements;
  const preview=form.querySelector('#materialPreview');
- const matches=form.querySelector('#materialMatches');
+ const matches=form.querySelector('#materialMatches'),quickChoices=form.querySelector('#materialQuickChoices'),more=form.querySelector('#materialMore');
+ const catalogById=material?new Map(data.catalog.filter(item=>item.type==='material').map(item=>[item.id,item])):null;
+ const signals=material?materialSignals(data.workorders,data.inventory,{orderId:w.id,email:me?.email,warehouseName}):null;
+ const filters=material?new Set([partCategoryFilter,partTypeFilter,partBrandFilter,partSearchText]):null;
+ const pageSize=50;
+ let shortcut='all', limit=pageSize;
+ const identityLabel=item=>materialHasIdentity(item)?'':'Legacy / identity unverified';
+ const pricingHelp='Pricing needed before this part can be logged. Ask the office to set pricing for this SKU or choose a record already priced for this scope.';
+ const selectionLabel=item=>[item.name,partMeta(item)||item.sku,identityLabel(item),partColor(item),materialUnitLabel(item),
+  needsPartPricing(item,form.elements.changeId?.value)?'Pricing needed':''].filter(Boolean).join(' · ');
+ const relevantSignal=item=>{
+  const known=signals?.get(item.id);
+  return [known?.onOrder?'Used on this order':known?.mine?'Recently used by you':known?.latest?'Recently used':'',
+   known?.onHand>0?'Warehouse on hand: '+known.onHand:''].filter(Boolean).join(' · ');
+ };
  function refreshPreview(){
   if(!preview)return;
-  const item=data.catalog.find(item=>item.id===catalogId.value);
+  const item=catalogById.get(catalogId.value);
   const blocked=needsPartPricing(item,form.elements.changeId?.value);
-  preview.innerHTML=item?photoThumbnail(item)+'<div><span class="muted tiny">'+esc([partMeta(item),partCategory(item)].filter(Boolean).join(' · '))+'</span><div class="tiny"><b>Color / Finish:</b> '+esc(partColor(item)||'Not specified')+'</div>'+(blocked?'<div class="warn tiny">Pricing needed before this part can be logged.</div>':'')+'</div>':'';
+  preview.innerHTML=item?photoThumbnail(item)+'<div><b>'+esc(item.name)+'</b><div class="muted tiny">'+
+   esc([partMeta(item)||item.sku,partCategory(item)].filter(Boolean).join(' · '))+'</div><div id="materialUnitHint">'+
+   esc(materialUnitLabel(item))+'</div><div class="tiny"><b>Color / Finish:</b> '+esc(partColor(item)||'Not specified')+
+   '</div>'+(identityLabel(item)?'<div class="warn tiny">'+identityLabel(item)+'</div>':'')+
+   (relevantSignal(item)?'<div class="tiny">'+esc(relevantSignal(item))+'</div>':'')+
+   (blocked?'<div class="warn tiny">'+pricingHelp+'</div>':'')+'</div>':'';
+  if(item)form.elements.quantity.setAttribute('aria-describedby','materialUnitHint');
+  else form.elements.quantity.removeAttribute('aria-describedby');
+  for(const button of quickChoices.querySelectorAll('button[data-material-choice]'))
+   button.setAttribute('aria-pressed',String(button.dataset.materialChoice===item?.id));
+ }
+ function fillFacet(select,items,label){
+  const prior=select.value;
+  select.replaceChildren(new Option(label,''),...items.map(value=>new Option(value,value)));
+  if(items.includes(prior))select.value=prior;
  }
  function refreshItems(){
   const type=material?'material':form.elements.type.value;
   const change=approved.find(change=>change.id===form.elements.changeId?.value);
   const previous=catalogId.value;
-  const optionLabel=item=>material?[item.name,partMeta(item),partColor(item)||'Color / Finish not specified',needsPartPricing(item,change?.id)?'Pricing needed':''].filter(Boolean).join(' · '):item.name;
-  let choices=data.catalog.filter(item=>item.type===type&&(material||!item.needsPricing||w.effectivePricing?.id||change)&&(!change||change.lines.some(line=>line.catalogId===item.id)));
+  const scoped=change?new Set(change.lines.map(line=>line.catalogId)):null;
+  const choices=data.catalog.filter(item=>item.type===type&&(item.type!=='material'||item.warehouseArchived!==true)&&(material||!item.needsPricing||w.effectivePricing?.id||change)&&(!scoped||scoped.has(item.id)));
   if(material){
-   const priorCategory=partCategoryFilter.value;
-   const categories=[...new Set(choices.map(partCategory))].sort((a,b)=>a.localeCompare(b));
-   partCategoryFilter.replaceChildren(new Option('All categories',''),...categories.map(value=>new Option(value,value)));
-   if(categories.includes(priorCategory))partCategoryFilter.value=priorCategory;
+   fillFacet(partCategoryFilter,materialFacets(choices).categories,'All categories');
+   const category=partCategoryFilter.value;
+   fillFacet(partTypeFilter,materialFacets(choices,{category}).types,'All types');
+   const facetType=partTypeFilter.value;
+   fillFacet(partBrandFilter,materialFacets(choices,{category,type:facetType}).brands,'All brands');
+   const rankFilters={query:partSearchText.value,category,type:facetType,brand:partBrandFilter.value,shortcut};
+   const result=rankMaterials(choices,signals,rankFilters,item=>!needsPartPricing(item,change?.id));
+   const shown=result.slice(0,limit);
    const selected=choices.find(item=>item.id===previous);
-   choices=choices.filter(item=>partSearch(item,partSearchText.value)&&(!partCategoryFilter.value||partCategory(item)===partCategoryFilter.value));
-   matches.textContent=choices.length?choices.length+' matching parts. Select a part to preview its photo if available.':'No matching parts.';
-   if(selected&&!choices.some(item=>item.id===selected.id)){
-    catalogId.replaceChildren(new Option('Select part',''),new Option(optionLabel(selected)+' (selected; outside filters)',selected.id),...choices.map(item=>new Option(optionLabel(item),item.id)));
-    catalogId.value=selected.id;refreshPreview();return;
-   }
+   const inResults=Boolean(selected&&result.some(item=>item.id===selected.id));
+   const extra=Boolean(selected&&!shown.some(item=>item.id===selected.id));
+   const suffix=extra&&!inResults?' (selected; outside filters)':'';
+   catalogId.replaceChildren(new Option('Select part',''),
+    ...(extra?[new Option(selectionLabel(selected)+suffix,selected.id)]:[]),
+    ...shown.map(item=>new Option(selectionLabel(item),item.id)));
+   catalogId.value=selected?.id||'';
+   matches.textContent=result.length?
+    `${result.length} matching ${result.length===1?'part':'parts'}${shown.length<result.length?'; showing '+shown.length:''}.${change?' Approved change parts only.':''}`:
+    shortcut==='recent'?'No matching parts used in the last 90 days. Try All Parts.':
+    shortcut==='inStock'?'No matching parts on hand at BCI Warehouse. Try All Parts.':'No matching parts. Try All Parts or change the filters.';
+   if(result.length&&result.every(item=>needsPartPricing(item,change?.id)))matches.textContent+=' '+pricingHelp;
+   const top=shown.slice(0,4);
+   quickChoices.innerHTML=top.map(item=>{
+    const label=[materialBrand(item),item.catalogInfo?.mpn||item.sku,identityLabel(item),partColor(item),materialUnitLabel(item),
+      relevantSignal(item),needsPartPricing(item,change?.id)?'Pricing needed':''].filter(Boolean).join(' · ');
+    return `<button class="secondary small" type="button" data-material-choice="${esc(item.id)}" aria-pressed="${item.id===selected?.id}"><b>${esc(item.name)}</b><span>${esc(label)}</span></button>`;
+   }).join('');
+   more.hidden=shown.length>=result.length;
+   if(!more.hidden)more.textContent='Show '+Math.min(pageSize,result.length-shown.length)+' more matches';
+   for(const button of form.querySelectorAll('[data-material-filter]'))button.setAttribute('aria-pressed',String(button.dataset.materialFilter===shortcut));
+   refreshPreview();return;
   }
-  catalogId.replaceChildren(new Option(material?'Select part':'Select rate',''),...choices.map(item=>new Option(optionLabel(item),item.id)));
+  catalogId.replaceChildren(new Option('Select rate',''),...choices.map(item=>new Option(item.name,item.id)));
   catalogId.value=choices.some(item=>item.id===previous)?previous:
-   !material&&choices.some(item=>item.id===me.clockDefault?.catalogId)?me.clockDefault.catalogId:!material&&choices.length===1?choices[0].id:'';
-  refreshPreview();
+   choices.some(item=>item.id===me.clockDefault?.catalogId)?me.clockDefault.catalogId:choices.length===1?choices[0].id:'';
  }
+ const filterChanged=()=>{limit=pageSize;refreshItems();};
  form.elements.type?.addEventListener('change',refreshItems);
- form.elements.changeId?.addEventListener('change',refreshItems);
- partSearchText?.addEventListener('input',refreshItems);
- partCategoryFilter?.addEventListener('change',refreshItems);
+ form.elements.changeId?.addEventListener('change',filterChanged);
+ partSearchText?.addEventListener('input',filterChanged);
+ partSearchText?.addEventListener('keydown',event=>{if(event.key==='Enter')event.preventDefault();});
+ for(const control of [partCategoryFilter,partTypeFilter,partBrandFilter])control?.addEventListener('change',filterChanged);
  catalogId.addEventListener('change',refreshPreview);
+ if(material){
+  form.querySelector('.bci-material-shortcuts').addEventListener('click',event=>{
+   const button=event.target.closest('button[data-material-filter]');
+   if(!button)return;
+   shortcut=button.dataset.materialFilter;
+   if(shortcut==='all'){partSearchText.value='';partCategoryFilter.value='';partTypeFilter.value='';partBrandFilter.value='';}
+   else{partCategoryFilter.value='';partTypeFilter.value='';partBrandFilter.value='';}
+   filterChanged();
+  });
+  quickChoices.addEventListener('click',event=>{
+   const button=event.target.closest('button[data-material-choice]');
+   if(!button)return;
+   // The native picker is the sole source of the submitted Catalog ID.
+   catalogId.value=button.dataset.materialChoice;
+   catalogId.dispatchEvent(new Event('change',{bubbles:true}));
+  });
+  more.addEventListener('click',()=>{limit+=pageSize;refreshItems();catalogId.focus();});
+ }
  refreshItems();
  if(!material)return;
  form.querySelector('#addEntryReceipt')?.addEventListener('click',()=>{const fields=form.querySelector('#entryReceiptFields');fields.hidden=false;fields.querySelector('input').click();});
@@ -763,11 +842,13 @@ function openWorkEntry(w,material){
    status.textContent=result.cleared?'':`Projected stock: ${result.projected}. ${result.projected<0?'Purchasing ticket opened.':''}`;
   }).catch(error=>{status.textContent=error.message;});
  }
- form.addEventListener('input',event=>{
-  if(event.target===partSearchText||event.target===partCategoryFilter)return;
+ const scheduleDraft=()=>{
   clearTimeout(timer);
   timer=setTimeout(()=>{if(!form.dataset.saving)sync();},300);
- });
+ };
+ form.addEventListener('input',event=>{if(!filters.has(event.target))scheduleDraft();});
+ // Programmatic button selections and native select changes both refresh stock.
+ form.addEventListener('change',event=>{if(event.target===catalogId||event.target===form.elements.changeId)scheduleDraft();});
  const heartbeat=setInterval(()=>{if(!form.dataset.saving)sync();},180000);
  const observer=new MutationObserver(()=>{
   if(!dialog.hidden&&form.isConnected)return;
@@ -820,7 +901,7 @@ function openForm(kind,entryId){if(formPermissions[kind]&&!can(formPermissions[k
  }
  case 'approve': {const m=modal('Customer original-scope signoff',`<div class="notice">Original scope: ${esc(w.description)}</div>`+f('signedBy','Approver full name',{required:true})+signFields(),x=>send('workorder.approve',{...x,workorderId:w.id}),'<div class="notice">By signing, the client approves the displayed original scope. Signer identity is not independently verified.</div>');initSignature();return m;}
  case 'change': {
-   const options=[['','— None —'],...data.catalog.filter(c=>!c.needsPricing||w.effectivePricing?.id).map(c=>[c.id,`${c.group} · ${c.name} / ${c.unit}`])];
+   const options=[['','— None —'],...data.catalog.filter(c=>(c.type!=='material'||c.warehouseArchived!==true)&&(!c.needsPricing||w.effectivePricing?.id)).map(c=>[c.id,`${c.group} · ${c.name} / ${c.unit}`])];
    const line=(n,required)=>f(`catalog${n}`,`Line ${n} · Part or labor`,{select:required?options.slice(1):options})+f(`qty${n}`,`Line ${n} · Estimated quantity`,{type:'number',min:0,step:'any',value:required?1:0});
    return modal('Create change order',f('category','Change category',{select:[['add','Add'],['move','Move'],['remove','Remove']]})+f('description','Requested scope',{textarea:true,required:true})+line(1,true)+line(2,false)+line(3,false),x=>{
       const lines=[1,2,3].filter(n=>x[`catalog${n}`]&&Number(x[`qty${n}`])>0).map(n=>({catalogId:x[`catalog${n}`],quantity:Number(x[`qty${n}`])}));
@@ -892,6 +973,13 @@ function openForm(kind,entryId){if(formPermissions[kind]&&!can(formPermissions[k
     return send('catalog.create',payload);
    },'<p class="muted">Adds the part to Warehouse. Use Edit count in its row to enter the stock you have at BCI Warehouse. Leave unknown prices blank.</p>');
  }
+ case 'service':
+  if(!can('pricing.view'))return;
+  return modal('Add Service',f('name','Service name',{required:true})+
+   f('type','Service type',{required:true,select:[['labor','Labor'],['travel','Travel']]})+
+   f('group','Group (optional)')+f('sku','SKU (optional)'),
+   values=>send('catalog.create',{...values,serviceEntry:true}),
+   '<p>This creates an hourly service, not a stock item. Set the rates separately in Pricing before using it.</p>');
  case 'catalog':return modal('New priced item',f('group','Group',{required:true})+f('name','Item name',{required:true})+f('type','Type',{select:[['material','Material'],['labor','Labor'],['travel','Travel']]})+f('unit','Unit (ea / hr / ft)',{required:true,value:'ea'})+f('sku','SKU (blank = generated)')+f('price','Normal price',{type:'number',min:0,step:'0.01',value:0})+f('changePrice','Change-order price',{type:'number',min:0,step:'0.01',value:0})+f('cost','Estimated cost',{type:'number',min:0,step:'0.01',value:0}),x=>send('catalog.create',x));
  case 'access-sync':return modal('Sync Cloudflare Access','<p>Replace the dedicated group’s email list with active BCI teammates.</p>',async()=>{
   const result=await send('access.sync',{});
@@ -1087,7 +1175,7 @@ document.addEventListener('bci:ticket-invoice',event=>{
  const order=wo(event.detail);
  if(order)openProjectInvoice(order);
 });
-export { workOrderDocument, invoicesPage, printDocument, estimatesPage, trainingPage, practiceMode, setPracticeMode, practiceNavigate, notificationsPage, ticketsPage, openCatalogEditor, applyTheme, approveChange, assignProjectContact, bill, billingName, can, card, catalog, catalogPage, choose, clientOptions, clockPanel, contactFields, contactLine, contactOptions, contactPayload, contactQuery, createProjectFromHub, creationGuide, csvValue, customer, customerHelp, customerLaborSummary, customers, dashboard, data, databaseCell, databaseMode, detail, empty, esc, f, fmt, formPermissions, guidedClient, guidedContact, head, hoursLabel, initSignature, warehouse, invoiceDocument, invoiceLayouts, jobContact, labelFor, me, modal, moneyCustomer, moneyPage, moneyStatus, nav, navItems, openCatalogImport, openClientMarkup, openCustomerImport, openForm, openPartPricing, openProjectInvoice, openProjectRate, openWorkEntry, payrollDetail, payrollDraft, payrollExport, payrollPage, priceField, profileForm, project, projectClient, projectDetail, projectFilter, projectLabel, projectsHub, reload, render, reportEnd, reportStart, reportType, reports, roundMoney, selectedProject, selectedWO, send, serviceCategories, serviceCategoryField, setupClock, show, showDatabase, showPayrollReview, signFields, status, systemTheme, table, teamPage, testingPage, testingRequest, changelogPage, themeToggle, today, userForm, view, visibleView, wireContactFields, wo, workorders };
+export { workOrderDocument, invoicesPage, printDocument, estimatesPage, trainingPage, practiceMode, setPracticeMode, practiceNavigate, notificationsPage, ticketsPage, openCatalogEditor, applyTheme, approveChange, assignProjectContact, bill, billingName, can, card, catalog, catalogPage, choose, clientOptions, clockPanel, contactFields, contactLine, contactOptions, contactPayload, contactQuery, createProjectFromHub, creationGuide, csvValue, customer, customerHelp, customerLaborSummary, customers, dashboard, data, databaseCell, databaseMode, detail, empty, esc, f, fmt, formPermissions, guidedClient, guidedContact, head, hoursLabel, initSignature, warehouse, invoiceDocument, invoiceLayouts, jobContact, labelFor, me, modal, moneyCustomer, moneyPage, moneyStatus, nav, navItems, openCatalogImport, openClientMarkup, openCustomerImport, openForm, openPartPricing, openProjectInvoice, openProjectRate, openWorkEntry, payrollDetail, payrollDraft, payrollExport, payrollPage, priceField, profileForm, project, projectClient, projectDetail, projectFilter, projectLabel, projectsHub, reload, render, reportEnd, reportStart, reportType, reports, roundMoney, selectedProject, selectedWO, send, serviceCategories, serviceCategoryField, setupClock, show, showDatabase, showPayrollReview, signFields, status, systemTheme, table, teamPage, testingPage, testingRequest, changelogPage, servicesPage, themeToggle, today, userForm, view, visibleView, wireContactFields, wo, workorders };
 
 document.addEventListener('bci:open-project',event=>{
  if(!can('projects.view')||!project(event.detail))return;

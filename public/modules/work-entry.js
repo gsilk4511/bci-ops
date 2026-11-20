@@ -45,7 +45,7 @@ export function workEntryControls(order,entry,active=entryEditing(order)){
 function editEntry(order,entry){
  const scoped=order.changes?.find(change=>change.id===entry.changeId);
  const canPickOther=entry.type==='material'&&!scoped;
- const available=data.catalog.filter(item=>item.type==='material'&&(!item.needsPricing||order.effectivePricing?.id||item.id===entry.catalogId));
+ const available=data.catalog.filter(item=>item.type==='material'&&(item.warehouseArchived!==true||item.id===entry.catalogId)&&(!item.needsPricing||order.effectivePricing?.id||item.id===entry.catalogId));
  if(!available.some(item=>item.id===entry.catalogId))available.unshift({id:entry.catalogId,name:entry.name});
  const values=canPickOther?f('catalogId','Part',{select:available.map(item=>[item.id,item.name]),required:true,value:entry.catalogId}):'';
  const timed=entry.startTime&&entry.endTime;

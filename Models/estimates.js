@@ -20,7 +20,7 @@ export function estimateRates(state,data){
  const {client,profile,profiles}=context(state,data);
  return {profileId:profile?.id||'',profileName:profile?.name||'Client and catalog rates',
   profiles:profiles.map(({id,name})=>({id,name})),
-  items:state.catalog.map(item=>({
+  items:state.catalog.filter(item=>item.type!=='material'||item.warehouseArchived!==true).map(item=>({
    id:item.id,name:item.name,sku:item.sku,unit:item.unit,type:item.type,
    catalogInfo:item.catalogInfo?Object.fromEntries(['photoId','photoStatus','brand','mpn','system','partType','spec']
     .filter(key=>Object.hasOwn(item.catalogInfo,key)).map(key=>[key,item.catalogInfo[key]])):undefined,
@@ -121,7 +121,7 @@ export function estimateAction(state,action,data,actor,createProject,createWorkO
    for(const key of ['cableId','jackId','plateId','panelId','fiberId','terminationAId','terminationBId','laborId']){
     if(!s[key])continue;
     const catalog=state.catalog.find(item=>item.id===s[key]);
-    if(!catalog||catalog.type!==(key==='laborId'?'labor':'material'))throw Error('Choose an available catalog item for '+key);
+    if(!catalog||catalog.type!==(key==='laborId'?'labor':'material')||catalog.type==='material'&&catalog.warehouseArchived===true)throw Error('Choose an available catalog item for '+key);
     const unit=String(catalog.unit||'').trim().toLowerCase();
     if(key==='cableId'&&!/^(box(?:es)?|reels?|spools?)$/.test(unit))throw Error('Copper cable takeoff requires a catalog item sold by the box, reel, or spool');
     if(key==='fiberId'&&!/^(ft|feet|foot)$/.test(unit))throw Error('Fiber cable takeoff requires a catalog item sold by the foot');

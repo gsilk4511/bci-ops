@@ -3,6 +3,18 @@
 const section = (title, ...items) => ({title, items});
 const release = (version, title, summary, ...sections) => ({version, title, summary, sections});
 export const releases = [
+ release('0.8.6-catalog.11','Delete unused imported parts','One-time administrator cleanup for the November 20 manufacturer import only.',
+  section('Warehouse files','Preview the exact import batch and permanently delete only unreferenced, unpriced items with no stock record. Confirm the backup and type the preview count. Original parts, history and service records are excluded.'),
+  section('Deployment','Installing this release does not delete anything. The preceding image-free Warehouse and separate reversible archive remain available.')),
+ release('0.8.6-catalog.10','Warehouse reset and image-free grid','Simpler Warehouse grid and a separate reversible cleanup for the bulk manufacturer import.',
+  section('Warehouse','Product images no longer appear in the Warehouse part grid or part details. Receipt photos and historical records are unchanged.'),
+  section('Database update','Greg runs a separate preview and apply. It archives only verified items newly created by the large manufacturer import, not original items the import enriched. Existing stock, open work, prices and service records are protected.')),
+ release('0.8.6-catalog.9','Dedicated Services tab','Manage labor and travel separately from Warehouse stock.',
+  section('Services','Office → Services lists labor and travel records and lets authorized users add an hourly service. Set rates in Pricing before using an unpriced service. Existing IDs and history are preserved.'),
+  section('Warehouse','Warehouse continues to show materials only. No parts were hidden, merged, repriced or deleted in this release. No migration or re-import.')),
+ release('0.8.6-catalog.8','Warehouse filters and faster material lookup','Narrow the Warehouse list and get to common field parts faster.',
+  section('Warehouse','Brand, Category, Type, Color / Finish and Stock show options compatible with other active filters. Clear filters individually or reset them together.'),
+  section('Work-order materials','Start with common trade categories or type to search. Use recent and stocked parts as signals without hiding the rest of the catalog. Individual parts and supplier packs remain distinct. No data migration or re-import.')),
  release('0.8.6-catalog.7','Warehouse and catalog export','Download live part IDs, catalog fields and stock for a duplicate-safe cleanup.',
   section('Warehouse export','Administrators can export the live material catalog and recorded stock by location, including existing records outside the manufacturer import. The same file contains the services catalog for reference.','The snapshot contains IDs and revision markers for reconciliation; it is not an import file and does not include receipts or work orders.'),
   section('Update existing records','Use a separate update-only patch: preview edits by existing ID, SKU and revision, then apply. Stale, missing or ambiguous updates block the batch. No new records are created and stock, pricing and history are left alone.')),

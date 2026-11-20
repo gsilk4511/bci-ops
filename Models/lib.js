@@ -87,6 +87,11 @@ export function seed() {
 function event(state, action, reference, detail) { state.events.unshift({id:id('evt'), at:now(), action, reference, detail}); state.events = state.events.slice(0, 1000); }
 function woFor(state, workorderId) { return find(state.workorders, workorderId, 'Work order'); }
 function scopedCatalog(state, catalogId, type) { const cat = find(state.catalog, catalogId, 'Catalog item'); if (type && cat.type !== type) throw new Error(`Choose a ${type} catalog item`); return cat; }
+function activeMaterial(item){
+ if(item.type==='material'&&item.warehouseArchived===true)throw Error('This warehouse material is archived and cannot be selected for new work or stock activity');
+ return item;
+}
+
 export function invoiceFor(state, wo) {
   const rows = wo.entries.map(e => ({type:e.type, amount:money(e.quantity * e.rate), cost:money(e.quantity * e.cost)}));
   const subtotal = type => money(rows.filter(e => e.type === type).reduce((s,e) => s + e.amount, 0));
@@ -150,6 +155,7 @@ const addWorkEntry = (state, wo, data, actor, previous=null) => {
   const timed=Boolean(startTime||endTime);
   if(timed&&type==='material')throw Error('Materials use quantities');
   const quantity=timed?pos((timeMinutes(endTime)-timeMinutes(startTime))/60,'Elapsed time'):pos(data.quantity,'Quantity');
+  if(previous?.catalogId!==cat.id||quantity>previous.quantity)activeMaterial(cat);
   const project=state.projects.find(p=>p.id===wo.projectId);
   const client=state.customers.find(c=>c.id===project?.customerId);
   const location=type==='material'?(previous?.stockLocation||WAREHOUSE_LOCATION):null;
@@ -334,7 +340,7 @@ export function applyAction(state, action, data={}, actor={email:'system'}) {
       const project=state.projects.find(item=>item.id===wo.projectId);
       const client=state.customers.find(item=>item.id===project?.customerId);
       const lines=(Array.isArray(data.lines)?data.lines:[]).map(line=>{
-        const item=scopedCatalog(state,line.catalogId);
+        const item=activeMaterial(scopedCatalog(state,line.catalogId));
         const rate=orderRate(state,wo,item,project,client,item.cost,'change');
         if(rate==null)throw Error('Set a price before quoting '+item.name);
         return {catalogId:item.id,name:item.name,type:item.type,unit:item.unit,quantity:pos(line.quantity,'Quantity'),rate};
@@ -355,7 +361,7 @@ export function applyAction(state, action, data={}, actor={email:'system'}) {
     case 'inventory.receive': {
       if(data.warehouseReceive===true)return receiveWarehouseParts(state,data,actor);
       if(data.receipt!=null)throw Error('Use Receive Parts to attach a Warehouse receipt');
-      const cat=scopedCatalog(state,data.catalogId,'material');
+      const cat=activeMaterial(scopedCatalog(state,data.catalogId,'material'));
       const location=WAREHOUSE_LOCATION, quantity=pos(data.quantity,'Quantity');
       let stock=state.inventory.find(x=>x.catalogId===cat.id&&x.location===location);
       if(!stock){stock={id:id('stock'),catalogId:cat.id,location,quantity:0};state.inventory.push(stock);}
@@ -519,12 +525,15 @@ export function applyAction(state, action, data={}, actor={email:'system'}) {
     case 'catalog.create': {
       const type=text(data.type,'Item type',30);
       if(!['material','labor','travel'].includes(type))throw new Error('Invalid catalog type');
-      const name=text(data.name,'Item name',200), group=text(data.group,'Group',70);
+      const serviceEntry=data.serviceEntry===true;
+      if(serviceEntry&&(type==='material'||data.inventoryEdit===true))throw Error('Choose a labor or travel service');
+      const name=text(data.name,'Item name',200), group=text(serviceEntry&&!String(data.group||'').trim()?(type==='labor'?'Labor':'Travel'):data.group,'Group',70);
       let sku=String(data.sku||'').trim().toUpperCase().slice(0,64);
       if(!sku)sku=`BCI-${Math.random().toString(36).slice(2,10).toUpperCase()}`;
       if(state.catalog.some(x=>x.sku===sku))throw new Error('SKU already exists');
-      const item={id:id('cat'),group,name,type,sku,unit:text(data.unit,'Unit',15)};
-      if(data.inventoryEdit===true){
+      const item={id:id('cat'),group,name,type,sku,unit:text(serviceEntry?'hr':data.unit,'Unit',15)};
+      if(serviceEntry)Object.assign(item,{price:0,changePrice:0,cost:0,needsPricing:true});
+      else if(data.inventoryEdit===true){
         if(type!=='material')throw Error('Inventory can only add material items');
         const standard=data.price===undefined?0:warehouseNumber(data.price,'Base rate');
         const change=data.changePrice===undefined?standard:warehouseNumber(data.changePrice,'Change rate');
@@ -589,7 +598,7 @@ export function applyAction(state, action, data={}, actor={email:'system'}) {
       event(state,action,item.id,item.name);result=item;break;
     }
     case 'inventory.transfer': {
-      const cat=scopedCatalog(state,data.catalogId,'material'), from=text(data.from,'From',100),to=text(data.to,'To',100),quantity=pos(data.quantity,'Quantity');
+      const cat=activeMaterial(scopedCatalog(state,data.catalogId,'material')), from=text(data.from,'From',100),to=text(data.to,'To',100),quantity=pos(data.quantity,'Quantity');
       if(from===to)throw new Error('Locations must be different');
       for(const [location,delta] of [[from,-quantity],[to,quantity]]){
         let stock=state.inventory.find(x=>x.catalogId===cat.id&&x.location===location);
@@ -600,7 +609,7 @@ export function applyAction(state, action, data={}, actor={email:'system'}) {
       event(state,action,cat.id,`${quantity} ${from} → ${to}`);result={quantity,from,to};break;
     }
     case 'inventory.adjust': {
-      const cat=scopedCatalog(state,data.catalogId,'material');
+      const cat=activeMaterial(scopedCatalog(state,data.catalogId,'material'));
       const isCount=data.mode==='count';
       if(data.mode!==undefined&&!isCount)throw Error('Invalid adjustment mode');
       const location=isCount?WAREHOUSE_LOCATION:text(data.location,'Location',100);

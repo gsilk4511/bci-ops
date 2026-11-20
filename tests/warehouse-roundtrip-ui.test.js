@@ -25,8 +25,12 @@ test('Warehouse files are admin only and updates need a clean preview before an 
  };
  const app=new vm.SyntheticModule(Object.keys(exports),function(){for(const [key,value] of Object.entries(exports))this.setExport(key,value);},{context});
  const roundtrip=new vm.SourceTextModule(readFileSync(new URL('../public/modules/warehouse-roundtrip.js',import.meta.url),'utf8'),{context});
- await roundtrip.link(()=>app);await roundtrip.evaluate();
- assert.match(roundtrip.namespace.warehouseFiles(),/Export Warehouse &amp; Catalog[\s\S]+Import Warehouse Updates/);
+ const purge=new vm.SyntheticModule(['warehousePurgeAction','warehousePurgeDialog'],function(){
+  this.setExport('warehousePurgeAction',()=>'<button>Delete Imported Parts</button>');
+  this.setExport('warehousePurgeDialog',()=>'<dialog></dialog>');
+ },{context});
+ await roundtrip.link(name=>name==='./warehouse-purge.js'?purge:app);await roundtrip.evaluate();
+ assert.match(roundtrip.namespace.warehouseFiles(),/Export Warehouse &amp; Catalog[\s\S]+Import Warehouse Updates[\s\S]+Delete Imported Parts/);
  app.setExport('me',{role:'tech'});
  assert.equal(roundtrip.namespace.warehouseFiles(),'');
  app.setExport('me',{role:'admin'});

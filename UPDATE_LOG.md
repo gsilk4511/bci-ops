@@ -1,3 +1,41 @@
+# BCI Operations 0.8.6-catalog.11
+
+- Warehouse files has a one-time administrator button for permanent deletion
+  of eligible records from the exact 3,843-row November 20 import.
+- Preview and final confirmation are mandatory. Current and historical
+  references, stock records, and changed rates protect an item.
+- No deletion on deployment; the image-free Warehouse and receipt images
+  are unchanged. See docs/WAREHOUSE-PURGE.md.
+
+# BCI Operations 0.8.6-catalog.10
+
+- Warehouse no longer displays product thumbnails or product-image links.
+  Receipt photos are unchanged.
+- A separate MariaDB preview/apply tool can archive the 3,843 identified
+  manufacturer-created rows without erasing catalog IDs or prior work.
+  Existing originals, including 11 enriched by the import, remain active.
+- Rebuilding the app does not run the data update. See
+  docs/WAREHOUSE-RESET.md for backup, preview, apply, verification and restore.
+
+# BCI Operations 0.8.6-catalog.9
+
+- Office → Services lists labor and travel separately from parts and stock.
+- Authorized users can add an hourly labor or travel service. Configure
+  standard and change-order rates in Pricing; an unpriced service is not
+  silently billed at zero. Existing rates, IDs, grants and history are retained.
+- No stock, material catalog or pricing cleanup is applied on deploy.
+  No SQL migration or catalog re-import is needed.
+
+# BCI Operations 0.8.6-catalog.8
+
+- Warehouse filters narrow down to compatible options as filters are selected.
+  Clear an individual filter to broaden it without resetting the whole page.
+- The work-order Log Materials picker makes common trades and stocked and
+  recently used parts easier to find, with the full catalog still searchable.
+  Purchase packs and individual parts remain distinct; quantities are not converted.
+- No SQL migration, catalog re-import, stock edits or cleanup of older rows.
+  Review the separate legacy catalog audit before changing legacy identities.
+
 # BCI Operations 0.8.6-catalog.7
 
 - Export Warehouse and catalog as an administrator. The JSON snapshot includes

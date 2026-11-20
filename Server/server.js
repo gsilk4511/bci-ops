@@ -1,3 +1,4 @@
+import {applyWarehousePurge,previewWarehousePurge} from '../Models/warehouse-purge.js';
 import {applyWarehousePatch,exportWarehouse,previewWarehousePatch} from '../Models/warehouse-export.js';
 import {releases} from '../Models/release-history.js';
 import {catalogPhotoHash,planCatalogPack,importCatalogPack} from '../Models/catalog-pack.js';
@@ -27,6 +28,7 @@ import { fileURLToPath } from 'node:url';
 import { seed, applyAction, moneyStats, crewSummary } from '../Models/lib.js';
 import { identity, roleFor, projectState } from '../Models/auth.js';
 const root=fileURLToPath(new URL('../',import.meta.url));
+const manufacturerImportManifest=JSON.parse(await fs.readFile(path.join(root,'scripts','manufacturer-import-nov20-2026.manifest.json'),'utf8'));
 const {version:release}=JSON.parse(await fs.readFile(path.join(root,'package.json'),'utf8'));
 if(!/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(release))throw new Error('Invalid BCI Operations release version');
 const host=process.env.HOST||'127.0.0.1', port=Number(process.env.PORT||3100);
@@ -95,6 +97,7 @@ async function update(action, data, actor) {
     authorizeRecordAction(s,principal,action,data);
     if(['project.create','project.contact'].includes(action)&&data.newContact)authorizePermission('contact.create',role,permissions);
     if(action==='project.create'&&data.serviceCategory)authorizePermission('pricing.project',role,permissions);
+    if(action==='warehouse.purgeApply')return applyWarehousePurge(s,manufacturerImportManifest,principal,data);
     s.users ||= [];
     let result;
     if(action==='record.assign')result=assignRecord(s,principal,data);
@@ -343,6 +346,7 @@ const server=http.createServer(async(req,res)=>{
         authorizeRecordAction(current,principal,body.action,body.data);
       }
       catch(error){return response(res,403,{error:error.message});}
+      if(body.action==='warehouse.purgePreview')return response(res,200,{ok:true,result:previewWarehousePurge(current,manufacturerImportManifest)});
       if(body.action==='warehouse.patchPreview')return response(res,200,{ok:true,result:previewWarehousePatch(current,body.data)});
       if(body.action==='inventory.receiptRead')return response(res,200,{ok:true,result:readWarehouseReceipt(current,scoped,principal,body.data)});
       if(body.action==='receipt.read')return response(res,200,{ok:true,result:readWorkReceipt(current,body.data)});

@@ -78,6 +78,7 @@ export function profileRate(state, profile, item, project, channel) {
   const rule = profile.rules[item.id];
   if (channel === 'change' && rule?.change != null) return rule.change;
   if (rule?.fixed != null) return rule.fixed;
+  if (item.type !== 'material' && item.needsPricing) return null;
   if (item.type === 'material') {
     const receipt = latestPricingReceipt(state, item.id);
     // A zero-cost receipt is valid. A missing receipt requires an explicit fixed rate.

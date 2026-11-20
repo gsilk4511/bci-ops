@@ -39,6 +39,7 @@ function addReceiptMovement(state,actor,{catalogId,quantity,type,note,warehouseR
 }
 export function receiveWarehouseParts(state,data,actor){
  const item=state.catalog.find(row=>row.id===data.catalogId&&row.type==='material');
+ if(item?.warehouseArchived===true)throw Error('This warehouse material is archived and cannot be received');
  if(!item)throw Error('Select a material part');
  const quantity=round(warehouseNumber(data.quantity,'quantity',{positive:true}));
  if(!positiveCount(quantity)||quantity!==Number(data.quantity))throw Error('Enter a positive quantity to two decimal places');

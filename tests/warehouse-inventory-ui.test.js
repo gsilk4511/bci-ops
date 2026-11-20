@@ -8,7 +8,8 @@ test('warehouse inventory gives each part one row, preserves legacy stock, and r
  const commitLabel={};
  const part={id:'cat-a',type:'material',name:'Cat6 <Jack>',sku:'TEST-01',cost:7,price:12,changePrice:15,unit:'ea',catalogInfo:{brand:'Brand A',system:'Copper',partType:'Jack',color:'Ivory',finishCode:'Matte',mpn:'J-01',photoId:'a'.repeat(64)}};
  const emptyPart={...part,id:'cat-b',name:'Cat6 cable',catalogInfo:{brand:'Brand B',system:'Copper',partType:'Cable'},needsUnitCost:true,cost:0};
- const state={catalog:[part,emptyPart],inventory:[
+ const archived={...part,id:'archived-id',sku:'ARCHIVED-01',name:'Archived manufacturer jack',warehouseArchived:true};
+ const state={catalog:[part,emptyPart,archived],inventory:[
   {catalogId:part.id,location:'BCI Warehouse',quantity:3,reserved:5,projected:-2},
   {catalogId:part.id,location:'Truck <1>',quantity:19,projected:19}
  ],movements:[{workorderId:'wo-1',catalogId:part.id,location:'Truck <1>',type:'issue',quantity:-1,note:'Prior <notes>',warehouseReceiptId:'photo-receive',at:'2026-11-19'}],warehouseFieldPurchases:[
@@ -20,7 +21,7 @@ test('warehouse inventory gives each part one row, preserves legacy stock, and r
  const escape=s=>String(s??'').replaceAll('<','&lt;').replaceAll('>','&gt;');
  const values={
   can:key=>permissions.has(key),data:state,me:{role:'admin'},billingName:c=>c.name,
-  card:(a,b)=>a+' '+b,head:(title,sub,desc,actions)=>title+sub+desc+actions,
+  card:(a,b,c)=>a+' '+b+' '+c,head:(title,sub,desc,actions)=>title+sub+desc+actions,
   catalog:id=>state.catalog.find(c=>c.id===id),wo:id=>({title:'WO '+id}),esc:escape,fmt:n=>'$'+n.toFixed(2),
   table:(cols,rows)=>cols.join('|')+rows.join(''),send:async(action,payload)=>{writes.push([action,payload]);},
   modal:(...args)=>{modals.push(args);},
@@ -37,7 +38,8 @@ test('warehouse inventory gives each part one row, preserves legacy stock, and r
  const screen=new vm.SourceTextModule(readFileSync(new URL('../public/modules/warehouse.js',import.meta.url),'utf8'),{context});
  const receiptModule=new vm.SyntheticModule(['readReceiptPhoto'],function(){this.setExport('readReceiptPhoto',(...args)=>receipts.push(args));},{context});
  const roundtrip=new vm.SyntheticModule(['warehouseFiles'],function(){this.setExport('warehouseFiles',()=>'<div>Warehouse file controls</div>');},{context});
- await screen.link(s=>s==='../app.js'?app:s==='./work-entry.js'?receiptModule:s==='./warehouse-roundtrip.js'?roundtrip:photos);
+ const facets=new vm.SourceTextModule(readFileSync(new URL('../public/modules/warehouse-facets.js',import.meta.url),'utf8'),{context});
+ await screen.link(s=>s==='../app.js'?app:s==='./work-entry.js'?receiptModule:s==='./warehouse-roundtrip.js'?roundtrip:s==='./warehouse-facets.js'?facets:photos);
  await screen.evaluate();
  let html=screen.namespace.warehouse();
  assert.equal((html.match(/data-bci-wh-form="count" data-id="cat-a"/g)||[]).length,1);
@@ -51,7 +53,8 @@ test('warehouse inventory gives each part one row, preserves legacy stock, and r
  assert.match(html,/Projected<\/span><span class="warn">-2<\/span>/);
  assert.match(html,/Legacy stock, not in warehouse count[\s\S]*Truck &lt;1&gt;: 19 on hand/);
  assert.match(html,/&lt;Jack&gt;/);
- assert.match(html,/src="\/api\/catalog-photo\//);
+ assert.doesNotMatch(html,/catalog-photo|data-bci-photo|Archived manufacturer jack/);
+ assert.match(html,/1 archived, history retained/);
  assert.match(html,/Add Item[\s\S]+Import Catalog[\s\S]+Receive Parts[\s\S]+Activity[\s\S]+Prior &lt;notes&gt;/);
  assert.match(html,/Job &lt;pending&gt;/);
  assert.match(html,/data-warehouse-commit="photo-pending"/);
@@ -67,17 +70,25 @@ test('warehouse inventory gives each part one row, preserves legacy stock, and r
  assert.deepEqual(JSON.parse(JSON.stringify(writes.pop())),['inventory.commitFieldPurchase',{id:'photo-pending',workorderId:'wo-1',revision:'r-1'}]);
  assert.doesNotMatch(html,/Card Purchase|Adjust stock|data-open="transfer"/);
  const output={};
- const section={querySelector(key){return (output[key]??={});}};
+ const section={querySelector(key){return (output[key]??={focus(){this.focused=true;}});}};
  for(const hook of hooks.get('change'))hook({target:{value:'Brand A',dataset:{bciWhFilter:'brand'},closest:()=>section}});
  assert.match(output['[data-bci-warehouse-results]'].innerHTML,/&lt;Jack&gt;/);
  assert.doesNotMatch(output['[data-bci-warehouse-results]'].innerHTML,/Cat6 cable/);
  assert.match(screen.namespace.warehouse(),/value="Brand A" selected/);
+ assert.match(output['#bciWarehouse-type'].innerHTML,/Jack \(1\)/);
+ assert.doesNotMatch(output['#bciWarehouse-type'].innerHTML,/Cable/);
  const color=value=>{for(const hook of hooks.get('change'))hook({target:{value,dataset:{bciWhFilter:'color'},closest:()=>section}});};
  color('matte');
  assert.match(output['[data-bci-warehouse-results]'].innerHTML,/Ivory \/ Matte/);
  color('not specified');
- assert.match(output['[data-bci-warehouse-results]'].innerHTML,/No matching parts/);
- color('');
+ assert.match(output['[data-bci-warehouse-results]'].innerHTML,/Cat6 cable/);
+ assert.doesNotMatch(output['[data-bci-warehouse-results]'].innerHTML,/&lt;Jack&gt;/);
+ assert.match(output['[data-bci-wh-filter-notice]'].textContent,/Cleared incompatible filters: Brand/);
+ const clear=key=>key==='[data-bci-wh-clear]'?{closest:()=>section}:null;
+ for(const hook of hooks.get('click'))hook({target:{closest:clear}});
+ assert.match(output['[data-bci-warehouse-results]'].innerHTML,/Cat6 cable/);
+ assert.match(output['[data-bci-warehouse-results]'].innerHTML,/&lt;Jack&gt;/);
+ assert.equal(output['#bciWarehouseSearch'].focused,true);
  const el={};
  const submit=(mode,values)=>hooks.get('submit')[0]({
   target:{values,dataset:{bciWhForm:mode,id:part.id,expected:'3'},querySelector:()=>el},preventDefault(){},

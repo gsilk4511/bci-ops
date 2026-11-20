@@ -1,0 +1,33 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {applyAction,seed} from '../Models/lib.js';
+import {estimateRates} from '../Models/estimates.js';
+import {authorizePermission} from '../Models/permissions.js';
+import {orderRate,profileRate} from '../Models/pricing.js';
+
+test('creates an hourly labor or travel service using existing catalog authorization and pricing',()=>{
+ const state=seed(), before=structuredClone(state), actor={email:'office@example.invalid'};
+ const payload={serviceEntry:true,name:'Lift operator',type:'labor',price:432,unit:'each'};
+ assert.throws(()=>authorizePermission('catalog.create','office',['inventory.view','catalog.create'],payload),/view/i);
+ assert.throws(()=>authorizePermission('catalog.create','office',['pricing.view'],payload),/denied/i);
+ assert.doesNotThrow(()=>authorizePermission('catalog.create','office',['pricing.view','catalog.create'],payload));
+ const labor=applyAction(state,'catalog.create',payload,actor);
+ const travel=applyAction(state,'catalog.create',{...payload,name:'Drive to remote site',type:'travel'},actor);
+ assert.equal(labor.unit,'hr');
+ assert.equal(labor.type,'labor');
+ assert.equal(labor.price,0);
+ assert.equal(labor.needsPricing,true);
+ assert.equal(travel.type,'travel');
+ assert.notEqual(labor.id,travel.id);
+ assert.deepEqual(state.catalog.slice(0,before.catalog.length),before.catalog);
+ assert.deepEqual(state.inventory,before.inventory);
+ assert.deepEqual(state.workorders,before.workorders);
+ assert.throws(()=>applyAction(state,'catalog.create',{...payload,type:'material'},actor),/service/i);
+ const client=state.customers[0],order=state.workorders[0],project=state.projects[0];
+ assert.equal(estimateRates(state,{clientId:client.id}).items.find(item=>item.id===labor.id).rate,null);
+ assert.equal(orderRate(state,order,labor,project,client,labor.cost),null);
+ assert.equal(profileRate(state,{rules:{}},labor,project,'standard'),null);
+ applyAction(state,'catalog.update',{catalogId:labor.id,price:110,changePrice:130},actor);
+ assert.equal(labor.needsPricing,false);
+ assert.equal(orderRate(state,order,labor,project,client,labor.cost),110);
+});

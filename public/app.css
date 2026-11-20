@@ -309,3 +309,16 @@ button.danger{background:#a72323;border:2px solid #8a1818;border-radius:8px;colo
 .bci-wh-patch-dialog [data-warehouse-patch-apply][hidden]{display:none}
 
 .bci-wh-prior,.bci-wh-proposed{white-space:pre-wrap;overflow-wrap:anywhere}
+
+/* Log Materials: compact technician shortcuts and bounded results on phones. */
+.bci-material-picker{margin-bottom:.5rem}
+.bci-material-shortcuts{display:flex;flex-wrap:wrap;gap:.4rem;margin:.4rem 0 .6rem}
+.bci-material-shortcuts button{white-space:nowrap}
+.bci-material-shortcuts button[aria-pressed=true],.bci-material-quick-choices button[aria-pressed=true]{box-shadow:inset 0 0 0 2px currentColor;font-weight:700}
+.bci-material-facets{margin:.4rem 0}
+.bci-material-facets>summary{cursor:pointer;margin:.2rem 0 .5rem}
+.bci-material-quick-choices{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.4rem;margin:.5rem 0 .75rem}
+.bci-material-quick-choices:empty{display:none}
+.bci-material-quick-choices button{text-align:left;white-space:normal;overflow-wrap:anywhere;min-height:44px}
+.bci-material-quick-choices button span{display:block;font-size:.78rem;font-weight:400;margin-top:.2rem}
+@media(max-width:520px){.bci-material-quick-choices{grid-template-columns:minmax(0,1fr)}.bci-material-shortcuts button{min-height:38px}}

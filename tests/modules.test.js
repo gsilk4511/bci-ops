@@ -74,6 +74,24 @@ test('each tab module links and renders with shared live state',async()=>{
  state.workorders=originalWorkOrders;
  Object.assign(order,originalOrder);
  }
+ {
+  const before=state.me;
+  const services=entry.namespace.servicesPage();
+  assert.match(services,/Services/);
+  assert.match(services,/data-open="service"/);
+  assert.match(services,/Cable technician labor/i);
+  assert.match(services,/Lead technician labor/i);
+  assert.match(services,/Travel \/ mobilization/i);
+  assert.doesNotMatch(services,/keystone jack/i);
+  assert.equal(entry.namespace.visibleView('services'),true);
+  state.me={...before,permissions:['pricing.view']};context.injectTestData(state);
+  assert.equal(entry.namespace.visibleView('services'),true);
+  assert.doesNotMatch(entry.namespace.servicesPage(),/data-open="service"/);
+  state.me={...before,permissions:['inventory.view']};context.injectTestData(state);
+  assert.equal(entry.namespace.visibleView('services'),false);
+  assert.equal(entry.namespace.servicesPage(),'');
+  state.me=before;context.injectTestData(state);
+ }
  assert.match(entry.namespace.catalogPage(),/Billing clients/);
  const addButton = /data-open="catalog">\+ Add item<\/button>/g;
  const pricingMarkup = entry.namespace.catalogPage();

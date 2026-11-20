@@ -5,14 +5,16 @@ export const WAREHOUSE_LOCATION = 'BCI Warehouse';
 const key = (catalogId, location) => JSON.stringify([catalogId, location]);
 const round = value => Math.round(value * 100) / 100;
 const leaseMs = 10 * 60 * 1000;
+const archivedIds=state=>new Set(state.catalog.filter(item=>item.type==='material'&&item.warehouseArchived===true).map(item=>item.id));
 const open = order => order?.approvedAt && !order.closeout && !order.invoice;
 
 export function stockProjection(state, now = Date.now()) {
+  const archived=archivedIds(state);
   const rows = new Map(state.inventory.map(row => [
     key(row.catalogId, row.location), {...row, reserved:0}
   ]));
   for (const draft of state.materialDrafts || []) {
-    if (draft.expiresAt <= now || !open(state.workorders.find(order => order.id === draft.workorderId))) continue;
+    if (draft.expiresAt <= now || archived.has(draft.catalogId) || !open(state.workorders.find(order => order.id === draft.workorderId))) continue;
     const id = key(draft.catalogId, draft.location);
     const row = rows.get(id) || {catalogId:draft.catalogId, location:draft.location, quantity:0, reserved:0};
     row.reserved = round(row.reserved + draft.quantity);
@@ -22,10 +24,11 @@ export function stockProjection(state, now = Date.now()) {
 }
 
 export function reconcileStock(state, now = Date.now()) {
+  const archived=archivedIds(state);
   state.materialDrafts = (state.materialDrafts || []).filter(draft =>
-    draft.expiresAt > now && open(state.workorders.find(order => order.id === draft.workorderId)));
+    draft.expiresAt > now && !archived.has(draft.catalogId) && open(state.workorders.find(order => order.id === draft.workorderId)));
   const tickets = state.tickets ??= [];
-  const shortages = new Map(stockProjection(state, now).filter(row => row.projected < 0)
+  const shortages = new Map(stockProjection(state, now).filter(row => row.projected < 0 && !archived.has(row.catalogId))
     .map(row => [key(row.catalogId, row.location), row]));
   const timestamp = new Date(now).toISOString();
   for (const ticket of tickets.filter(ticket => ticket.kind === 'stock-shortage')) {
@@ -64,6 +67,7 @@ export function updateMaterialDraft(state, data, actor) {
   const order = state.workorders.find(item => item.id === data.workorderId);
   if (!open(order)) throw Error('Select an approved, open work order');
   const part = state.catalog.find(item => item.id === data.catalogId && item.type === 'material');
+  if(part?.warehouseArchived===true)throw Error('This warehouse material is archived and cannot be reserved');
   const location = WAREHOUSE_LOCATION;
   const quantity = round(Number(data.quantity));
   if (!part || !Number.isFinite(quantity) || quantity <= 0 || quantity > 1e6)
