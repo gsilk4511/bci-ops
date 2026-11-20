@@ -1,6 +1,6 @@
 # BCI Operations — Secure staging source
 
-The React-free, mobile-responsive BCI Operations prototype has been extended into an **authenticated staging application** suitable for Greg's controlled gcccluster1/Cloudflare staging trial. It is **not a completed production accounting, payroll, or contractual e-signature platform**. For the current server, use **`UPDATE_LOG.md`** and **`docs/UPDATE_EXISTING_STAGING.md`**. The Unraid guide is legacy.
+The React-free, mobile-responsive BCI Operations prototype has been extended into an **authenticated staging application** suitable for Greg's controlled gcccluster1/Cloudflare staging trial. It is **not a completed production accounting, payroll, or contractual e-signature platform**. For the catalog and photo release, start with **`docs/CATALOG_AND_PHOTOS.txt`** and leave the active Compose in place. For broader staging instructions, use **`UPDATE_LOG.md`** and **`docs/UPDATE_EXISTING_STAGING.md`**. The Unraid guide is legacy.
 
 ## Included and working in application logic
 - Cloudflare Access JWT verification against signed team keys, issuer, audience, and expiry. Fail closed unless configured; the email must be on an additional BCI allowlist.

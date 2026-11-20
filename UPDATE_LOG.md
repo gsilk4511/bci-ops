@@ -1,3 +1,35 @@
+# BCI Operations 0.8.6-catalog.3
+
+- The printed Original Field Journal now places date, tech, quantity/hours and
+  charge on top, followed by the full-width work title and description.
+- Keep ordinary two-row entries together while allowing long notes to flow.
+  Client printouts still omit direct job costs and estimated gross profit.
+- Supersedes 0.8.6-catalog.2. No changes to rate calculations, stored entries,
+  inventory, invoices, or database configuration.
+
+# BCI Operations 0.8.6-catalog.2
+
+- Client work-order print preview and PDF omit direct job cost and estimated gross
+  profit for all roles. Authorized staff still see both on the internal work order.
+- Work orders flow naturally across Letter pages. The field journal repeats its
+  column headers, and standard entries, change orders, and the billing summary stay
+  together where they fit. Existing client-facing billed amounts are unchanged.
+- Cumulative from the catalog/photo release below. No schema, server settings or
+  inventory changes; no need to rerun an import.
+
+# BCI Operations 0.8.6-catalog.1
+
+This is the catalog and photo release, not the full planned 0.8.6.
+
+- Admin Inventory import with a read-only preview, manufacturer + MPN matching,
+  explicit skip of conflicts, and no changes to prices, counts or journal history.
+- Browse stock or all materials from Inventory. Search by part number, brand
+  or description and view product photos, including clearly marked family images.
+- Tap a part photo to enlarge, zoom and pan in Inventory and material selection.
+- Same-origin authenticated 512 × 512 JPEGs bundled directly in the app image.
+- Existing deployment configuration stays in place. Bundled Compose examples
+  are reference only. No schema migration or MariaDB reseed is required.
+
 # 0.8.5 | Permission and record access revision
 
 Cumulative after 0.7.5. See [revision .8.5 notes](docs/REVISION-8.5.md) for module modes, scoped records, server enforcement, and staging limitations. Current profiles retain prior access until edited; review each role before production.
