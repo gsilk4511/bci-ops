@@ -1,3 +1,4 @@
+import {partCategory,partMeta,partSearch,photoThumbnail} from './catalog-photos.js';
 import {normalizeEstimateScopes,scopeLines} from './estimate-scope-math.js';
 import {data,can,esc,fmt,head,table,modal,f,send,billingName,customer,printDocument,show,initSignature} from '../app.js';
 
@@ -173,9 +174,13 @@ function edit(estimate,{revisionOf}={}){
   form.querySelector('#estimateTotal').textContent=fmt(rows.reduce((sum,line)=>sum+Math.round(Number(line.quantity)*Number(line.rate)*100)/100,0))+
    (missing?' · '+missing+' need pricing or an item':'');
  };
+ const catalogById=new Map((data.catalog||[]).map(item=>[item.id,item]));
+ const details=item=>catalogById.get(item.id)||item;
+ const detailsFor=id=>catalogById.get(id)||quote?.items?.find(item=>item.id===id);
+ const categories=()=>[...new Set((quote?.items||data.catalog||[]).filter(item=>item.type==='material').map(item=>partCategory(details(item))))].sort((a,b)=>a.localeCompare(b));
  const draw=()=>{
   box.innerHTML=rows.map((line,index)=>`<fieldset class="estimate-line" data-estimate-row="${index}"><legend>${types[line.type]||'Custom line'} ${index+1}</legend>
-   ${line.type!=='custom'?`<div class="estimate-picker"><label>Find ${types[line.type]?.toLowerCase()||'item'}<input type="search" autocomplete="off" data-item-search placeholder="Search name or SKU" value="${esc(line.itemName||'')}"></label><div data-item-results></div></div>`:''}
+   ${line.type!=='custom'?`<div class="estimate-picker"><label>Find ${types[line.type]?.toLowerCase()||'item'}<input type="search" autocomplete="off" data-item-search placeholder="Name, brand, part # or SKU" value="${esc(line.itemName||'')}"></label>${line.type==='material'?`<label>Category<select data-item-category><option value="">All categories</option>${categories().map(value=>`<option>${esc(value)}</option>`).join('')}</select></label>`:''}${line.catalogId?photoThumbnail(detailsFor(line.catalogId)):''}<div data-item-results></div></div>`:''}
    <label>Description<input data-line-field="description" value="${esc(line.description)}"></label>
    <label>${line.unit==='hr'?'Hours':'Quantity'}<input type="number" min="0.001" step="any" data-line-field="quantity" value="${esc(line.quantity??1)}"></label>
    <label>Rate ${esc(line.unit||'')}<input type="number" min="0" step="0.01" data-line-field="rate" value="${esc(line.rate??'')}" ${allowOverride?'':'readonly'}></label>
@@ -249,16 +254,24 @@ function edit(estimate,{revisionOf}={}){
   rows.push({type:add.dataset.estimateAdd,quantity:1,rate:null});draw();
   box.lastElementChild.querySelector('input')?.focus();
  };
+ function showMatches(element,row){
+  const query=element.querySelector('[data-item-search]')?.value||'';
+  const category=element.querySelector('[data-item-category]')?.value||'';
+  element.querySelector('[data-item-results]').innerHTML=(quote?.items||[]).filter(item=>item.type===row.type&&
+   partSearch(details(item),query)&&(!category||partCategory(details(item))===category)).slice(0,10).map(item=>
+    '<div class="bci-estimate-match">'+photoThumbnail(details(item))+'<button type="button" class="secondary small" data-select-item="'+esc(item.id)+'">'+esc([item.name,partMeta(details(item))].filter(Boolean).join(' · '))+' · '+(item.rate==null?'Pricing needed':fmt(item.rate))+'</button></div>').join('')||'<p class="muted tiny" role="status">No matching items.</p>';
+ }
+ box.addEventListener('change',event=>{
+  if(!event.target.hasAttribute('data-item-category'))return;
+  const element=event.target.closest('[data-estimate-row]');
+  showMatches(element,rows[Number(element.dataset.estimateRow)]);
+ });
  box.addEventListener('input',event=>{
-  const input=event.target, element=input.closest('[data-estimate-row]');
+  const input=event.target,element=input.closest('[data-estimate-row]');
+  if(!element)return;
   const row=rows[Number(element.dataset.estimateRow)];
-  if(input.hasAttribute('data-item-search')){
-   const query=input.value.trim().toLowerCase();
-   element.querySelector('[data-item-results]').innerHTML=(quote?.items||[]).filter(item=>item.type===row.type&&
-    [item.name,item.sku].join(' ').toLowerCase().includes(query)).slice(0,10).map(item=>
-     '<button type="button" class="secondary small" data-select-item="'+esc(item.id)+'">'+esc(item.name)+' · '+(item.rate==null?'Needs rate':fmt(item.rate))+'</button>').join('');
-   return;
-  }
+  if(input.hasAttribute('data-item-search')){showMatches(element,row);return;}
+  if(!input.hasAttribute('data-line-field'))return;
   const field=input.dataset.lineField;
   row[field]=input.value;
   if(field==='rate'){row.override=true;element.querySelector('[data-line-source]').textContent='Manual rate';}
@@ -267,7 +280,7 @@ function edit(estimate,{revisionOf}={}){
  });
  box.addEventListener('click',event=>{
   const button=event.target.closest('button');
-  if(!button)return;
+  if(!button||(!button.hasAttribute('data-remove-estimate-line')&&!button.hasAttribute('data-select-item')))return;
   const index=Number(button.closest('[data-estimate-row]').dataset.estimateRow);
   if(button.hasAttribute('data-remove-estimate-line'))rows.splice(index,1);
   else{

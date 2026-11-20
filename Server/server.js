@@ -1,3 +1,4 @@
+import {catalogPhotoHash,planCatalogPack,importCatalogPack} from '../Models/catalog-pack.js';
 import {recordPrincipal,scopeState,authorizeRecordAction,assignRecord,stampRecordOwner} from '../Models/record-scope.js';
 import {readWorkReceipt} from '../Models/work-entry.js';
 import {previewWorkorderRemoval} from '../Models/records.js';
@@ -15,6 +16,7 @@ import { createAccessSync } from '../Models/access-sync.js';
 import { payrollPreview } from '../Models/payroll.js';
 import { runCustomerImport } from '../Models/customer-import.js';
 import { permissionGroups, modulePermissions, permissionMatrix, effectiveAccess, effectivePermissions, authorizePermission } from '../Models/permissions.js';
+import {createHash} from 'node:crypto';
 import http from 'node:http';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -29,6 +31,14 @@ const dbProvider=process.env.DB_PROVIDER||'json';
 const stateFile=path.resolve(process.env.DATA_FILE||path.join(root,'data','pilot-state.json'));
 const mime={'.html':'text/html; charset=utf-8','.css':'text/css; charset=utf-8','.js':'text/javascript; charset=utf-8','.json':'application/json; charset=utf-8','.svg':'image/svg+xml','.png':'image/png','.webmanifest':'application/manifest+json'};
 const publicRoot=path.join(root,'public');
+const catalogPhotoRoot=path.join(root,'Server','CatalogPhotos');
+const catalogPhotoNames=await fs.readdir(catalogPhotoRoot,{withFileTypes:true}).catch(error=>{
+ if(error.code==='ENOENT')return [];
+ throw error;
+});
+const catalogPhotoIds=new Set(catalogPhotoNames.filter(file=>file.isFile()&&file.name.endsWith('.jpg')&&catalogPhotoHash.test(file.name.slice(0,-4))).map(file=>file.name.slice(0,-4)));
+const catalogPackAction=action=>['catalog.packPreview','catalog.packImport'].includes(action);
+const catalogPackLimit=8*1024*1024;
 const publicOrigin=process.env.PUBLIC_ORIGIN;
 const parseStoredState=value=>typeof value==='string'?JSON.parse(value):value;
 let state, pool, chain=Promise.resolve();
@@ -64,6 +74,15 @@ async function load() {
   if(dbProvider==='json')return state;
   const conn=await pool.getConnection();try{const rows=await conn.query('SELECT state_json FROM pilot_state WHERE id=1');if(!rows.length)throw new Error('Missing staging data');return parseStoredState(rows[0].state_json);}finally{conn.release();}
 }
+// Thumbnails need identity and grants, not the 4,000-item working state.
+// Keep access checks fresh without transferring the whole database for each image.
+async function loadPhotoAccess(){
+  if(dbProvider==='json')return state;
+  const [row]=await pool.query("SELECT JSON_EXTRACT(state_json,'$.users') AS team_json, JSON_EXTRACT(state_json,'$.permissionProfiles') AS profiles_json FROM pilot_state WHERE id=1");
+  if(!row)throw new Error('Missing staging data');
+  const list=value=>{const parsed=parseStoredState(value);return Array.isArray(parsed)?parsed:[];};
+  return {users:list(row.team_json),permissionProfiles:list(row.profiles_json)};
+}
 async function update(action, data, actor) {
   const write = async s => {
     const role=roleFor(s,actor);
@@ -76,6 +95,7 @@ async function update(action, data, actor) {
     s.users ||= [];
     let result;
     if(action==='record.assign')result=assignRecord(s,principal,data);
+    else if(action==='catalog.packImport')result=importCatalogPack(s,data,principal,catalogPhotoIds);
     else if(action==='customers.import')result=runCustomerImport(s,data);
     else if(action==='mail.assign')result=assignMail(s,data,principal);
     else if(action.startsWith('notification.'))result=notificationAction(s,action,data,principal);
@@ -193,10 +213,32 @@ const server=http.createServer(async(req,res)=>{
     if(req.method==='GET'&&url.pathname==='/api/health')return response(res,200,{ok:true,release,storage:dbProvider,auth:process.env.APP_AUTH_MODE||'cloudflare'});
     let user;
     try{user=await identity(req);}catch(e){return response(res,401,{error:e.message});}
-    const current=await load();const role=roleFor(current,user);
+    const photoRoute=url.pathname.startsWith('/api/catalog-photo/');
+    const current=await (photoRoute?loadPhotoAccess():load());const role=roleFor(current,user);
     if(!role)return response(res,403,{error:'Email is not authorized for BCI Operations. Ask Greg to add this user.'});
+    const packRoute=url.pathname==='/api/catalog-pack';
+    if(packRoute&&role!=='admin')return response(res,403,{error:'Admin access required'});
+    if(packRoute&&req.method!=='POST')return response(res,405,{error:'Method not allowed'});
     const access=effectiveAccess(current,user,role);
     const {permissions,recordScopes}=access;
+    if(photoRoute){
+      if(req.method!=='GET'&&req.method!=='HEAD')return response(res,405,{error:'Method not allowed'});
+      const permitted=permissions.includes('inventory.view')||permissions.includes('pricing.view')||
+       permissions.includes('workorders.view')&&permissions.includes('entry.add')||permissions.includes('estimates.view');
+      if(!permitted)return response(res,403,{error:'Catalog photo access denied'});
+      const hash=url.pathname.match(/^\/api\/catalog-photo\/([a-f0-9]{64})\.jpg$/)?.[1];
+      if(!hash||!catalogPhotoIds.has(hash))return response(res,404,{error:'Catalog photo unavailable'});
+      const file=path.join(catalogPhotoRoot,hash+'.jpg');
+      try{
+       const info=await fs.stat(file);
+       if(info.size<4||info.size>1048576)return response(res,404,{error:'Catalog photo unavailable'});
+       const body=await fs.readFile(file);
+       if(body[0]!==255||body[1]!==216||body[2]!==255||body.at(-2)!==255||body.at(-1)!==217||createHash('sha256').update(body).digest('hex')!==hash)return response(res,404,{error:'Catalog photo unavailable'});
+       res.writeHead(200,{'content-type':'image/jpeg','content-length':body.length,'cache-control':'private, max-age=3600',
+        'x-content-type-options':'nosniff','cross-origin-resource-policy':'same-origin','referrer-policy':'no-referrer','content-security-policy':"default-src 'none'; frame-ancestors 'none'"});
+       return res.end(req.method==='HEAD'?undefined:body);
+      }catch{return response(res,404,{error:'Catalog photo unavailable'});}
+    }
     const principal=recordPrincipal(current,user,role,permissions,recordScopes);
     const scoped=scopeState(current,principal);
     const rawDatabaseTesting = Boolean(pool && testingOwner && role==='admin' && user.email.toLowerCase()===testingOwner);
@@ -251,19 +293,22 @@ const server=http.createServer(async(req,res)=>{
           messages:(current.mailQueue||[]).map(({attachments,...message})=>({...message,attachmentCount:attachments.length}))
         }:undefined,ticketOverview:permissions.includes('tickets.view')?ticketOverview(scoped,principal):undefined,pricingOverview:permissions.includes('pricing.view')?pricingOverview(scoped,permissions):undefined,accessSync:role==='admin'?accessSync.status():undefined,permissionGroups:role==='admin'?permissionGroups:undefined,modulePermissions:role==='admin'?modulePermissions:undefined,permissionMatrix:role==='admin'?permissionMatrix:undefined,stats:finance?moneyStats(scoped):null,staff:staffView(current,principal,new Set(scoped.workorders.map(w=>w.id))),storage:dbProvider,me:{email:user.email,role,accessRevision:current.meta?.accessRevision||0,clock:permissions.includes('workorders.view')?(current.activeClocks||[]).find(c=>c.email===user.email&&scoped.workorders.some(w=>w.id===c.workorderId)):undefined,clockDefault:permissions.includes('workorders.view')?(current.clockDefaults||[]).find(c=>c.email===user.email):undefined,databaseTesting:permissions.includes('database.view'),rawDatabaseTesting,...access}});
     }
-    if(req.method==='POST'&&['/api/action','/api/training/action'].includes(url.pathname)){
+    if(req.method==='POST'&&(packRoute||['/api/action','/api/training/action'].includes(url.pathname))){
       if(req.headers['sec-fetch-site']==='cross-site'||(publicOrigin&&req.headers.origin!==publicOrigin))return response(res,403,{error:'Untrusted request origin'});
       if(String(req.headers['content-type']||'').split(';')[0].trim().toLowerCase()!=='application/json')return response(res,415,{error:'JSON required'});
+      const limit=packRoute?catalogPackLimit:500000;
+      if(Number(req.headers['content-length'])>limit)return response(res,413,{error:'Request too large'});
       const chunks=[];
       let size=0;
       for await(const chunk of req){
         size+=chunk.length;
-        if(size>500000)throw Error('Request too large');
+        if(size>limit)return response(res,413,{error:'Request too large'});
         chunks.push(chunk);
       }
       const raw=Buffer.concat(chunks).toString('utf8');
       let body;try{body=JSON.parse(raw);}catch{return response(res,400,{error:'Invalid JSON request'});}
       if(!body||typeof body.action!=='string'||!body.data||typeof body.data!=='object'||Array.isArray(body.data))throw new Error('Invalid action');
+      if(packRoute!==catalogPackAction(body.action))return response(res,400,{error:'Use the matching catalog-pack endpoint'});
       if(url.pathname==='/api/training/action'){
         if(!permissions.includes('training.view'))return response(res,403,{error:'Training permission required'});
         const result=await enqueue(()=>writeState(state=>{
@@ -305,6 +350,7 @@ const server=http.createServer(async(req,res)=>{
       }
       if(body.action==='payroll.preview') return response(res,200,{ok:true,result:payrollPreview(scoped,body.data.start,body.data.end)});
       if(body.action==='customers.importPreview') return response(res,200,{ok:true,result:runCustomerImport(structuredClone(current),body.data)});
+      if(body.action==='catalog.packPreview')return response(res,200,{ok:true,result:planCatalogPack(current,body.data.pack,catalogPhotoIds).summary});
       if(body.action==='catalog.importPreview') return response(res,200,{ok:true,result:catalogImportSummary(planCatalogImport(current,body.data))});
       const job=chain.then(async()=>{
         if(body.action==='access.sync'){
@@ -337,7 +383,7 @@ const server=http.createServer(async(req,res)=>{
     const file=path.resolve(publicRoot,rel);
     if(!file.startsWith(publicRoot+path.sep))return response(res,403,{error:'Forbidden'});
     let body;try{body=await fs.readFile(file);}catch(e){if(e.code==='ENOENT')return response(res,404,{error:'Not found'});throw e;}
-    if(rel==='index.html')body=body.toString('utf8').replace('{{BCI_RELEASE}}','0.8.5.1');
+    if(rel==='index.html')body=body.toString('utf8').replace('{{BCI_RELEASE}}',release);
     res.writeHead(200,{'content-type':mime[path.extname(file)]||'application/octet-stream','cache-control':'no-store','x-content-type-options':'nosniff','referrer-policy':'no-referrer','x-frame-options':'DENY','content-security-policy':"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'"});
     return res.end(req.method==='HEAD'?undefined:body);
   }catch(e){

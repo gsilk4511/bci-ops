@@ -1,0 +1,65 @@
+BCI OPERATIONS 0.8.6-catalog.3 | Catalog and part photos
+======================================================
+
+RANDY
+1. Extract the ZIP into an empty temporary folder. Give Greg the included
+   source folder. Do not drop this ZIP inside the existing source folder.
+2. After Greg builds the update, verify v0.8.6-catalog.3 beside the BCI logo.
+3. As admin, open Inventory > Import catalog. Choose BCI Catalog Import.json
+   from this ZIP (not the ZIP itself). Click Preview import.
+4. Review the adds and existing matches. If the preview reports conflicts,
+   expand the list. Import may skip those rows only if you choose that option.
+   Keep the conflicts for follow-up; do not delete their existing stock items.
+5. In Inventory choose All Parts and search by manufacturer or part number.
+   Click a photo to enlarge it and tap Zoom in for a closer view. The same
+   photo controls are available for work-order and estimate materials and
+   when receiving, adjusting, or transferring inventory.
+   A family image is a reference; color, finish, or pack size may differ.
+   Parts without photos still show in text search and have part details.
+
+CONTENTS
+3,964 parts: original 3,793 plus 95 Signamax faceplates, 47 racks and
+29 rack UPS/PDU models. 2,471 parts have photos (773 exact, 1,698 family);
+1,493 have no verified photo attached. Includes 684 documented fit references.
+
+WHAT THE IMPORT CHANGES
+- Loads the manufacturer product list, classifications, specs, documented
+  fit, source references and available photo links. Identifies existing parts
+  by exact manufacturer + part number; fills missing details on a unique match.
+- Does not enter a physical count, set warehouse locations, change existing
+  item prices, or change historical work orders. New items need pricing review
+  before billable use. Use Inventory to receive/adjust real stock separately.
+- Catalog unit is manufacturer reference information, not a stocking or
+  billing decision. If unlisted, verify the unit before pricing the item.
+- Images are 512 x 512 and bundled in the app build. No external image call
+  is required from the phone. This pass does not have a photo for every SKU.
+- Only the catalog/photo feature is in this build. It does not claim the
+  other planned 0.8.6 payroll, ticketing or customer-view changes.
+
+GREG
+1. Stage with a protected database copy or synthetic data first. Back up
+   current source and database; keep the known-good image and digest.
+2. Put the included application files into the outer source directory that
+   contains package.json and Dockerfile. No source/source nesting. Do not
+   replace the active Compose, .env.secure, mariadb.env, Cloudflare settings,
+   DB_HOST=db, or MariaDB service, network or volume. If replacing the source
+   directory wholesale, retain any active configuration stored there.
+3. In the existing Compose deployment, set only the app image tag to
+   bci-operations:0.8.6-catalog.3. Keep the existing build context pointing
+   to the outer source/ directory. The installed Dockerfile's COPY Server
+   includes the part photos; retain Server/CatalogPhotos in the build.
+4. From the current Compose project directory on the Docker host, using the
+   actual active file and the same project name/options as presently deployed:
+     docker compose -f <active-file> config --quiet
+     docker compose -f <active-file> build bci-operations
+     docker compose -f <active-file> up -d --no-deps --force-recreate bci-operations
+   Recreate alone on the old tag does not build new files. No SQL migration
+   or reseed. Do not bring down or replace the database, or remove any volume.
+5. Verify the logo badge and /api/health both show 0.8.6-catalog.3 and that
+   the staging database is the expected one. Recheck a known in-stock item
+   before and after a staging import. Test Inventory, material picker and
+   photo zoom on phone, including family labels and no-photo search.
+6. If app rollback is needed, return to the previously recorded app image.
+   Do not overwrite live MariaDB with an old backup as routine rollback.
+   The application image rollback alone does not undo a catalog import;
+   test the import with a staging copy first.

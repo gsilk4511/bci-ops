@@ -107,7 +107,14 @@ test('each tab module links and renders with shared live state',async()=>{
  assert.doesNotMatch(journal,/data-entry-edit=/);
  assert.match(journal,/1\.2345 box/);
  assert.equal(journalEntry.quantity,25/3);
- assert.doesNotMatch(entry.namespace.workOrderDocument(journalOrder),/field-journal-meta/);
+ const journalPrint=entry.namespace.workOrderDocument(journalOrder);
+ assert.match(journalPrint, /<th scope="col">Date \/ Tech<\/th><th scope="col">Qty \/ Hours<\/th><th scope="col">Charge<\/th>/);
+ assert.match(journalPrint, /<tbody class="work-order-journal-entry">\s*<tr class="work-order-journal-meta">[\s\S]*?2026-11-16[\s\S]*?Sample Tech[\s\S]*?<td>8\.33 hr<\/td><td>\$791\.67<\/td><\/tr>\s*<tr class="work-order-journal-work"><td colspan="3"><b>Cable technician<\/b><div class="ticket-text">Original note<\/div><\/td><\/tr>\s*<\/tbody>/);
+ assert.match(journalPrint, /<td>1\.2345 box<\/td>/);
+ assert.equal((journalPrint.match(/<tbody class="work-order-journal-entry">/g)||[]).length,2);
+ assert.match(entry.namespace.workOrderDocument({...journalOrder,entries:[]}), /<td colspan="3">No records found<\/td>/);
+ const escapedPrint=entry.namespace.workOrderDocument({...journalOrder,entries:[{...journalEntry,name:'<Part>',description:'First line\n<note>'}]});
+ assert.match(escapedPrint,/&lt;Part&gt;<\/b><div class="ticket-text">First line\n&lt;note&gt;<\/div>/);
  const previousMe=state.me;
  state.me={...previousMe,role:'tech',permissions:[]};
  context.injectTestData(state);
@@ -132,7 +139,19 @@ test('each tab module links and renders with shared live state',async()=>{
  assert.match(workOrderMarkup,/Approved by Change Approver/);
  assert.match(workOrderMarkup,/ORIGINAL FIELD JOURNAL/);
  assert.match(workOrderMarkup,/BILLING SUMMARY/);
- assert.doesNotMatch(workOrderMarkup,/INVOICE DETAIL/);
+ assert.doesNotMatch(workOrderMarkup,/INVOICE DETAIL|Direct job cost|Estimated gross profit/);
+ const totals=entry.namespace.bill({...order,entries:order.closeout.originalEntries});
+ assert.match(workOrderMarkup,/<td>Total<\/td><td>\$228\.00<\/td>/);
+ assert.equal(totals.total,228);
+ assert.match(entry.namespace.detail(order),/work-order-internal-financial"><span>Direct job cost/);
+ assert.match(entry.namespace.detail(order),/work-order-internal-financial"><b>Estimated gross profit/);
+ for (const permissions of [previousMe.permissions,['workorders.view']]) {
+  state.me={...previousMe,permissions};
+  context.injectTestData(state);
+  assert.equal(entry.namespace.workOrderDocument(order),workOrderMarkup);
+ }
+ state.me=previousMe;
+ context.injectTestData(state);
  const invoice=run('invoice.group',{number:'QB-TEST-228',layout:'itemized',workorderIds:[order.id]});
  const markup=entry.namespace.invoiceDocument(invoice);
  assert.match(markup,/INVOICE DETAIL/);

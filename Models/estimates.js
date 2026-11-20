@@ -22,6 +22,8 @@ export function estimateRates(state,data){
   profiles:profiles.map(({id,name})=>({id,name})),
   items:state.catalog.map(item=>({
    id:item.id,name:item.name,sku:item.sku,unit:item.unit,type:item.type,
+   catalogInfo:item.catalogInfo?Object.fromEntries(['photoId','photoStatus','brand','mpn','system','partType','spec']
+    .filter(key=>Object.hasOwn(item.catalogInfo,key)).map(key=>[key,item.catalogInfo[key]])):undefined,
    rate:profile?profileRate(state,profile,item,null,'standard'):item.needsPricing?null:sellingRate(item,client,null,item.cost)
   }))};
 }

@@ -14,6 +14,7 @@ import { customers } from './modules/customers.js';
 import { projectsHub } from './modules/projects.js';
 import { workorders } from './modules/work-orders.js';
 import { inventory } from './modules/inventory.js';
+import {partCategory,partMeta,partSearch,photoThumbnail} from './modules/catalog-photos.js';
 import { moneyPage } from './modules/money.js';
 import { reports } from './modules/reports.js';
 import { payrollPage } from './modules/payroll.js';
@@ -177,44 +178,69 @@ function setupClock(w){
 }
 function customerLaborSummary(w){const by=new Map();for(const e of w.entries.filter(e=>e.type==='labor')){const key=e.catalogId;let g=by.get(key);if(!g){g={name:e.name,qty:0,amount:0,start:e.date,end:e.date};by.set(key,g);}g.qty+=Number(e.quantity);g.amount+=Number(e.quantity)*Number(e.rate);if(e.date<g.start)g.start=e.date;if(e.date>g.end)g.end=e.date;}return [...by.values()].map(g=>`<div class="list-item"><span>${esc(g.name)} · ${g.qty.toFixed(2)} labor hours<div class="tiny muted">${esc(g.start)} to ${esc(g.end)}</div></span><b>${fmt(g.amount)}</b></div>`).join('')||'<div class="muted tiny">No labor entries yet</div>';}
 function openCatalogImport(){
+ if(practiceMode){show('Catalog imports are not available in Practice Mode',true);return;}
  const node=$('#modal');
  node.querySelector('.modal-box')?.classList.remove('estimate-editor');
- $('#modalContent').innerHTML=`<h2>Import catalog JSON</h2>
- <p>Import material catalog entries. Existing items and stock quantities stay as they are.</p>
- <form id="catalogImport"><label for="catalogImportFile">BCI Operations catalog staging JSON</label>
+ $('#modalContent').innerHTML=`<h2 id="dialogTitle">Import parts catalog</h2>
+ <p>Choose <strong>BCI Catalog Import.json</strong> from the release and review the preview. This does not receive stock or set prices.</p>
+ <form id="catalogImport"><label for="catalogImportFile">Catalog JSON file</label>
  <input id="catalogImportFile" type="file" accept=".json,application/json" required>
  <button class="primary" type="submit">Preview import</button></form>
  <div id="catalogImportResult" aria-live="polite"></div>`;
  node.hidden=false;
- const form=$('#catalogImport'), input=$('#catalogImportFile'), result=$('#catalogImportResult');
+ const form=$('#catalogImport'),input=$('#catalogImportFile'),result=$('#catalogImportResult');
  const preview=form.querySelector('button');
+ const isOpen=()=>form.isConnected&&!node.hidden;
+ async function request(endpoint,action,data){
+  const response=await fetch(endpoint,{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({action,data})});
+  const body=await response.json().catch(()=>null);
+  if(!response.ok||!body?.ok){
+   if(response.status===401||response.status===403)await refreshAccess();
+   throw Error(body?.error||'The catalog request failed. Check the file and preview again.');
+  }
+  return body.result;
+ }
  input.addEventListener('change',()=>result.replaceChildren());
  form.addEventListener('submit',async event=>{
   event.preventDefault();
+  if(preview.disabled)return;
   preview.disabled=input.disabled=true;
   result.textContent='Reading catalog…';
   try{
    const file=input.files[0];
-   if(!file||file.size>490000)throw Error('Choose a catalog JSON file under 490 KB');
+   if(!file||file.size>7_500_000)throw Error('Choose a catalog JSON file under 7.5 MB');
    const payload=JSON.parse(await file.text());
-   const response=await fetch('/api/action',{method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({action:'catalog.importPreview',data:payload})});
-   const body=await response.json();
-   if(!response.ok)throw Error(body.error||'Preview failed');
-   const r=body.result;
-   result.innerHTML=`<p>${r.added} to add · ${r.skipped} existing or duplicate · ${r.ignored} reference rows skipped · ${r.needsPricing} need pricing review</p>
-   <ul>${r.examples.map(name=>`<li>${esc(name)}</li>`).join('')}</ul>
-   ${r.added?'<button class="primary" type="button">Import materials</button>':''}`;
-   const apply=result.querySelector('button');
+   const pack=payload?.format==='bci-catalog-pack-v1';
+   if(!pack&&file.size>490000)throw Error('Choose BCI Catalog Import.json or a legacy catalog file under 490 KB');
+   const endpoint=pack?'/api/catalog-pack':'/api/action';
+   const r=await request(endpoint,pack?'catalog.packPreview':'catalog.importPreview',pack?{pack:payload}:payload);
+   if(!isOpen())return;
+   const conflicts=pack?r.conflicts:[];
+   result.innerHTML=pack?`
+    <p><b>${r.total.toLocaleString()} parts</b> · ${r.new.toLocaleString()} new · ${r.updated.toLocaleString()} existing parts to add details to · ${r.unchanged.toLocaleString()} unchanged</p>
+    <p>${r.photoCount.toLocaleString()} parts have photos in this file · ${r.fitReferenceCount.toLocaleString()} documented fit references</p>
+    <p>Stock counts, existing prices, and work-order history stay unchanged. New items need pricing review before billing.</p>
+    ${conflicts.length?`<details class="panel"><summary>${conflicts.length} conflicts (not imported)</summary><ul>
+       ${conflicts.map(c=>`<li><b>${esc(c.brand)} ${esc(c.mpn)}</b>: ${esc(c.reason)}</li>`).join('')}</ul></details>`:''}
+    ${r.new||r.updated?`<button class="primary" type="button" id="catalogApply">${conflicts.length?'Skip conflicts and import the rest':'Apply catalog import'}</button>`:'<p>No catalog changes to apply.</p>'}`:`
+    <p>${r.added} to add · ${r.skipped} existing or duplicate · ${r.ignored} reference rows skipped · ${r.needsPricing} need pricing review</p>
+    <ul>${r.examples.map(name=>`<li>${esc(name)}</li>`).join('')}</ul>
+    ${r.added?'<button class="primary" id="catalogApply" type="button">Import materials</button>':''}`;
+   const apply=result.querySelector('#catalogApply');
    if(apply)apply.addEventListener('click',async()=>{
+    if(apply.disabled)return;
     apply.disabled=preview.disabled=input.disabled=true;
+    form.dataset.saving='1';
+    result.textContent='Importing catalog…';
     try{
-     const saved=await send('catalog.import',payload);
-     result.textContent=`Added ${saved.added} materials. Skipped ${saved.skipped} existing or duplicate entries.`;
-    }catch(error){result.textContent=error.message;}
-    finally{preview.disabled=input.disabled=false;}
+     const saved=await request(endpoint,pack?'catalog.packImport':'catalog.import',pack?{pack:payload,fingerprint:r.fingerprint,skipConflicts:conflicts.length>0}:payload);
+     if(isOpen())result.textContent=pack?`Added ${saved.new} parts and updated details on ${saved.updated}. ${saved.skipped||0} conflicts skipped. Stock and prices unchanged.`:`Added ${saved.added} materials. Skipped ${saved.skipped} existing or duplicate entries.`;
+     try{await reload();}catch{show('Import saved. Refresh the page to see the new catalog.',true);}
+    }catch(error){if(isOpen())result.textContent=error.message;}
+    finally{delete form.dataset.saving;preview.disabled=input.disabled=false;}
    });
-  }catch(error){result.textContent=error.message;}
+  }catch(error){if(isOpen())result.textContent=error instanceof SyntaxError?'That file is not valid catalog JSON. Select the .json file, not the ZIP.':error.message;}
   finally{preview.disabled=input.disabled=false;}
  });
 }
@@ -533,6 +559,7 @@ function practiceNavigate(screen,form){
 }
 let loadSequence=0;
 function clearSession(message){
+ $('.bci-photo-viewer[open]')?.close();
  ++loadSequence;
  accessFingerprint='';data=null;me=null;selectedWO=null;selectedProject=null;selectedClientPortal=null;
  $('#nav').replaceChildren();$('#modalContent').replaceChildren();$('#modal').hidden=true;
@@ -629,13 +656,36 @@ function modal(title,contents,action,pre=''){
   finally{delete form.dataset.saving;button.disabled=false;}
  });
 }
+function inventoryPartModal(title,fields,action){
+ const filter='<div class="field"><label for="inventoryPartSearch">Search parts</label><input id="inventoryPartSearch" type="search" placeholder="Name, brand, part # or SKU"></div>';
+ modal(title,filter+f('catalogId','Part',{required:true,select:[['','Select part']]})+'<div class="bci-photo-line bci-part-match" id="inventoryPartPreview"></div>'+fields,action);
+ const search=$('#inventoryPartSearch'), select=$('#f_catalogId'), preview=$('#inventoryPartPreview');
+ const materials=data.catalog.filter(item=>item.type==='material');
+ const label=item=>[item.name,partMeta(item)||item.sku].filter(Boolean).join(' · ');
+ function showPart(){
+  const item=materials.find(candidate=>candidate.id===select.value);
+  preview.innerHTML=item?photoThumbnail(item)+'<span class="muted tiny">'+esc([partCategory(item),item.unit].filter(Boolean).join(' · '))+'</span>':'';
+ }
+ function list(){
+  const selected=materials.find(item=>item.id===select.value);
+  const result=materials.filter(item=>partSearch(item,search.value));
+  if(selected&&!result.includes(selected))result.unshift(selected);
+  select.replaceChildren(new Option(result.length?'Select part':'No matching parts',''),...result.map(item=>new Option(label(item),item.id)));
+  select.value=selected?.id||'';
+  showPart();
+ }
+ search.addEventListener('input',list);
+ select.addEventListener('change',showPart);
+ list();
+}
 const customerHelp=(title,body)=>`<details class="customer-help"><summary>${esc(title)}</summary><p>${esc(body)}</p></details>`;
 function openWorkEntry(w,material){
  const approved=w.changes.filter(change=>change.status==='approved');
  const changeField=approved.length?f('changeId','Approved scope',{select:[['','Original scope'],...approved.map(change=>[change.id,change.description])]}):'';
  const shared=f('date','Work date',{type:'date',value:today(),required:true})+changeField;
  const item=f('catalogId',material?'Part':'Labor or travel rate',{required:true,select:[['','Select']]});
- const fields=material?item+f('quantity','Quantity used',{type:'number',min:0.01,step:'any',required:true})+
+ const materialFilters='<div class="bci-part-filters">'+f('partSearchText','Search parts',{type:'search',placeholder:'Name, brand, part # or SKU'})+f('partCategoryFilter','Category',{select:[['','All categories']]})+'</div>';
+ const fields=material?materialFilters+item+'<div class="bci-photo-line bci-part-match" id="materialPreview"></div><p class="muted tiny" id="materialMatches" role="status"></p>'+f('quantity','Quantity used',{type:'number',min:0.01,step:'any',required:true})+
   f('location','Stock location',{value:'Shop',required:true})+'<p id="materialStock" role="status"></p>'+shared+
   (!practiceMode&&can('receipt.add')?'<button type="button" class="secondary" id="addEntryReceipt">+ Add Receipt</button><div id="entryReceiptFields" hidden>'+receiptPicker()+'</div>':''):
   f('type','Time type',{select:[['labor','Work'],['travel','Travel']]})+item+
@@ -645,27 +695,56 @@ function openWorkEntry(w,material){
  const submissionId=crypto.randomUUID();
  const draftId=material?submissionId:undefined;
  const draftEndpoint=practiceMode?'/api/training/action':'/api/action';
+ const needsPartPricing=(item,changeId)=>Boolean(item?.needsPricing&&!w.effectivePricing?.id&&!approved.some(change=>change.id===changeId&&change.lines.some(line=>line.catalogId===item.id)));
  let queue=Promise.resolve(), saved=false, timer;
  modal(material?'Log materials':'Log time',fields,async values=>{
   clearTimeout(timer);
   await queue;
-  const {receiptPhoto,...entryValues}=values;
+  const {receiptPhoto,partSearchText,partCategoryFilter,...entryValues}=values;
+  if(material&&needsPartPricing(data.catalog.find(item=>item.id===entryValues.catalogId),entryValues.changeId))throw Error('Pricing needed: set a price or use a priced profile or approved change before logging this part.');
   const receipt=material?await receiptPayload(receiptPhoto,submissionId):null;
   await send('entry.add',{...entryValues,receipt,draftId,submissionId,type:material?'material':values.type,workorderId:w.id});
   saved=true;
  });
  const form=$('#actionForm');
+ const {catalogId,partCategoryFilter,partSearchText}=form.elements;
+ const preview=form.querySelector('#materialPreview');
+ const matches=form.querySelector('#materialMatches');
+ function refreshPreview(){
+  if(!preview)return;
+  const item=data.catalog.find(item=>item.id===catalogId.value);
+  const blocked=needsPartPricing(item,form.elements.changeId?.value);
+  preview.innerHTML=item?photoThumbnail(item)+'<div><span class="muted tiny">'+esc([partMeta(item),partCategory(item)].filter(Boolean).join(' · '))+'</span>'+(blocked?'<div class="warn tiny">Pricing needed before this part can be logged.</div>':'')+'</div>':'';
+ }
  function refreshItems(){
   const type=material?'material':form.elements.type.value;
   const change=approved.find(change=>change.id===form.elements.changeId?.value);
-  const previous=form.elements.catalogId.value;
-  const choices=data.catalog.filter(item=>item.type===type&&(!item.needsPricing||w.effectivePricing?.id||change)&&(!change||change.lines.some(line=>line.catalogId===item.id)));
-  form.elements.catalogId.replaceChildren(new Option(material?'Select part':'Select rate',''),...choices.map(item=>new Option(item.name,item.id)));
-  form.elements.catalogId.value=choices.some(item=>item.id===previous)?previous:
-   choices.some(item=>item.id===me.clockDefault?.catalogId)?me.clockDefault.catalogId:choices.length===1?choices[0].id:'';
+  const previous=catalogId.value;
+  const optionLabel=item=>material?[item.name,partMeta(item),needsPartPricing(item,change?.id)?'Pricing needed':''].filter(Boolean).join(' · '):item.name;
+  let choices=data.catalog.filter(item=>item.type===type&&(material||!item.needsPricing||w.effectivePricing?.id||change)&&(!change||change.lines.some(line=>line.catalogId===item.id)));
+  if(material){
+   const priorCategory=partCategoryFilter.value;
+   const categories=[...new Set(choices.map(partCategory))].sort((a,b)=>a.localeCompare(b));
+   partCategoryFilter.replaceChildren(new Option('All categories',''),...categories.map(value=>new Option(value,value)));
+   if(categories.includes(priorCategory))partCategoryFilter.value=priorCategory;
+   const selected=choices.find(item=>item.id===previous);
+   choices=choices.filter(item=>partSearch(item,partSearchText.value)&&(!partCategoryFilter.value||partCategory(item)===partCategoryFilter.value));
+   matches.textContent=choices.length?choices.length+' matching parts. Select a part to preview its photo if available.':'No matching parts.';
+   if(selected&&!choices.some(item=>item.id===selected.id)){
+    catalogId.replaceChildren(new Option('Select part',''),new Option(optionLabel(selected)+' (selected; outside filters)',selected.id),...choices.map(item=>new Option(optionLabel(item),item.id)));
+    catalogId.value=selected.id;refreshPreview();return;
+   }
+  }
+  catalogId.replaceChildren(new Option(material?'Select part':'Select rate',''),...choices.map(item=>new Option(optionLabel(item),item.id)));
+  catalogId.value=choices.some(item=>item.id===previous)?previous:
+   !material&&choices.some(item=>item.id===me.clockDefault?.catalogId)?me.clockDefault.catalogId:!material&&choices.length===1?choices[0].id:'';
+  refreshPreview();
  }
  form.elements.type?.addEventListener('change',refreshItems);
  form.elements.changeId?.addEventListener('change',refreshItems);
+ partSearchText?.addEventListener('input',refreshItems);
+ partCategoryFilter?.addEventListener('change',refreshItems);
+ catalogId.addEventListener('change',refreshPreview);
  refreshItems();
  if(!material)return;
  form.querySelector('#addEntryReceipt')?.addEventListener('click',()=>{const fields=form.querySelector('#entryReceiptFields');fields.hidden=false;fields.querySelector('input').click();});
@@ -673,7 +752,7 @@ function openWorkEntry(w,material){
  const dialog=$('#modal');
  function sync(clear=false){
   const {catalogId,location,quantity,changeId}=Object.fromEntries(new FormData(form));
-  const valid=catalogId&&location?.trim()&&Number(quantity)>0&&form.elements.quantity.validity.valid;
+  const valid=catalogId&&!needsPartPricing(data.catalog.find(item=>item.id===catalogId),changeId)&&location?.trim()&&Number(quantity)>0&&form.elements.quantity.validity.valid;
   queue=queue.then(async()=>{
    const response=await fetch(draftEndpoint,{method:'POST',headers:{'Content-Type':'application/json'},
     body:JSON.stringify({action:'entry.materialDraft',data:{workorderId:w.id,draftId,catalogId,location,quantity,changeId,clear:clear||!valid}})});
@@ -682,7 +761,8 @@ function openWorkEntry(w,material){
    status.textContent=result.cleared?'':`Projected stock: ${result.projected}. ${result.projected<0?'Purchasing ticket opened.':''}`;
   }).catch(error=>{status.textContent=error.message;});
  }
- form.addEventListener('input',()=>{
+ form.addEventListener('input',event=>{
+  if(event.target===partSearchText||event.target===partCategoryFilter)return;
   clearTimeout(timer);
   timer=setTimeout(()=>{if(!form.dataset.saving)sync();},300);
  });
@@ -782,7 +862,7 @@ function openForm(kind,entryId){if(formPermissions[kind]&&!can(formPermissions[k
   return modal('Confirm a QuickBooks payment',f('amount','Payment received',{type:'number',step:'0.01',min:0.01,required:true,value:due.toFixed(2)}),
    x=>send('invoice.pay',{...x,workorderId:w.id}),`<p>QuickBooks #${esc(w.invoice.number)} · Outstanding ${fmt(due)}</p>`);
  }
- case 'receive':return modal('Receive purchased parts',f('catalogId','Part',{select:choose(data.catalog.filter(c=>c.type==='material'))})+f('quantity','Units received',{type:'number',step:'any',min:0.01,value:1})+f('unitCost','Actual unit cost including purchase tax',{type:'number',step:'any',min:0,required:true})+f('location','Location',{value:'Shop'})+f('vendor','Supplier',{required:true})+f('date','Purchase date',{type:'date',value:today()})+f('card','Paid with / card')+f('reference','Receipt reference'),x=>send('inventory.receive',x));
+ case 'receive':return inventoryPartModal('Receive purchased parts',f('quantity','Units received',{type:'number',step:'any',min:0.01,value:1})+f('unitCost','Actual unit cost including purchase tax',{type:'number',step:'any',min:0,required:true})+f('location','Location',{value:'Shop'})+f('vendor','Supplier',{required:true})+f('date','Purchase date',{type:'date',value:today()})+f('card','Paid with / card')+f('reference','Receipt reference'),x=>send('inventory.receive',x));
  case 'expense':return modal('Record a card purchase',f('vendor','Vendor',{required:true})+f('amount','Amount',{type:'number',step:'0.01',min:0})+f('category','Category',{select:[['Meals','Meals'],['Fuel','Fuel'],['Office','Office'],['Other','Other']]})+f('date','Purchase date',{type:'date',value:today()})+f('card','Card or cardholder')+f('reference','Receipt reference'),x=>send('purchase.create',x));
  case 'catalog':return modal('New priced item',f('group','Group',{required:true})+f('name','Item name',{required:true})+f('type','Type',{select:[['material','Material'],['labor','Labor'],['travel','Travel']]})+f('unit','Unit (ea / hr / ft)',{required:true,value:'ea'})+f('sku','SKU (blank = generated)')+f('price','Normal price',{type:'number',min:0,step:'0.01',value:0})+f('changePrice','Change-order price',{type:'number',min:0,step:'0.01',value:0})+f('cost','Estimated cost',{type:'number',min:0,step:'0.01',value:0}),x=>send('catalog.create',x));
  case 'access-sync':return modal('Sync Cloudflare Access','<p>Replace the dedicated group’s email list with active BCI teammates.</p>',async()=>{
@@ -793,10 +873,10 @@ function openForm(kind,entryId){if(formPermissions[kind]&&!can(formPermissions[k
  case 'profile':return profileForm();
  case 'catalog-import':return openCatalogImport();
  case 'import':return openCustomerImport();
- case 'adjust':return modal('Adjust inventory',f('catalogId','Part',{required:true,select:[['','Select part'],...choose(data.catalog.filter(c=>c.type==='material'))]})+
+ case 'adjust':return inventoryPartModal('Adjust inventory',
   f('location','Location',{required:true,value:'Shop'})+f('quantity','Quantity change (+ or −)',{required:true,type:'number',step:'any'})+
   f('reason','Audit reason',{required:true}),x=>send('inventory.adjust',x));
- case 'transfer':return modal('Transfer inventory',f('catalogId','Part',{select:choose(data.catalog.filter(c=>c.type==='material'))})+f('from','From location',{required:true,value:'Shop'})+f('to','To location',{required:true,value:'Truck'})+f('quantity','Quantity',{type:'number',min:0.01,step:'any',value:1}),x=>send('inventory.transfer',x));
+ case 'transfer':return inventoryPartModal('Transfer inventory',f('from','From location',{required:true,value:'Shop'})+f('to','To location',{required:true,value:'Truck'})+f('quantity','Quantity',{type:'number',min:0.01,step:'any',value:1}),x=>send('inventory.transfer',x));
  case 'review':return modal('Review closeout',`<div class="notice">Confirm all original field entries were reviewed before allowing invoicing.</div>`,x=>send('workorder.review',{workorderId:w.id}));
  case 'reserve':return modal('Estimated reserve percentage',f('rate','Reserve %',{type:'number',step:'0.1',min:0,value:data.meta.reserveRate}),x=>send('settings.reserve',x));
  }}
@@ -805,10 +885,10 @@ function initSignature(){const c=document.querySelector('.sign-canvas');if(!c)re
 function approveChange(changeId){if(!can('change.approve'))return;const w=wo(selectedWO),co=w.changes.find(c=>c.id===changeId);if(!co)return;modal('Approve change order',`<p><b>${esc(co.description)}</b></p>${co.lines.map(l=>`<div class="list-item">${esc(l.name)} × ${l.quantity} <b>${fmt(l.quantity*l.rate)}</b></div>`).join('')}<p class="lineTotal">Estimated ${fmt(co.estimatedTotal)}</p><div class="notice">BCI ELITE must procure parts within your timeline, which may increase shipping and office coordination costs. This is an elevated time-and-materials estimate, not a fixed price. Final charges may be lower or higher. Supporting receipts are available upon request with the final invoice.</div>`+f('signedBy','Approver full name',{required:true})+signFields(),x=>send('change.approve',{workorderId:w.id,changeId,...x}),'<p class="muted tiny">Drawn signature captured. The app records the technician account, but cannot independently verify the identity or authority of the signer.</p>');initSignature();}
 document.addEventListener('click',e=>{const target=e.target.closest('[data-nav],[data-project],[data-wo],[data-open],[data-change],[data-print],[data-client-portal]');if(!target)return;if(target.dataset.nav&&visibleView(target.dataset.nav)){view=target.dataset.nav;selectedWO=null;selectedProject=null;selectedClientPortal=null;render();}if(target.dataset.clientPortal&&can('customers.view')&&customer(target.dataset.clientPortal)){selectedClientPortal=target.dataset.clientPortal;selectedWO=null;selectedProject=null;view='customers';render();}if(target.dataset.project&&can('projects.view')){selectedProject=target.dataset.project;selectedWO=null;view='projects';render();}if(target.dataset.wo&&can('workorders.view')){selectedWO=target.dataset.wo;view='workorders';render();}if(target.dataset.open)openForm(target.dataset.open,target.dataset.entryId);if(target.dataset.change)approveChange(target.dataset.change);if(target.dataset.print)window.print();});
 document.addEventListener('keydown',event=>{
- if(event.key==='Escape'&&!$('#modal').hidden&&!$('#actionForm')?.dataset.saving)$('#modal').hidden=true;
+ if(event.key==='Escape'&&!$('.bci-photo-viewer[open]')&&!$('#modal').hidden&&!$('#actionForm')?.dataset.saving&&!$('#catalogImport')?.dataset.saving)$('#modal').hidden=true;
 });
-$('#closeModal').addEventListener('click',()=>{if(!$('#actionForm')?.dataset.saving)$('#modal').hidden=true;});
-$('#modal').addEventListener('click',e=>{if(e.target===$('#modal')&&!$('#actionForm')?.dataset.saving)$('#modal').hidden=true;});
+$('#closeModal').addEventListener('click',()=>{if(!$('#actionForm')?.dataset.saving&&!$('#catalogImport')?.dataset.saving)$('#modal').hidden=true;});
+$('#modal').addEventListener('click',e=>{if(e.target===$('#modal')&&!$('#actionForm')?.dataset.saving&&!$('#catalogImport')?.dataset.saving)$('#modal').hidden=true;});
 document.addEventListener('change',e=>{if(e.target.id==='moneyCustomer'){moneyCustomer=e.target.value;render();}if(e.target.id==='moneyStatus'){moneyStatus=e.target.value;render();}if(e.target.id==='reportType'){reportType=e.target.value;render();}if(e.target.id==='reportStart'){reportStart=e.target.value;render();}if(e.target.id==='reportEnd'){reportEnd=e.target.value;render();}});
 reload().catch(e=>{
  $('#app').textContent=`Unable to load ${practiceMode?'practice workspace':'BCI Operations'}: ${e.message}`;

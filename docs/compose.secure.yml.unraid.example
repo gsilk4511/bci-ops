@@ -1,0 +1,32 @@
+# Not a drop-in replacement for the old JSON pilot; follow docs/SECURE_UNRAID_DEPLOY.md.
+services:
+  bci-operations:
+    build: .
+    image: bci-operations:0.8.6-catalog.3
+    container_name: bci-operations-secure
+    restart: unless-stopped
+    user: "99:100"
+    env_file:
+      - .env.secure
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: "3100"
+      DB_PROVIDER: mariadb
+      APP_AUTH_MODE: cloudflare
+    networks:
+      bci_lan:
+        ipv4_address: 10.50.6.20
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=32m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 100
+    mem_limit: 512m
+networks:
+  bci_lan:
+    external: true
+    name: eth0

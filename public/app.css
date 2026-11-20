@@ -177,3 +177,59 @@ button.danger{background:#a72323;border:2px solid #8a1818;border-radius:8px;colo
 
 .permission-matrix .sr-only{position:absolute!important;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
 .permission-matrix select{min-width:8rem;width:auto;max-width:100%}
+
+/* Inventory and picker photo controls. */
+.bci-photo-line{display:flex;gap:.6rem;align-items:center;min-width:0}
+.bci-photo-thumb{display:inline-grid;place-items:center;flex:0 0 54px;width:54px;height:54px;padding:0;background:#fff;border:1px solid #a1a1a1;border-radius:7px;color:#374151;cursor:zoom-in}
+.bci-photo-thumb img{width:52px;height:52px;object-fit:contain;border-radius:6px}
+.bci-photo-missing{font-size:.6rem;overflow-wrap:anywhere}
+.bci-photo-thumb:focus-visible,.bci-photo-viewer button:focus-visible{outline:3px solid #3287f2;outline-offset:2px}
+.bci-photo-viewer{box-sizing:border-box;width:min(92vw,850px);max-width:94vw;max-height:94dvh;padding:0;border:0;border-radius:12px;background:#fff;color:#172024}
+.bci-photo-viewer::backdrop{background:rgba(0,0,0,.72)}
+.bci-photo-frame{padding:clamp(10px,3vw,22px)}
+.bci-photo-title{display:flex;justify-content:space-between;gap:12px;align-items:start}
+.bci-photo-title h2{margin:0 0 8px;overflow-wrap:anywhere}
+.bci-photo-viewer .bci-photo-close,.bci-photo-viewer .bci-photo-zoom{min-height:44px;color:#172024;background:#f0f4f7;border:1px solid #88929a}
+.bci-photo-caption{font-size:.85rem;margin:.25rem 0 .6rem}
+.bci-photo-stage{height:min(60dvh,660px);max-height:60dvh;overflow:auto;background:#fff;margin:.4rem 0;text-align:center}
+.bci-photo-stage img{object-fit:contain;width:100%;height:100%;max-width:100%;max-height:100%}
+.bci-photo-stage.bci-photo-zoomed img{object-fit:contain;width:180%;height:180%;max-width:none;max-height:none}
+.bci-inv-filters,.bci-part-filters{display:flex;align-items:end;gap:.65rem;flex-wrap:wrap;margin-bottom:.65rem}
+.bci-inv-filters .field,.bci-part-filters .field{margin:0;flex:1 1 190px}
+.bci-part-match{margin:.25rem 0 .5rem}
+.bci-estimate-match{display:flex;gap:.45rem;align-items:center;margin:.25rem 0}
+.bci-estimate-match button[data-select-item]{text-align:left;white-space:normal}
+.bci-visually-hidden{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+.bci-inventory-details{margin-top:.28rem;max-width:min(460px,55vw);font-size:.88rem;overflow-wrap:anywhere}
+.bci-inventory-details summary{cursor:pointer;text-decoration:underline;text-underline-offset:2px}
+.bci-inventory-details dl{display:grid;grid-template-columns:minmax(4rem,1fr) minmax(0,2fr);gap:.25rem .4rem;margin:.5rem 0}
+.bci-inventory-details dt{font-weight:700}.bci-inventory-details dd{margin:0;white-space:pre-wrap}
+.bci-inventory-details ul{padding-left:1.2rem}.bci-inventory-source-links{margin:.4rem 0}
+
+/* A narrow metadata row leaves the whole width for each work description. */
+#bciPrintDocument .work-order-print-journal table { table-layout:fixed }
+#bciPrintDocument .journal-date-tech { width:60% }
+#bciPrintDocument .journal-qty,
+#bciPrintDocument .journal-charge { width:20% }
+#bciPrintDocument .work-order-print-journal th:nth-child(n+2),
+#bciPrintDocument .work-order-journal-meta td:nth-child(n+2) { text-align:right; font-variant-numeric:tabular-nums }
+#bciPrintDocument .work-order-journal-meta td { padding-bottom:5px; border-bottom:0; color:#315c46 }
+#bciPrintDocument .work-order-journal-work td { padding-top:2px; line-height:1.42 }
+#bciPrintDocument .work-order-journal-meta .journal-date { white-space:nowrap }
+#bciPrintDocument .work-order-journal-meta .journal-tech { margin-inline-start:7px }
+#bciPrintDocument .work-order-print-end { margin-top:18px }
+
+/* Let client work orders flow over Letter pages without splitting routine entries. */
+@media print {
+ .work-order-internal-financial { display:none !important }
+ #bciPrintDocument .work-order-print-header,
+ #bciPrintDocument .work-order-print-end { page-break-inside:avoid; break-inside:avoid }
+ #bciPrintDocument .work-order-sheet h2 { page-break-after:avoid; break-after:avoid }
+ #bciPrintDocument .work-order-print-scope .ticket-text { orphans:2; widows:2 }
+ #bciPrintDocument .work-order-print-journal .tablewrap { display:block; overflow:visible }
+ #bciPrintDocument .work-order-print-journal thead { display:table-header-group; break-inside:avoid }
+ #bciPrintDocument .work-order-journal-entry { page-break-inside:avoid; break-inside:avoid }
+ #bciPrintDocument .work-order-journal-meta { page-break-after:avoid; break-after:avoid }
+ #bciPrintDocument .work-order-journal-work { page-break-inside:auto; break-inside:auto }
+ #bciPrintDocument .work-order-journal-work .ticket-text { widows:2; orphans:2 }
+}

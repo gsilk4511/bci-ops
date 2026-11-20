@@ -92,7 +92,7 @@ export const permissionMatrix = {
 permissionGroups['Training']={'training.start':'Start and edit personal training practice'};
 permissionGroups['Edit and delete records']['pricing.profile.archive']='Archive pricing profiles';
 
-const adminOnly = new Set(['trash.restore','trash.purge','workorder.delete','workorder.deletePreview','catalog.import','catalog.importPreview','access.sync','staff.manage','staff.leaveReview','users.set','profiles.save','customers.import','customers.importPreview','record.assign']);
+const adminOnly = new Set(['trash.restore','trash.purge','workorder.delete','workorder.deletePreview','catalog.import','catalog.importPreview','catalog.packPreview','catalog.packImport','access.sync','staff.manage','staff.leaveReview','users.set','profiles.save','customers.import','customers.importPreview','record.assign']);
 const adminOnlyGrants = new Set(['staff.manage','staff.leaveReview','workorder.delete','team.view']);
 const profilePermissions = new Set(Object.values(permissionGroups).flatMap(Object.keys));
 const viewToMode = Object.fromEntries(Object.entries(permissionMatrix).map(([name,descriptor])=>[descriptor.view,name]));

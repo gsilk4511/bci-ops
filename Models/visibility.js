@@ -58,6 +58,7 @@ export function visibleState(current,role,permissions) {
  if(!has('inventory.view')){state.inventory=[];state.movements=[];}
  if(!has('finance.view')||!has('inventory.view')&&!has('reports.view'))state.purchases=[];
  if(!has('pricing.view')&&!has('inventory.view')&&!has('workorders.view')&&!has('reports.view'))state.catalog=[];
+ if(!has('pricing.view')&&!has('inventory.view')&&!has('estimates.view')&&(!has('workorders.view')||!has('entry.add')))delete state.catalogFitReferences;
  if(has('reports.view')&&!has('pricing.view')&&!has('inventory.view')&&!has('workorders.view'))
   state.catalog=state.catalog.map(item=>({id:item.id,name:item.name,type:item.type}));
  if(!has('payroll.view'))delete state.payrollRuns;
