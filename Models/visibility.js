@@ -56,7 +56,18 @@ export function visibleState(current,role,permissions) {
  }
  if(has('inventory.view'))state.inventory=stockProjection(current);
  if(!has('inventory.view')){state.inventory=[];state.movements=[];}
+ if(has('inventory.view')){
+  const sourceIds=new Set(has('workorders.view')&&has('receipt.read')?current.workorders.map(order=>order.id):[]);
+  if(role==='admin'&&has('workorders.view')&&has('receipt.read'))
+   for(const row of current.trash||[])if(row.kind==='workorder')sourceIds.add(row.record.id);
+  for(const move of state.movements){
+   if(move.type==='field-purchase'&&!sourceIds.has(move.sourceWorkorderId)){
+    delete move.sourceWorkorderId;delete move.sourceWorkorderTitle;delete move.warehouseReceiptId;
+   }else if(move.type==='receive'&&!has('inventory.receive'))delete move.warehouseReceiptId;
+  }
+ }
  if(!has('finance.view')||!has('inventory.view')&&!has('reports.view'))state.purchases=[];
+ else for(const purchase of state.purchases){delete purchase.warehouseFingerprint;delete purchase.warehouseSubmissionId;}
  if(!has('pricing.view')&&!has('inventory.view')&&!has('workorders.view')&&!has('reports.view'))state.catalog=[];
  if(!has('pricing.view')&&!has('inventory.view')&&!has('estimates.view')&&(!has('workorders.view')||!has('entry.add')))delete state.catalogFitReferences;
  if(has('reports.view')&&!has('pricing.view')&&!has('inventory.view')&&!has('workorders.view'))

@@ -1,40 +1,38 @@
-BCI OPERATIONS 0.8.6-catalog.3 | Catalog and part photos
+BCI OPERATIONS 0.8.6-catalog.6 | Catalog and part photos
 ======================================================
 
 RANDY
-1. Extract the ZIP into an empty temporary folder. Give Greg the included
-   source folder. Do not drop this ZIP inside the existing source folder.
-2. After Greg builds the update, verify v0.8.6-catalog.3 beside the BCI logo.
-3. As admin, open Inventory > Import catalog. Choose BCI Catalog Import.json
-   from this ZIP (not the ZIP itself). Click Preview import.
-4. Review the adds and existing matches. If the preview reports conflicts,
-   expand the list. Import may skip those rows only if you choose that option.
-   Keep the conflicts for follow-up; do not delete their existing stock items.
-5. In Inventory choose All Parts and search by manufacturer or part number.
-   Click a photo to enlarge it and tap Zoom in for a closer view. The same
-   photo controls are available for work-order and estimate materials and
-   when receiving, adjusting, or transferring inventory.
-   A family image is a reference; color, finish, or pack size may differ.
-   Parts without photos still show in text search and have part details.
+1. Extract the source ZIP into an empty temporary folder. Give Greg the
+   included source folder. Do not put it inside the existing source folder.
+2. After Greg builds the update, verify v0.8.6-catalog.6 beside the BCI logo.
+   Already imported the catalog? You do not need to import it again.
+3. To import for the first time, use Warehouse > Import Catalog as admin.
+   Select the separate BCI Catalog Import - Label Window Faceplates Only.json
+   file, then click Preview import.
+4. Review adds and existing matches. Review any conflicts before choosing
+   whether to skip those rows. Do not delete existing items to clear conflicts.
+5. In Warehouse, combine Search, Brand, Category and Type to find a part.
+   Click its photo to enlarge it and tap Zoom in for a closer view. The same
+   photo controls remain available in work-order and estimate material pickers.
+   A family photo is a reference; color, finish or pack size may differ.
+   Parts without photos still show in search and have part details.
 
-CONTENTS
-3,964 parts: original 3,793 plus 95 Signamax faceplates, 47 racks and
-29 rack UPS/PDU models. 2,471 parts have photos (773 exact, 1,698 family);
-1,493 have no verified photo attached. Includes 684 documented fit references.
+SEPARATE FILTERED IMPORT
+3,854 parts, including 43 Signamax data faceplates with label windows.
+2,386 parts reference photos; 639 fit references are documented.
+The import is additive. It will not delete parts already in your database.
 
 WHAT THE IMPORT CHANGES
-- Loads the manufacturer product list, classifications, specs, documented
-  fit, source references and available photo links. Identifies existing parts
-  by exact manufacturer + part number; fills missing details on a unique match.
-- Does not enter a physical count, set warehouse locations, change existing
-  item prices, or change historical work orders. New items need pricing review
-  before billable use. Use Inventory to receive/adjust real stock separately.
+- Loads the manufacturer's part list, classifications, specs, documented
+  fit, source references and photo links. Identifies existing parts by
+  exact manufacturer and part number and fills missing details on a unique match.
+- Does not set counts, locations, prices, or historical entries. Count on-hand
+  inventory from inside a warehouse grid row, and set cost and default selling
+  rates separately. A new item may still need unit or pricing review.
 - Catalog unit is manufacturer reference information, not a stocking or
   billing decision. If unlisted, verify the unit before pricing the item.
 - Images are 512 x 512 and bundled in the app build. No external image call
-  is required from the phone. This pass does not have a photo for every SKU.
-- Only the catalog/photo feature is in this build. It does not claim the
-  other planned 0.8.6 payroll, ticketing or customer-view changes.
+  is needed. This pass does not have a photo for every part.
 
 GREG
 1. Stage with a protected database copy or synthetic data first. Back up
@@ -45,7 +43,7 @@ GREG
    DB_HOST=db, or MariaDB service, network or volume. If replacing the source
    directory wholesale, retain any active configuration stored there.
 3. In the existing Compose deployment, set only the app image tag to
-   bci-operations:0.8.6-catalog.3. Keep the existing build context pointing
+   bci-operations:0.8.6-catalog.6. Keep the existing build context pointing
    to the outer source/ directory. The installed Dockerfile's COPY Server
    includes the part photos; retain Server/CatalogPhotos in the build.
 4. From the current Compose project directory on the Docker host, using the
@@ -55,9 +53,9 @@ GREG
      docker compose -f <active-file> up -d --no-deps --force-recreate bci-operations
    Recreate alone on the old tag does not build new files. No SQL migration
    or reseed. Do not bring down or replace the database, or remove any volume.
-5. Verify the logo badge and /api/health both show 0.8.6-catalog.3 and that
+5. Verify the logo badge and /api/health both show 0.8.6-catalog.6 and that
    the staging database is the expected one. Recheck a known in-stock item
-   before and after a staging import. Test Inventory, material picker and
+   before and after a staging import. Test Warehouse, material picker and
    photo zoom on phone, including family labels and no-photo search.
 6. If app rollback is needed, return to the previously recorded app image.
    Do not overwrite live MariaDB with an old backup as routine rollback.

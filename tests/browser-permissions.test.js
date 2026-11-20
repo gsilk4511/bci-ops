@@ -66,7 +66,7 @@ test('read-only browser views omit write and delete controls; explicit grants ex
  assert.doesNotMatch(records.recordTools(),/delete/i);
  assert.doesNotMatch(records.recordManager(),/delete/i);
  apply(['inventory.view']);
- assert.doesNotMatch(app.namespace.inventory(),/data-open="(?:expense|receive|transfer|adjust|catalog)"/);
+ assert.doesNotMatch(app.namespace.warehouse(),/data-open="(?:warehouse-receive|warehouse-item|catalog-import)"/);
  apply(['notification.view']);
  assert.doesNotMatch(app.namespace.notificationsPage(),/data-notify=/);
  apply(['training.view']);

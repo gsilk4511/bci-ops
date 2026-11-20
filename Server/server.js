@@ -1,6 +1,8 @@
+import {releases} from '../Models/release-history.js';
 import {catalogPhotoHash,planCatalogPack,importCatalogPack} from '../Models/catalog-pack.js';
 import {recordPrincipal,scopeState,authorizeRecordAction,assignRecord,stampRecordOwner} from '../Models/record-scope.js';
 import {readWorkReceipt} from '../Models/work-entry.js';
+import {readWarehouseReceipt,warehouseFieldPurchases} from '../Models/warehouse-receipts.js';
 import {previewWorkorderRemoval} from '../Models/records.js';
 import {staffView} from '../Models/staff.js';
 import {reconcileStock} from '../Models/stock-demand.js';
@@ -216,6 +218,11 @@ const server=http.createServer(async(req,res)=>{
     const photoRoute=url.pathname.startsWith('/api/catalog-photo/');
     const current=await (photoRoute?loadPhotoAccess():load());const role=roleFor(current,user);
     if(!role)return response(res,403,{error:'Email is not authorized for BCI Operations. Ask Greg to add this user.'});
+    if(url.pathname==='/api/changelog'){
+      if(role!=='admin')return response(res,403,{error:'Admin access required'});
+      if(req.method!=='GET')return response(res,405,{error:'Method not allowed'});
+      return response(res,200,{releases});
+    }
     const packRoute=url.pathname==='/api/catalog-pack';
     if(packRoute&&role!=='admin')return response(res,403,{error:'Admin access required'});
     if(packRoute&&req.method!=='POST')return response(res,405,{error:'Method not allowed'});
@@ -283,7 +290,7 @@ const server=http.createServer(async(req,res)=>{
       const finance=permissions.includes('finance.view')&&(permissions.includes('dashboard.view')||permissions.includes('money.view'));
       const exposed=visibleState(scoped,role,permissions);
       if(permissions.includes('invoice.group'))exposed.workorders=exposed.workorders.map(order=>({...order,crewSummary:crewSummary(order.entries)}));
-      return response(res,200,{...exposed,teamAccess:role==='admin'?Object.fromEntries([...new Set([user.email,...(current.users||[]).map(member=>member.email),...(process.env.BCI_ADMIN_EMAILS||'').split(',').map(email=>email.trim().toLowerCase()).filter(Boolean)])].map(email=>{
+      return response(res,200,{...exposed,warehouseFieldPurchases:warehouseFieldPurchases(current,scoped,principal),teamAccess:role==='admin'?Object.fromEntries([...new Set([user.email,...(current.users||[]).map(member=>member.email),...(process.env.BCI_ADMIN_EMAILS||'').split(',').map(email=>email.trim().toLowerCase()).filter(Boolean)])].map(email=>{
           const account={email};
           const effectiveRole=roleFor(current,account);
           return [email,{protectedAdmin:(process.env.BCI_ADMIN_EMAILS||'').split(',').some(value=>value.trim().toLowerCase()===email.toLowerCase())||process.env.APP_AUTH_MODE==='local'&&email==='local-admin@example.invalid',role:effectiveRole,...effectiveAccess(current,account,effectiveRole)}];
@@ -326,6 +333,7 @@ const server=http.createServer(async(req,res)=>{
         authorizeRecordAction(current,principal,body.action,body.data);
       }
       catch(error){return response(res,403,{error:error.message});}
+      if(body.action==='inventory.receiptRead')return response(res,200,{ok:true,result:readWarehouseReceipt(current,scoped,principal,body.data)});
       if(body.action==='receipt.read')return response(res,200,{ok:true,result:readWorkReceipt(current,body.data)});
       if(body.action==='workorder.deletePreview')return response(res,200,{ok:true,result:previewWorkorderRemoval(current,body.data.ids)});
       if(body.action==='estimate.rates')return response(res,200,{ok:true,result:estimateRates(scoped,body.data)});

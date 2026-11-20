@@ -1,5 +1,7 @@
 import {randomUUID} from 'node:crypto';
 
+export const WAREHOUSE_LOCATION = 'BCI Warehouse';
+
 const key = (catalogId, location) => JSON.stringify([catalogId, location]);
 const round = value => Math.round(value * 100) / 100;
 const leaseMs = 10 * 60 * 1000;
@@ -62,10 +64,10 @@ export function updateMaterialDraft(state, data, actor) {
   const order = state.workorders.find(item => item.id === data.workorderId);
   if (!open(order)) throw Error('Select an approved, open work order');
   const part = state.catalog.find(item => item.id === data.catalogId && item.type === 'material');
-  const location = typeof data.location === 'string' ? data.location.trim() : '';
+  const location = WAREHOUSE_LOCATION;
   const quantity = round(Number(data.quantity));
-  if (!part || !location || location.length > 100 || !Number.isFinite(quantity) || quantity <= 0 || quantity > 1e6)
-    throw Error('Select a part, stock location, and valid quantity');
+  if (!part || !Number.isFinite(quantity) || quantity <= 0 || quantity > 1e6)
+    throw Error('Select a part and valid quantity');
   const change = data.changeId && order.changes.find(item => item.id === data.changeId);
   if (data.changeId && (change?.status !== 'approved' || !change.lines.some(line => line.catalogId === part.id)))
     throw Error('Choose a part on the approved change order');

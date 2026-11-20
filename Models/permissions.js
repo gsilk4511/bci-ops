@@ -16,7 +16,7 @@ export const permissionGroups = {
     'ticket.viewAll':'View all tickets', 'ticket.watch':'Follow or mute tickets','ticket.attachment':'Download allowed ticket attachments', 'ticket.mail':'Read imported ticket email', 'mail.intake':'Triage intake email', 'notification.view':'Read notification inbox','notification.manage':'Manage own notifications and devices'
   },
   'Inventory and purchasing': {
-    'inventory.receive':'Receive inventory', 'inventory.transfer':'Transfer inventory',
+    'inventory.receive':'Receive Warehouse parts and commit field purchases', 'inventory.transfer':'Transfer inventory',
     'inventory.adjust':'Adjust stock counts', 'purchase.create':'Record card purchases'
   },
   'Database Testing': {
@@ -202,6 +202,7 @@ export function effectiveAccess(state,user,role) {
 export function effectivePermissions(state,user,role){return effectiveAccess(state,user,role).permissions;}
 
 const aliases={
+ 'inventory.commitFieldPurchase':'inventory.receive','inventory.receiptRead':'inventory.view',
  'entry.materialDraft':'entry.add','entry.editNote':'entry.update','estimate.rates':'estimates.view',
  'payroll.preview':'payroll.view','mail.assign':'mail.intake','mail.sync':'mail.intake','clock.out':'clock.in','clock.cancel':'clock.in'
 };
@@ -229,8 +230,15 @@ export function authorizePermission(action,role,permissions,data) {
   }
  }
  if(action==='mail.assign'&&!permissions.includes('ticket.create'))throw Error('Create ticket permission required');
+ if(action==='entry.add'&&data?.receipt!=null&&!permissions.includes('receipt.add'))throw Error('Work-order receipt upload permission required');
+ if(action==='inventory.commitFieldPurchase'&&(!permissions.includes('workorders.view')||!permissions.includes('receipt.read')))throw Error('Work-order receipt access required');
+ if(action==='inventory.receive'&&data?.warehouseReceive===true&&data.unitCost!=null&&!permissions.includes('finance.view'))throw Error('Finance access required to record unit cost');
  action=aliases[action]||action;
  if(requiresFinance.has(action)&&!permissions.includes('finance.view'))throw Error('Finance access required');
+ if(['catalog.create','catalog.update'].includes(action)&&data?.inventoryEdit===true){
+  if(!permissions.includes('inventory.view'))throw Error('Inventory view permission required');
+  if(data.cost!==undefined&&!permissions.includes('finance.view'))throw Error('Finance access required to change unit cost');
+ }
  if(action==='billing.deposit'&&(!permissions.includes('projects.view')||!permissions.includes('invoices.view')))throw Error('Projects and invoices view required');
  if(action==='estimate.releaseWorkOrder'&&(!permissions.includes('workorders.view')||!permissions.includes('workorder.approve')))throw Error('Work order approval permission required');
  if(action==='estimate.convert'&&(!permissions.includes('projects.view')||!permissions.includes('project.create')))throw Error('Project creation permission required');

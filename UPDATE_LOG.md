@@ -1,3 +1,35 @@
+# BCI Operations 0.8.6-catalog.6
+
+- Admin → Changelog lists historical releases, staging builds and test packages.
+  Read more opens a scrollable detail view with a return to the release list.
+  The server exposes the history only to app administrators.
+- Warehouse rows show Color / Finish clearly. Known finishes can be filtered
+  and searched. Work-order material search and part labels include known colors.
+  Blank metadata remains Not specified; no catalog data or counts changed.
+- Cumulative from 0.8.6-catalog.5. No SQL migration or catalog re-import.
+
+# BCI Operations 0.8.6-catalog.5
+
+- Renamed the Inventory tab to Warehouse. The existing data layout and saved
+  inventory-related permissions are retained.
+- Receive Parts records a warehouse receipt with the time it was entered and an
+  optional receipt image. Warehouse Activity shows stock receipts and linked field
+  purchases, including the originating work order.
+- Field work still issues material once on the work order. Commit to Warehouse
+  records the corresponding receipt in the warehouse ledger exactly once,
+  without duplicating work-order material or removing the original photo.
+- Cumulative from 0.8.6-catalog.4. No SQL migration, reseed, or catalog re-import.
+
+# BCI Operations 0.8.6-catalog.4
+
+- Inventory uses one BCI Warehouse grid with combined part filters and editable
+  stock counts, part details and pricing for authorized users.
+- Add Item and Import Catalog are the only top-level inventory actions. The
+  Activity feed, existing purchase history, and catalog photo zoom remain intact.
+- New work-order material usage draws from BCI Warehouse. Existing entries and
+  old-location balances stay intact; review them before entering physical counts.
+- Cumulative from 0.8.6-catalog.3. No SQL migration, reseed, or catalog re-import.
+
 # BCI Operations 0.8.6-catalog.3
 
 - The printed Original Field Journal now places date, tech, quantity/hours and

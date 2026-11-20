@@ -87,17 +87,18 @@ function addReceipt(order){
   await send('receipt.add',{...photo,workorderId:order.id,entryId:values.entryId||null});
  });
 }
-async function viewReceipt(order,id){
+export async function readReceiptPhoto(action,payload){
  try{
-  const response=await fetch('/api/action',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'receipt.read',data:{workorderId:order.id,id}})});
+  const response=await fetch('/api/action',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,data:payload})});
   const file=await response.json();
   if(!response.ok||!file.ok)throw Error(file.error||'Could not open receipt');
   const {name,mime,content}=file.result;
-  if(!['image/jpeg','image/png'].includes(mime)||!(/^[A-Za-z0-9+/]+={0,2}$/).test(content))throw Error('Receipt photo could not be displayed');
-  modal(name,'<img style="max-width:100%;height:auto" src="data:'+mime+';base64,'+content+'" alt="Receipt photo">',()=>{});
+  if(!['image/jpeg','image/png'].includes(mime)||typeof content!=='string'||content.length>320000||!(/^[A-Za-z0-9+/]+={0,2}$/).test(content))throw Error('Receipt photo could not be displayed');
+  modal(name||'Receipt photo','<img class="bci-receipt-photo" src="data:'+mime+';base64,'+content+'" alt="Receipt photo">',()=>{});
   document.querySelector('#actionForm button[type=submit]').textContent='Close';
  }catch(error){show(error.message,true);}
 }
+function viewReceipt(order,id){return readReceiptPhoto('receipt.read',{workorderId:order.id,id});}
 document.addEventListener('click',event=>{
  const button=event.target.closest('[data-entry-mode],[data-entry-edit],[data-entry-remove],[data-receipt-add],[data-receipt-view]');
  if(!button||practiceMode)return;

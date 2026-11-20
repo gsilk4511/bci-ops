@@ -2,7 +2,8 @@ import {checkWorkReceipt,saveWorkReceipt,stockMovement,editWorkEntry,mayEditWork
 import {staffName} from './staff.js';
 import {staffAction} from './staff.js';
 import {projectWorkflow,internalOrder,internalProject,verifyFinalBilling,applyDepositCredit} from './project-workflow.js';
-import {reconcileStock, updateMaterialDraft} from './stock-demand.js';
+import {reconcileStock, updateMaterialDraft, WAREHOUSE_LOCATION} from './stock-demand.js';
+import {commitFieldPurchase,receiveWarehouseParts} from './warehouse-receipts.js';
 import {estimateAction} from './estimates.js';
 import { ticketAction, queueReview, completeReview, requestCorrections } from './tickets.js';
 import { savePricing } from './pricing-profiles.js';
@@ -25,6 +26,40 @@ const nonneg = (value, field) => {
 };
 const pos = (value, field) => { const n = nonneg(value, field); if (n === 0) throw new Error(`${field} must exceed zero`); return n; };
 const find = (items, key, label) => { const item = items.find(x => x.id === key); if (!item) throw new Error(`${label} not found`); return item; };
+const partInfoFields = {brand:['Brand',100,'manufacturer'],mpn:['Manufacturer part number',150,'manufacturerPartNumber'],
+  system:['Category',120],partType:['Part type',120]};
+const identityKey = value => String(value??'').normalize('NFKC').trim().replace(/\s+/g,' ').toUpperCase();
+const itemIdentity = item => [item.catalogInfo?.brand||item.manufacturer,item.catalogInfo?.mpn||item.manufacturerPartNumber].map(identityKey);
+function updatedPartInfo(state,item,data) {
+  const patch={};
+  const info={...item.catalogInfo};
+  let edit=false;
+  for (const [field,[label,max,alias]] of Object.entries(partInfoFields)) {
+    if(data[field]===undefined)continue;
+    edit=true;
+    const value=typeof data[field]==='string'&&data[field].trim()===''?'':text(data[field],label,max);
+    if(value)info[field]=value;else delete info[field];
+    if(alias)patch[alias]=value;
+  }
+  if(!edit)return patch;
+  patch.catalogInfo=info;
+  const [brand,mpn]=itemIdentity({...item,...patch});
+  const [oldBrand,oldMpn]=itemIdentity(item);
+  if((oldBrand||oldMpn)&&(oldBrand!==brand||oldMpn!==mpn)&&(item.catalogInfo?.photoId||item.catalogInfo?.fitReferences?.length))
+    throw Error('This manufacturer and part number are linked to a verified photo or fit reference and cannot be changed here');
+  if(brand&&mpn&&state.catalog.some(other=>{
+    if(other.id===item.id)return false;
+    const [b,m]=itemIdentity(other);
+    return b===brand&&m===mpn;
+  }))throw Error('That brand and manufacturer part number already exist');
+  return patch;
+}
+const warehouseNumber = (value, field, signed=false) => {
+  if(!['string','number'].includes(typeof value)||String(value).trim()==='')throw Error(field+' is required');
+  const n=Number(value);
+  if(!Number.isFinite(n)||Math.abs(n)>1000000||!signed&&n<0)throw Error('Invalid '+field.toLowerCase());
+  return n;
+};
 const approved = (wo) => wo.status !== 'awaiting-signoff' && !!wo.approvedAt;
 
 export function seed() {
@@ -41,7 +76,7 @@ export function seed() {
       {id:'cat_4', group:'Labor', name:'Lead technician labor', unit:'hr', price:125, changePrice:150, cost:45, type:'labor', sku:'BCI-LAB-LEAD'},
       {id:'cat_5', group:'Travel', name:'Travel / mobilization', unit:'hr', price:65, changePrice:75, cost:20, type:'travel', sku:'BCI-TRAVEL'}
     ],
-    inventory: [{id:'stock_1', catalogId:'cat_2', location:'Shop', quantity:4}],
+    inventory: [{id:'stock_1', catalogId:'cat_2', location:WAREHOUSE_LOCATION, quantity:4}],
     movements: [],
     purchases: [],
     workorders: [{id:w, projectId:p, title:'Sample additional cable drops', status:'awaiting-signoff', description:'Install and test two additional data drops at the shipping desk.', createdAt:now(), approvedAt:null, approval:null, changes:[], entries:[], closeout:null, invoice:null}],
@@ -117,9 +152,9 @@ const addWorkEntry = (state, wo, data, actor, previous=null) => {
   const quantity=timed?pos((timeMinutes(endTime)-timeMinutes(startTime))/60,'Elapsed time'):pos(data.quantity,'Quantity');
   const project=state.projects.find(p=>p.id===wo.projectId);
   const client=state.customers.find(c=>c.id===project?.customerId);
-  const location=type==='material'?text(data.location||'Shop','Location',100):null;
-  const receipt=type==='material'?state.purchases.find(p=>p.catalogId===cat.id&&p.location===location):null;
-  const cost=receipt?.unitCost??cat.cost;
+  const location=type==='material'?(previous?.stockLocation||WAREHOUSE_LOCATION):null;
+  const receipt=type==='material'?state.purchases.find(p=>p.catalogId===cat.id&&p.location===location&&Number.isFinite(p.unitCost)):null;
+  const cost=previous?.catalogId===cat.id?previous.cost:cat.warehouseUnitCostOverride?cat.cost:receipt?.unitCost??cat.cost;
   const changeId=data.changeId||null;
   const change=changeId?find(wo.changes,changeId,'Change order'):null;
   const signedLine=change?.lines.find(line=>line.catalogId===cat.id);
@@ -131,7 +166,7 @@ const addWorkEntry = (state, wo, data, actor, previous=null) => {
     changeId, tech:previous?.tech??staffName(state,actor.email),employeeEmail:previous?previous.employeeEmail:employeeKey(actor.email),createdBy:previous?.createdBy??actor.email,description};
   if(type!=='material')checkTimeEntry(state,entry,previous?.id);
   if(previous){
-    if(type==='material')entry.stockLocation=previous.stockLocation;
+    if(type==='material'){entry.stockLocation=previous.stockLocation;entry.stockMovementId=previous.stockMovementId;}
     if(previous.clockStartedAt)entry.clockStartedAt=previous.clockStartedAt;
     if(previous.clockEndedAt)entry.clockEndedAt=previous.clockEndedAt;
     return entry;
@@ -316,9 +351,12 @@ export function applyAction(state, action, data={}, actor={email:'system'}) {
       co.status='approved'; co.signedBy=signedBy; co.signedAt=now(); co.signatureData=signature(data); co.recordedBy=actor.email; co.signerIdentityUnverified=true; co.approvedSnapshot=JSON.parse(JSON.stringify({description:co.description,lines:co.lines,estimate:co.estimatedTotal,note:co.note}));
       event(state,action,wo.id,`Change ${co.id} demo acknowledged by ${signedBy}`); result=co; break;
     }
+    case 'inventory.commitFieldPurchase': return commitFieldPurchase(state,data,actor);
     case 'inventory.receive': {
+      if(data.warehouseReceive===true)return receiveWarehouseParts(state,data,actor);
+      if(data.receipt!=null)throw Error('Use Receive Parts to attach a Warehouse receipt');
       const cat=scopedCatalog(state,data.catalogId,'material');
-      const location=text(data.location||'Shop','Location',100), quantity=pos(data.quantity,'Quantity');
+      const location=WAREHOUSE_LOCATION, quantity=pos(data.quantity,'Quantity');
       let stock=state.inventory.find(x=>x.catalogId===cat.id&&x.location===location);
       if(!stock){stock={id:id('stock'),catalogId:cat.id,location,quantity:0};state.inventory.push(stock);}
       stock.quantity=money(stock.quantity+quantity);
@@ -485,7 +523,15 @@ export function applyAction(state, action, data={}, actor={email:'system'}) {
       let sku=String(data.sku||'').trim().toUpperCase().slice(0,64);
       if(!sku)sku=`BCI-${Math.random().toString(36).slice(2,10).toUpperCase()}`;
       if(state.catalog.some(x=>x.sku===sku))throw new Error('SKU already exists');
-      const item={id:id('cat'),group,name,type,sku,unit:text(data.unit,'Unit',15),price:nonneg(data.price,'Base rate'),changePrice:nonneg(data.changePrice,'Change rate'),cost:nonneg(data.cost,'Estimated cost')};
+      const item={id:id('cat'),group,name,type,sku,unit:text(data.unit,'Unit',15)};
+      if(data.inventoryEdit===true){
+        if(type!=='material')throw Error('Inventory can only add material items');
+        const standard=data.price===undefined?0:warehouseNumber(data.price,'Base rate');
+        const change=data.changePrice===undefined?standard:warehouseNumber(data.changePrice,'Change rate');
+        const cost=data.cost===undefined?0:warehouseNumber(data.cost,'Unit cost');
+        Object.assign(item,updatedPartInfo(state,item,data),{price:standard,changePrice:change,cost,
+          needsPricing:!(standard>0&&change>0),needsUnitCost:data.cost===undefined,warehouseUnitCostOverride:data.cost!==undefined});
+      }else Object.assign(item,{price:nonneg(data.price,'Base rate'),changePrice:nonneg(data.changePrice,'Change rate'),cost:nonneg(data.cost,'Estimated cost')});
       state.catalog.push(item);event(state,action,item.id,sku);result=item;break;
     }
     case 'pricing.client': {
@@ -516,6 +562,18 @@ export function applyAction(state, action, data={}, actor={email:'system'}) {
     }
     case 'catalog.update': {
       const item=scopedCatalog(state,data.catalogId);
+      if(data.inventoryEdit===true){
+        if(item.type!=='material')throw Error('Inventory can only edit material items');
+        const patch=updatedPartInfo(state,item,data);
+        for(const field of ['price','changePrice','cost'])if(data[field]!==undefined)
+          patch[field]=warehouseNumber(data[field],field==='cost'?'Unit cost':field==='price'?'Base rate':'Change rate');
+        if('cost' in patch){patch.warehouseUnitCostOverride=true;patch.needsUnitCost=false;}
+        if(('price' in patch||'changePrice' in patch)&&item.needsPricing)
+          patch.needsPricing=!((patch.price??item.price)>0&&(patch.changePrice??item.changePrice)>0);
+        // Inventory edits only set defaults for future entries, never existing work or invoices.
+        Object.assign(item,patch);
+        event(state,action,item.id,item.name);result=item;break;
+      }
       for(const field of ['price','changePrice','cost'])if(data[field]!==undefined)item[field]=nonneg(data[field],field);
       if(data.price!==undefined && item.price > 0 && item.changePrice > 0) item.needsPricing = false;
       if(data.serviceRates!==undefined){
@@ -542,10 +600,21 @@ export function applyAction(state, action, data={}, actor={email:'system'}) {
       event(state,action,cat.id,`${quantity} ${from} → ${to}`);result={quantity,from,to};break;
     }
     case 'inventory.adjust': {
-      const cat=scopedCatalog(state,data.catalogId,'material'), location=text(data.location,'Location',100), quantity=Number(data.quantity);
-      if(!Number.isFinite(quantity)||Math.abs(quantity)>100000)throw new Error('Invalid adjustment amount');
-      const reason=text(data.reason,'Audit reason',400);
+      const cat=scopedCatalog(state,data.catalogId,'material');
+      const isCount=data.mode==='count';
+      if(data.mode!==undefined&&!isCount)throw Error('Invalid adjustment mode');
+      const location=isCount?WAREHOUSE_LOCATION:text(data.location,'Location',100);
       let stock=state.inventory.find(x=>x.catalogId===cat.id&&x.location===location);
+      const current=stock?.quantity??0;
+      let quantity;
+      if(isCount){
+        const expected=warehouseNumber(data.expectedQuantity,'Previous on-hand count',true);
+        if(expected!==current)throw Error('The warehouse count changed. Refresh the inventory grid and count again.');
+        quantity=money(warehouseNumber(data.quantity,'New on-hand count')-current);
+      }else quantity=Number(data.quantity);
+      if(!Number.isFinite(quantity)||Math.abs(quantity)>(isCount?2e6:1e5))throw new Error('Invalid adjustment amount');
+      const reason=text(data.reason,'Audit reason',400);
+      if(isCount&&quantity===0){result=stock??{catalogId:cat.id,location,quantity:0};break;}
       if(!stock){stock={id:id('stock'),catalogId:cat.id,location,quantity:0};state.inventory.push(stock);}
       stock.quantity=money(stock.quantity+quantity);
       state.movements.unshift({id:id('move'),at:now(),type:'audit-adjustment',catalogId:cat.id,quantity,location,workorderId:null,note:`${reason} — ${actor.email}`});

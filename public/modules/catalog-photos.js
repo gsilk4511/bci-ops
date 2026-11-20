@@ -2,9 +2,13 @@ const h=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;',
 export const photoId=item=>{const id=item?.catalogInfo?.photoId;return typeof id==='string'&&/^[0-9a-f]{64}$/.test(id)?id:'';};
 export const partMeta=item=>[item?.catalogInfo?.brand,item?.catalogInfo?.mpn].filter(Boolean).join(' · ');
 export const partCategory=item=>[item?.catalogInfo?.system,item?.catalogInfo?.partType].filter(Boolean).join(' / ')||'Unclassified';
+export const partColorValues=item=>[item?.catalogInfo?.color,item?.catalogInfo?.finishCode]
+ .filter(value=>typeof value==='string'&&value.trim()).map(value=>value.trim())
+ .filter((value,index,array)=>array.findIndex(item=>item.toLowerCase()===value.toLowerCase())===index);
+export const partColor=item=>partColorValues(item).join(' / ');
 export const partSearch=(item,query)=>{
  const info=item?.catalogInfo||{};
- const text=[item?.name,item?.sku,item?.description,info.brand,info.mpn,info.system,info.partType].join(' ').toLowerCase();
+ const text=[item?.name,item?.sku,item?.description,item?.group,info.brand,info.mpn,info.system,info.partType,...partColorValues(item)].join(' ').toLowerCase();
  return String(query||'').trim().toLowerCase().split(/\s+/).filter(Boolean).every(token=>text.includes(token));
 };
 export function photoThumbnail(item){

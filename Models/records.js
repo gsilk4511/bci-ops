@@ -32,7 +32,8 @@ function deletionPlans(state,ids){
   const receipts=order.receipts||[];
   const tickets=(state.tickets||[]).filter(ticket=>ticket.workorderId===id);
   const payroll=order.entries.filter(entry=>['labor','travel'].includes(entry.type));
-  const movements=(state.movements||[]).filter(movement=>movement.workorderId===id);
+  // Physical replenishment is independent of an archived job's issued material.
+  const movements=(state.movements||[]).filter(movement=>movement.workorderId===id&&movement.type!=='field-purchase');
   const groups=new Map();
   for(const move of movements){
    const key=JSON.stringify([move.catalogId,move.location]);

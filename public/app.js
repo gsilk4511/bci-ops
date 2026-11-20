@@ -1,3 +1,4 @@
+import {changelogPage,wireChangelog} from './modules/changelog.js';
 import {assignmentLink} from './modules/record-assignments.js';
 import {canEditEntry,receiptPicker,receiptPayload} from './modules/work-entry.js';
 import {clientPortal,readyForProgress} from './modules/project-billing.js';
@@ -13,8 +14,8 @@ import { dashboard } from './modules/overview.js';
 import { customers } from './modules/customers.js';
 import { projectsHub } from './modules/projects.js';
 import { workorders } from './modules/work-orders.js';
-import { inventory } from './modules/inventory.js';
-import {partCategory,partMeta,partSearch,photoThumbnail} from './modules/catalog-photos.js';
+import { warehouse, warehouseName } from './modules/warehouse.js';
+import {partCategory,partColor,partMeta,partSearch,photoThumbnail} from './modules/catalog-photos.js';
 import { moneyPage } from './modules/money.js';
 import { reports } from './modules/reports.js';
 import { payrollPage } from './modules/payroll.js';
@@ -54,7 +55,7 @@ const today=()=>{
  return [now.getFullYear(),pad(now.getMonth()+1),pad(now.getDate())].join('-');
 };
 const roundMoney=value=>Math.round((value+Number.EPSILON)*100)/100;
-const navItems=[['dashboard','◫','Home'],['training','▷','Training'],['customers','♙','Customers'],['projects','▦','Projects'],['estimates','≡','Estimates'],['invoices','▤','Invoices'],['workorders','▤','Work Orders'],['tickets','◇','Tickets'],['notifications','◉','Notifications'],['inventory','▣','Inventory'],['money','◈','Money'],['reports','▥','Reports'],['payroll','▤','Payroll'],['staff','◷','My Time & Profile'],['catalog','▦','Pricing'],['team','♧','Team'],['testing','▦','Database Testing'],['trash','▤','Trash']];
+const navItems=[['dashboard','◫','Home'],['training','▷','Training'],['customers','♙','Customers'],['projects','▦','Projects'],['estimates','≡','Estimates'],['invoices','▤','Invoices'],['workorders','▤','Work Orders'],['tickets','◇','Tickets'],['notifications','◉','Notifications'],['inventory','▣','Warehouse'],['money','◈','Money'],['reports','▥','Reports'],['payroll','▤','Payroll'],['staff','◷','My Time & Profile'],['catalog','▦','Pricing'],['team','♧','Team'],['testing','▦','Database Testing'],['changelog','▤','Changelog'],['trash','▤','Trash']];
 let data=null,me=null,view='dashboard',selectedWO=null,reportType='purchases',reportStart='',reportEnd='',moneyCustomer='all',moneyStatus='all';
 const customer=id=>data.customers.find(c=>c.id===id),project=id=>data.projects.find(p=>p.id===id),catalog=id=>data.catalog.find(c=>c.id===id),wo=id=>data.workorders.find(w=>w.id===id);
 let selectedClientPortal=null;
@@ -66,16 +67,16 @@ const empty=(s)=>`<div class="empty">${esc(s)}</div>`;
 function bill(w){const buckets={labor:0,material:0,travel:0,cost:0};for(const e of w.entries){buckets[e.type]+=roundMoney(e.rate*e.quantity);buckets.cost+=roundMoney((e.cost||0)*e.quantity);}buckets.total=w.internalTask&&!w.invoice?0:roundMoney(buckets.labor+buckets.material+buckets.travel-(w.invoice?.depositCredit||0));buckets.profit=roundMoney(buckets.total-buckets.cost);return buckets;}
 const can=key=>me?.permissions?.includes(key);
 const viewPermissions={staff:'staff.view',estimates:'estimates.view',training:'training.view',notifications:'notification.view',tickets:'tickets.view',dashboard:'dashboard.view',customers:'customers.view',projects:'projects.view',workorders:'workorders.view',inventory:'inventory.view',money:'money.view',reports:'reports.view',payroll:'payroll.view',catalog:'pricing.view',team:'team.view',testing:'database.view'};
-const visibleView=id=>id==='invoices'?!practiceMode&&can('invoices.view')&&can('finance.view')&&can('workorders.view'):practiceMode&&!['training','customers','projects','workorders'].includes(id)?false:id==='trash'?me?.role==='admin':id==='team'?me?.role==='admin':can(viewPermissions[id]);
+const visibleView=id=>id==='invoices'?!practiceMode&&can('invoices.view')&&can('finance.view')&&can('workorders.view'):practiceMode&&!['training','customers','projects','workorders'].includes(id)?false:id==='trash'?me?.role==='admin':['team','changelog'].includes(id)?me?.role==='admin':can(viewPermissions[id]);
 
 const formPermissions={customer:'customer.create',contact:'contact.create',project:'project.create','new-project':'project.create','project-contact':'project.contact','clock-setup':'clock.in',
  workorder:'workorder.create',approve:'workorder.approve',change:'change.create','log-time':'entry.add','log-materials':'entry.add','client-markup':'pricing.client','project-rate':'pricing.project','other-time':'payroll.other','project-invoice':'invoice.group',
  'entry-note':'entry.update','workorder-print':'workorders.view','project-invoice-print':'invoices.view','legacy-print':'invoices.view',
- close:'workorder.close',review:'workorder.review',receive:'inventory.receive',transfer:'inventory.transfer',
- adjust:'inventory.adjust',expense:'purchase.create',invoice:'invoice.record',payment:'invoice.pay',catalog:'catalog.create',reserve:'settings.reserve'};
+ close:'workorder.close',review:'workorder.review','warehouse-receive':'inventory.receive',
+ 'warehouse-item':'catalog.create',invoice:'invoice.record',payment:'invoice.pay',catalog:'catalog.create',reserve:'settings.reserve'};
 function nav(){
  const groups=[['Field work',['dashboard','workorders','tickets','projects','customers','inventory','notifications','staff']],
-  ['Office',['estimates','invoices','catalog','money','reports','payroll']],['Admin',['training','team','testing','trash']]];
+  ['Office',['estimates','invoices','catalog','money','reports','payroll']],['Admin',['training','team','testing','changelog','trash']]];
  $('#nav').innerHTML=groups.map(([label,ids])=>{
   const buttons=ids.filter(visibleView).map(id=>{
    const [,icon,name]=navItems.find(item=>item[0]===id);
@@ -489,7 +490,7 @@ function openProjectInvoice(w,billingStage='progress'){
 // The shell selects a screen and binds shared UI controls. Each screen owns its markup.
 function render(){
  nav();
- const views={staff:staffPage,invoices:invoicesPage,estimates:estimatesPage,training:trainingPage,notifications:notificationsPage,tickets:ticketsPage,dashboard,customers,projects:projectsHub,workorders,inventory,money:moneyPage,reports,payroll:payrollPage,catalog:catalogPage,team:teamPage,testing:testingPage,trash:trashPage};
+ const views={staff:staffPage,invoices:invoicesPage,estimates:estimatesPage,training:trainingPage,notifications:notificationsPage,tickets:ticketsPage,dashboard,customers,projects:projectsHub,workorders,inventory:warehouse,money:moneyPage,reports,payroll:payrollPage,catalog:catalogPage,team:teamPage,testing:testingPage,changelog:changelogPage,trash:trashPage};
  const allowed=visibleView(view);
  const content=!allowed?'<section class="panel"><h1>No module access</h1><p>Ask your administrator to assign a permission profile.</p></section>':
   managingRecords()?recordManager():
@@ -503,6 +504,7 @@ function render(){
  }
  wireRecords();
  if(view==='trash'&&me?.role==='admin')wireTrash();
+ if(view==='changelog'&&allowed)wireChangelog($('#app').querySelector('[data-changelog]'));
  if(view==='testing'&&allowed){if(!me?.rawDatabaseTesting)databaseMode='records';showDatabase();}
  if(view==='payroll'&&allowed&&payrollDraft)showPayrollReview(payrollDraft);
  renderTrainingGuide();
@@ -656,12 +658,12 @@ function modal(title,contents,action,pre=''){
   finally{delete form.dataset.saving;button.disabled=false;}
  });
 }
-function inventoryPartModal(title,fields,action){
- const filter='<div class="field"><label for="inventoryPartSearch">Search parts</label><input id="inventoryPartSearch" type="search" placeholder="Name, brand, part # or SKU"></div>';
- modal(title,filter+f('catalogId','Part',{required:true,select:[['','Select part']]})+'<div class="bci-photo-line bci-part-match" id="inventoryPartPreview"></div>'+fields,action);
- const search=$('#inventoryPartSearch'), select=$('#f_catalogId'), preview=$('#inventoryPartPreview');
+function warehousePartModal(title,fields,action){
+ const filter='<div class="field"><label for="warehousePartSearch">Search parts</label><input id="warehousePartSearch" type="search" placeholder="Name, brand, color, part # or SKU"></div>';
+ modal(title,filter+f('catalogId','Part',{required:true,select:[['','Select part']]})+'<div class="bci-photo-line bci-part-match" id="warehousePartPreview"></div>'+fields,action);
+ const search=$('#warehousePartSearch'), select=$('#f_catalogId'), preview=$('#warehousePartPreview');
  const materials=data.catalog.filter(item=>item.type==='material');
- const label=item=>[item.name,partMeta(item)||item.sku].filter(Boolean).join(' · ');
+ const label=item=>[item.name,partMeta(item)||item.sku,partColor(item)].filter(Boolean).join(' · ');
  function showPart(){
   const item=materials.find(candidate=>candidate.id===select.value);
   preview.innerHTML=item?photoThumbnail(item)+'<span class="muted tiny">'+esc([partCategory(item),item.unit].filter(Boolean).join(' · '))+'</span>':'';
@@ -684,9 +686,9 @@ function openWorkEntry(w,material){
  const changeField=approved.length?f('changeId','Approved scope',{select:[['','Original scope'],...approved.map(change=>[change.id,change.description])]}):'';
  const shared=f('date','Work date',{type:'date',value:today(),required:true})+changeField;
  const item=f('catalogId',material?'Part':'Labor or travel rate',{required:true,select:[['','Select']]});
- const materialFilters='<div class="bci-part-filters">'+f('partSearchText','Search parts',{type:'search',placeholder:'Name, brand, part # or SKU'})+f('partCategoryFilter','Category',{select:[['','All categories']]})+'</div>';
+ const materialFilters='<div class="bci-part-filters">'+f('partSearchText','Search parts',{type:'search',placeholder:'Name, brand, color, part # or SKU'})+f('partCategoryFilter','Category',{select:[['','All categories']]})+'</div>';
  const fields=material?materialFilters+item+'<div class="bci-photo-line bci-part-match" id="materialPreview"></div><p class="muted tiny" id="materialMatches" role="status"></p>'+f('quantity','Quantity used',{type:'number',min:0.01,step:'any',required:true})+
-  f('location','Stock location',{value:'Shop',required:true})+'<p id="materialStock" role="status"></p>'+shared+
+  '<input type="hidden" name="location" value="'+esc(warehouseName)+'"><p class="muted tiny">Stock source: '+esc(warehouseName)+'</p><p id="materialStock" role="status"></p>'+shared+
   (!practiceMode&&can('receipt.add')?'<button type="button" class="secondary" id="addEntryReceipt">+ Add Receipt</button><div id="entryReceiptFields" hidden>'+receiptPicker()+'</div>':''):
   f('type','Time type',{select:[['labor','Work'],['travel','Travel']]})+item+
   shared+
@@ -714,13 +716,13 @@ function openWorkEntry(w,material){
   if(!preview)return;
   const item=data.catalog.find(item=>item.id===catalogId.value);
   const blocked=needsPartPricing(item,form.elements.changeId?.value);
-  preview.innerHTML=item?photoThumbnail(item)+'<div><span class="muted tiny">'+esc([partMeta(item),partCategory(item)].filter(Boolean).join(' · '))+'</span>'+(blocked?'<div class="warn tiny">Pricing needed before this part can be logged.</div>':'')+'</div>':'';
+  preview.innerHTML=item?photoThumbnail(item)+'<div><span class="muted tiny">'+esc([partMeta(item),partCategory(item)].filter(Boolean).join(' · '))+'</span><div class="tiny"><b>Color / Finish:</b> '+esc(partColor(item)||'Not specified')+'</div>'+(blocked?'<div class="warn tiny">Pricing needed before this part can be logged.</div>':'')+'</div>':'';
  }
  function refreshItems(){
   const type=material?'material':form.elements.type.value;
   const change=approved.find(change=>change.id===form.elements.changeId?.value);
   const previous=catalogId.value;
-  const optionLabel=item=>material?[item.name,partMeta(item),needsPartPricing(item,change?.id)?'Pricing needed':''].filter(Boolean).join(' · '):item.name;
+  const optionLabel=item=>material?[item.name,partMeta(item),partColor(item)||'Color / Finish not specified',needsPartPricing(item,change?.id)?'Pricing needed':''].filter(Boolean).join(' · '):item.name;
   let choices=data.catalog.filter(item=>item.type===type&&(material||!item.needsPricing||w.effectivePricing?.id||change)&&(!change||change.lines.some(line=>line.catalogId===item.id)));
   if(material){
    const priorCategory=partCategoryFilter.value;
@@ -862,8 +864,34 @@ function openForm(kind,entryId){if(formPermissions[kind]&&!can(formPermissions[k
   return modal('Confirm a QuickBooks payment',f('amount','Payment received',{type:'number',step:'0.01',min:0.01,required:true,value:due.toFixed(2)}),
    x=>send('invoice.pay',{...x,workorderId:w.id}),`<p>QuickBooks #${esc(w.invoice.number)} · Outstanding ${fmt(due)}</p>`);
  }
- case 'receive':return inventoryPartModal('Receive purchased parts',f('quantity','Units received',{type:'number',step:'any',min:0.01,value:1})+f('unitCost','Actual unit cost including purchase tax',{type:'number',step:'any',min:0,required:true})+f('location','Location',{value:'Shop'})+f('vendor','Supplier',{required:true})+f('date','Purchase date',{type:'date',value:today()})+f('card','Paid with / card')+f('reference','Receipt reference'),x=>send('inventory.receive',x));
- case 'expense':return modal('Record a card purchase',f('vendor','Vendor',{required:true})+f('amount','Amount',{type:'number',step:'0.01',min:0})+f('category','Category',{select:[['Meals','Meals'],['Fuel','Fuel'],['Office','Office'],['Other','Other']]})+f('date','Purchase date',{type:'date',value:today()})+f('card','Card or cardholder')+f('reference','Receipt reference'),x=>send('purchase.create',x));
+ case 'warehouse-receive': {
+  if(practiceMode||!can('inventory.view'))return;
+  const submissionId=crypto.randomUUID();
+  return warehousePartModal('Receive Parts at BCI Warehouse',
+   f('quantity','Quantity received',{type:'number',step:'0.01',min:0.01,value:1,required:true})+
+   (can('finance.view')?f('unitCost','Actual unit cost including tax (optional)',{type:'number',step:'0.01',min:0}):'')+
+   f('vendor','Supplier (optional)')+f('reference','Receipt or order reference (optional)')+receiptPicker(),
+   async ({receiptPhoto,...values})=>{
+    const photo=await receiptPayload(receiptPhoto,submissionId);
+    if(values.unitCost==='')delete values.unitCost;
+    await send('inventory.receive',{...values,submissionId,warehouseReceive:true,receipt:photo??undefined});
+   });
+ }
+ case 'warehouse-item': {
+  if(!can('inventory.view')||!can('pricing.view'))return;
+  const partPrice=(key,label)=>f(key,label,{type:'number',min:0,step:'0.01'});
+  return modal('Add warehouse item',
+   f('name','Part name',{required:true})+f('brand','Brand')+f('mpn','Manufacturer part #')+
+   f('system','Category',{required:true,placeholder:'e.g. Copper cabling'})+f('partType','Type',{required:true,placeholder:'e.g. Jack'})+
+   f('unit','Unit of measure',{required:true,value:'ea'})+f('sku','SKU (blank = generated)')+
+   (can('finance.view')?partPrice('cost','Unit cost (optional)'):'')+
+   partPrice('price','Sell price (optional)')+partPrice('changePrice','Change-order price (optional)'),
+   values=>{
+    const payload={...values,group:values.system,type:'material',inventoryEdit:true};
+    for(const key of ['cost','price','changePrice'])if(payload[key]==='')delete payload[key];
+    return send('catalog.create',payload);
+   },'<p class="muted">Adds the part to Warehouse. Use Edit count in its row to enter the stock you have at BCI Warehouse. Leave unknown prices blank.</p>');
+ }
  case 'catalog':return modal('New priced item',f('group','Group',{required:true})+f('name','Item name',{required:true})+f('type','Type',{select:[['material','Material'],['labor','Labor'],['travel','Travel']]})+f('unit','Unit (ea / hr / ft)',{required:true,value:'ea'})+f('sku','SKU (blank = generated)')+f('price','Normal price',{type:'number',min:0,step:'0.01',value:0})+f('changePrice','Change-order price',{type:'number',min:0,step:'0.01',value:0})+f('cost','Estimated cost',{type:'number',min:0,step:'0.01',value:0}),x=>send('catalog.create',x));
  case 'access-sync':return modal('Sync Cloudflare Access','<p>Replace the dedicated group’s email list with active BCI teammates.</p>',async()=>{
   const result=await send('access.sync',{});
@@ -873,10 +901,6 @@ function openForm(kind,entryId){if(formPermissions[kind]&&!can(formPermissions[k
  case 'profile':return profileForm();
  case 'catalog-import':return openCatalogImport();
  case 'import':return openCustomerImport();
- case 'adjust':return inventoryPartModal('Adjust inventory',
-  f('location','Location',{required:true,value:'Shop'})+f('quantity','Quantity change (+ or −)',{required:true,type:'number',step:'any'})+
-  f('reason','Audit reason',{required:true}),x=>send('inventory.adjust',x));
- case 'transfer':return inventoryPartModal('Transfer inventory',f('from','From location',{required:true,value:'Shop'})+f('to','To location',{required:true,value:'Truck'})+f('quantity','Quantity',{type:'number',min:0.01,step:'any',value:1}),x=>send('inventory.transfer',x));
  case 'review':return modal('Review closeout',`<div class="notice">Confirm all original field entries were reviewed before allowing invoicing.</div>`,x=>send('workorder.review',{workorderId:w.id}));
  case 'reserve':return modal('Estimated reserve percentage',f('rate','Reserve %',{type:'number',step:'0.1',min:0,value:data.meta.reserveRate}),x=>send('settings.reserve',x));
  }}
@@ -1063,7 +1087,7 @@ document.addEventListener('bci:ticket-invoice',event=>{
  const order=wo(event.detail);
  if(order)openProjectInvoice(order);
 });
-export { workOrderDocument, invoicesPage, printDocument, estimatesPage, trainingPage, practiceMode, setPracticeMode, practiceNavigate, notificationsPage, ticketsPage, openCatalogEditor, applyTheme, approveChange, assignProjectContact, bill, billingName, can, card, catalog, catalogPage, choose, clientOptions, clockPanel, contactFields, contactLine, contactOptions, contactPayload, contactQuery, createProjectFromHub, creationGuide, csvValue, customer, customerHelp, customerLaborSummary, customers, dashboard, data, databaseCell, databaseMode, detail, empty, esc, f, fmt, formPermissions, guidedClient, guidedContact, head, hoursLabel, initSignature, inventory, invoiceDocument, invoiceLayouts, jobContact, labelFor, me, modal, moneyCustomer, moneyPage, moneyStatus, nav, navItems, openCatalogImport, openClientMarkup, openCustomerImport, openForm, openPartPricing, openProjectInvoice, openProjectRate, openWorkEntry, payrollDetail, payrollDraft, payrollExport, payrollPage, priceField, profileForm, project, projectClient, projectDetail, projectFilter, projectLabel, projectsHub, reload, render, reportEnd, reportStart, reportType, reports, roundMoney, selectedProject, selectedWO, send, serviceCategories, serviceCategoryField, setupClock, show, showDatabase, showPayrollReview, signFields, status, systemTheme, table, teamPage, testingPage, testingRequest, themeToggle, today, userForm, view, visibleView, wireContactFields, wo, workorders };
+export { workOrderDocument, invoicesPage, printDocument, estimatesPage, trainingPage, practiceMode, setPracticeMode, practiceNavigate, notificationsPage, ticketsPage, openCatalogEditor, applyTheme, approveChange, assignProjectContact, bill, billingName, can, card, catalog, catalogPage, choose, clientOptions, clockPanel, contactFields, contactLine, contactOptions, contactPayload, contactQuery, createProjectFromHub, creationGuide, csvValue, customer, customerHelp, customerLaborSummary, customers, dashboard, data, databaseCell, databaseMode, detail, empty, esc, f, fmt, formPermissions, guidedClient, guidedContact, head, hoursLabel, initSignature, warehouse, invoiceDocument, invoiceLayouts, jobContact, labelFor, me, modal, moneyCustomer, moneyPage, moneyStatus, nav, navItems, openCatalogImport, openClientMarkup, openCustomerImport, openForm, openPartPricing, openProjectInvoice, openProjectRate, openWorkEntry, payrollDetail, payrollDraft, payrollExport, payrollPage, priceField, profileForm, project, projectClient, projectDetail, projectFilter, projectLabel, projectsHub, reload, render, reportEnd, reportStart, reportType, reports, roundMoney, selectedProject, selectedWO, send, serviceCategories, serviceCategoryField, setupClock, show, showDatabase, showPayrollReview, signFields, status, systemTheme, table, teamPage, testingPage, testingRequest, changelogPage, themeToggle, today, userForm, view, visibleView, wireContactFields, wo, workorders };
 
 document.addEventListener('bci:open-project',event=>{
  if(!can('projects.view')||!project(event.detail))return;

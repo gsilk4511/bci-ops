@@ -40,7 +40,7 @@ test('each tab module links and renders with shared live state',async()=>{
  state.pricingOverview=pricingOverview(state,state.me.permissions);
  state.permissionGroups=permissionGroups;state.modulePermissions=modulePermissions;
  context.injectTestData(state);
- for(const name of ['dashboard','customers','projectsHub','workorders','inventory','moneyPage','reports','payrollPage','catalogPage','teamPage','testingPage','ticketsPage','notificationsPage','trainingPage','invoicesPage','estimatesPage']){
+ for(const name of ['dashboard','customers','projectsHub','workorders','warehouse','moneyPage','reports','payrollPage','catalogPage','teamPage','testingPage','ticketsPage','notificationsPage','trainingPage','invoicesPage','estimatesPage','changelogPage']){
   assert.equal(typeof entry.namespace[name](),'string',name);
  }
  {
@@ -79,7 +79,7 @@ test('each tab module links and renders with shared live state',async()=>{
  const pricingMarkup = entry.namespace.catalogPage();
  assert.equal((pricingMarkup.match(addButton)||[]).length,1);
  assert.ok(pricingMarkup.indexOf('data-open="catalog"') < pricingMarkup.indexOf('<details'));
- assert.equal((entry.namespace.inventory().match(addButton)||[]).length,1);
+ assert.equal((entry.namespace.warehouse().match(/data-open="warehouse-item">Add Item<\/button>/g)||[]).length,1);
  const savedPricingOverview=state.pricingOverview;
  state.pricingOverview=undefined;
  assert.equal((entry.namespace.catalogPage().match(addButton)||[]).length,1);
@@ -89,7 +89,7 @@ test('each tab module links and renders with shared live state',async()=>{
   state.me={...catalogMe,permissions};
   context.injectTestData(state);
   assert.doesNotMatch(entry.namespace.catalogPage(),/data-open="catalog"/);
-  assert.doesNotMatch(entry.namespace.inventory(),/data-open="catalog"/);
+  assert.doesNotMatch(entry.namespace.warehouse(),/data-open="warehouse-item"/);
  }
  state.me=catalogMe;
  context.injectTestData(state);

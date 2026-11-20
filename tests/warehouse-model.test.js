@@ -1,0 +1,110 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {randomUUID} from 'node:crypto';
+import {applyAction, seed} from '../Models/lib.js';
+import {authorizePermission} from '../Models/permissions.js';
+import {stockProjection, WAREHOUSE_LOCATION} from '../Models/stock-demand.js';
+
+const actor={email:'warehouse@example.invalid',role:'admin'};
+const catalogId='cat_2';
+const open=state=>Object.assign(state.workorders[0],{approvedAt:'2026-11-11',status:'released'});
+const baseAdjustment={catalogId,mode:'count',reason:'Physical count'};
+const material=(order,fields={})=>({workorderId:order.id,type:'material',catalogId,quantity:1,...fields});
+
+test('absolute warehouse count logs only the difference, rejects stale counts and preserves legacy stock',()=>{
+ const state=seed();
+ const legacy={id:'stock_legacy',catalogId,location:'Truck',quantity:9};
+ state.inventory.push(legacy);
+ assert.throws(()=>authorizePermission('inventory.adjust','tech',['inventory.view']),/denied/i);
+ authorizePermission('inventory.adjust','office',['inventory.view','inventory.adjust'],baseAdjustment);
+ const update=applyAction(state,'inventory.adjust',{...baseAdjustment,quantity:7,expectedQuantity:4,location:'Truck'},actor);
+ assert.equal(update.quantity,7);
+ assert.equal(update.location,WAREHOUSE_LOCATION);
+ assert.equal(state.movements[0].quantity,3);
+ assert.equal(state.movements[0].location,WAREHOUSE_LOCATION);
+ assert.match(state.movements[0].note,/Physical count.*warehouse@example\.invalid/);
+ assert.equal(legacy.quantity,9);
+ assert.throws(()=>applyAction(state,'inventory.adjust',{...baseAdjustment,quantity:8,expectedQuantity:4},actor),/count changed/i);
+ assert.throws(()=>applyAction(state,'inventory.adjust',{...baseAdjustment,quantity:-1,expectedQuantity:7},actor),/invalid new on-hand count/i);
+ assert.throws(()=>applyAction(state,'inventory.adjust',{...baseAdjustment,quantity:8,expectedQuantity:7,reason:''},actor),/Audit reason/);
+ applyAction(state,'inventory.adjust',{...baseAdjustment,quantity:7,expectedQuantity:7},actor);
+ assert.equal(state.movements.length,1);
+ assert.equal(update.quantity,7);
+});
+
+test('new work orders and receipts use warehouse while legacy material corrections reverse existing locations',()=>{
+ const state=seed(), order=open(state);
+ const legacy={id:'stock_legacy',catalogId,location:'Truck',quantity:5};
+ state.inventory.push(legacy);
+ const legacyEntry={id:'posted_legacy',stockLocation:'Truck',type:'material',catalogId,quantity:2,
+  unit:'ea',rate:19,cost:7,date:'2026-11-19',description:'Historic issue',employeeEmail:actor.email};
+ order.entries.push(legacyEntry);
+ const legacyDraft={id:randomUUID(),email:actor.email,workorderId:order.id,catalogId,location:'Truck',quantity:1,expiresAt:Date.now()+600_000};
+ state.materialDrafts=[legacyDraft];
+ assert.equal(stockProjection(state).find(x=>x.location==='Truck').reserved,1);
+ const draft=applyAction(state,'entry.materialDraft',material(order,{draftId:legacyDraft.id,location:'Truck',quantity:3}),actor);
+ assert.equal(draft.location,WAREHOUSE_LOCATION);
+ assert.equal(draft.projected,1);
+ const entry=applyAction(state,'entry.add',material(order,{draftId:legacyDraft.id,location:'Truck',quantity:3}),actor);
+ assert.equal(entry.stockLocation,WAREHOUSE_LOCATION);
+ assert.equal(state.movements[0].location,WAREHOUSE_LOCATION);
+ assert.equal(state.inventory[0].quantity,1);
+ assert.equal(state.materialDrafts.length,0);
+ const purchase=applyAction(state,'inventory.receive',{catalogId,location:'Truck',quantity:1,unitCost:10},actor);
+ assert.equal(purchase.location,WAREHOUSE_LOCATION);
+ assert.equal(state.inventory[0].quantity,2);
+ assert.equal(legacy.quantity,5);
+ applyAction(state,'entry.update',{workorderId:order.id,entryId:legacyEntry.id,revision:'',quantity:1,date:legacyEntry.date},actor);
+ assert.equal(order.entries.find(x=>x.id===legacyEntry.id).stockLocation,'Truck');
+ assert.equal(state.inventory[0].quantity,2);
+ assert.equal(legacy.quantity,6);
+});
+
+test('inventory item prices are prospective, fit/photo links remain, and invalid compound patches do not mutate',()=>{
+ const state=seed(),order=open(state),item=state.catalog.find(x=>x.id===catalogId);
+ item.catalogInfo={brand:'Example',mpn:'JACK',system:'Copper',partType:'Jacks',photoId:'7'.repeat(64),photoStatus:'Exact'};
+ const edit={catalogId,inventoryEdit:true};
+ const grants=['inventory.view','pricing.view','catalog.update'];
+ assert.throws(()=>authorizePermission('catalog.update','tech',grants,{...edit,cost:12}),/Finance access/i);
+ assert.throws(()=>authorizePermission('catalog.update','tech',grants.slice(1),{...edit,price:25}),/Inventory view/i);
+ authorizePermission('catalog.update','tech',grants,{...edit,system:'Structured cabling'});
+ applyAction(state,'inventory.receive',{catalogId,quantity:1,unitCost:5},actor);
+ const original=applyAction(state,'entry.add',material(order),actor);
+ assert.equal(original.cost,5);
+ assert.equal(original.rate,19);
+ const before=structuredClone(item);
+ assert.throws(()=>applyAction(state,'catalog.update',{...edit,price:25,cost:-3,system:'Fiber'},actor),/Invalid unit cost/i);
+ assert.deepEqual(item,before);
+ assert.throws(()=>applyAction(state,'catalog.update',{...edit,brand:'Another manufacturer'},actor),/verified photo/i);
+ applyAction(state,'catalog.update',{...edit,system:'Structured cabling',partType:'Keystone jack',cost:12,price:25,changePrice:31},actor);
+ assert.equal(item.catalogInfo.photoId,before.catalogInfo.photoId);
+ assert.equal(item.catalogInfo.system,'Structured cabling');
+ assert.equal(item.catalogInfo.partType,'Keystone jack');
+ assert.equal(item.changePrice,31);
+ assert.equal(original.cost,5);
+ assert.equal(original.rate,19);
+ applyAction(state,'entry.update',{workorderId:order.id,entryId:original.id,date:original.date,quantity:2,revision:'',description:'Correction'},actor);
+ const corrected=order.entries.find(row=>row.id===original.id);
+ assert.equal(corrected.cost,5);
+ assert.equal(corrected.rate,19);
+ assert.equal(corrected.stockLocation,WAREHOUSE_LOCATION);
+ const later=applyAction(state,'entry.add',material(order),actor);
+ assert.equal(later.cost,12);
+ assert.equal(later.rate,25);
+ assert.equal(state.purchases[0].unitCost,5);
+});
+
+test('Add Item keeps unknown stock and pricing distinct from real counts and validates manufacturer identity',()=>{
+ const state=seed(),oldStock=structuredClone(state.inventory);
+ const fields={inventoryEdit:true,type:'material',group:'Fiber',system:'Fiber',partType:'Pigtails',name:'Pigtail',brand:'Brand One',mpn:'P-123',unit:'each'};
+ const item=applyAction(state,'catalog.create',fields,actor);
+ assert.deepEqual(state.inventory,oldStock);
+ assert.equal(item.needsPricing,true);
+ assert.equal(item.needsUnitCost,true);
+ assert.equal(item.catalogInfo.partType,'Pigtails');
+ assert.throws(()=>applyAction(state,'catalog.create',{...fields,brand:'brand   one',mpn:'p-123'},actor),/already exist/i);
+ const priced=applyAction(state,'catalog.create',{...fields,mpn:'P-456',price:6,cost:0},actor);
+ assert.equal(priced.changePrice,6);
+ assert.equal(priced.needsPricing,false);
+ assert.equal(priced.needsUnitCost,false);
+});

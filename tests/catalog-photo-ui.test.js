@@ -1,12 +1,15 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {photoId,photoThumbnail,partMeta,partCategory,partSearch} from '../public/modules/catalog-photos.js';
+import {photoId,photoThumbnail,partMeta,partCategory,partColor,partSearch} from '../public/modules/catalog-photos.js';
 
 const hash='ab'.repeat(32);
-const part={name:'Cat6 Jack <sample>',sku:'BCI-127',catalogInfo:{brand:'Test Maker',mpn:'J-127A',system:'Copper',partType:'Jack',photoStatus:'Family',photoId:hash}};
+const part={name:'Cat6 Jack <sample>',sku:'BCI-127',catalogInfo:{brand:'Test Maker',mpn:'J-127A',system:'Copper',partType:'Jack',color:'Ivory',finishCode:'Matte',photoStatus:'Family',photoId:hash}};
 test('part search matches all terms across name, SKU and manufacturer fields',()=>{
  assert.ok(partSearch(part,'MAKER j-127A cat6'));
  assert.ok(partSearch(part,'BCI-127 Copper'));
+ assert.ok(partSearch(part,'ivory matte'));
+ assert.equal(partColor(part),'Ivory / Matte');
+ assert.equal(partColor({}),'');
  assert.ok(!partSearch(part,'Cat6 Switch'));
  assert.equal(partCategory(part),'Copper / Jack');
  assert.equal(partCategory({}),'Unclassified');

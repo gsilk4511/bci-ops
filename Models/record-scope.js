@@ -192,6 +192,7 @@ export function authorizeRecordAction(state,actor,action,data={}) {
    if(anyLimited(actor,['customers','projects','workorders'])&&
      ['pricing.client','pricing.part','pricing.project','pricing.profile.preview','pricing.profile.save'].includes(action))deny();
  }
+ if(action==='inventory.commitFieldPurchase')ensure('workorders',data.workorderId);
  if(limited(actor,'inventory') && (action.startsWith('inventory.')||action==='purchase.create')){
    // Inventory transfers/adjustments may mutate more than one stock row or create
    // projections from catalog + location pairs. Deny shared-stock writes under narrow scope.

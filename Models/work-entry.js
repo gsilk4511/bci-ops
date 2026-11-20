@@ -87,9 +87,7 @@ export function editWorkEntry(state,order,action,data,actor,buildEntry){
 export const receiptLimit=8;
 const receiptByteLimit=240000;
 const pngPrefix=Buffer.from([137,80,78,71,13,10,26,10]);
-export function checkWorkReceipt(order,data, actor){
- if(!order.approvedAt)throw Error('Release the work order before attaching a receipt');
- if((order.receipts||[]).length>=receiptLimit)throw Error('This work order has reached its receipt limit of '+receiptLimit);
+export function checkReceiptPhoto(data){
  // Current work-order read access permits receipt retrieval. Named files are never trusted
  // as paths; allow JPEG and PNG only, and expose no raw photo in state/overview responses.
  const content=typeof data.content==='string'?data.content:'';
@@ -99,10 +97,15 @@ export function checkWorkReceipt(order,data, actor){
  const mime=bytes.length>=12&&bytes.subarray(0,8).equals(pngPrefix)&&bytes.subarray(12,16).toString()==='IHDR'?'image/png':
   bytes.length>=4&&bytes[0]===255&&bytes[1]===216&&bytes[2]===255&&bytes.at(-2)===255&&bytes.at(-1)===217?'image/jpeg':null;
  if(!mime)throw Error('Receipt must be a JPEG or PNG photo');
+ const uploadId=typeof data.uploadId==='string'&&/^[\da-f-]{36}$/i.test(data.uploadId)?data.uploadId:null;
+ return {uploadId,content,mime,bytes:bytes.length};
+}
+export function checkWorkReceipt(order,data,actor){
+ if(!order.approvedAt)throw Error('Release the work order before attaching a receipt');
+ if((order.receipts||[]).length>=receiptLimit)throw Error('This work order has reached its receipt limit of '+receiptLimit);
  const entryId=data.entryId||null;
  if(entryId&&!order.entries.some(entry=>entry.id===entryId&&entry.type==='material'&&mayEditWorkEntry(entry,actor)))throw Error('Choose one of your material entries');
- const uploadId=typeof data.uploadId==='string'&&/^[\da-f-]{36}$/i.test(data.uploadId)?data.uploadId:null;
- return {entryId,uploadId,content,mime,bytes:bytes.length};
+ return {...checkReceiptPhoto(data),entryId};
 }
 export function saveWorkReceipt(state,order,data,actor,checked){
  const previous=(order.receipts||[]).find(file=>file.uploadId&&file.uploadId===data.uploadId&&file.uploadedBy===actor.email);
@@ -110,6 +113,9 @@ export function saveWorkReceipt(state,order,data,actor,checked){
  const {content,...file}=checked||checkWorkReceipt(order,data,actor);
  const id=randomUUID();
  const receipt={id,...file,name:'Receipt '+((order.receipts||[]).length+1),uploadedAt:at(),uploadedBy:actor.email,uploadedName:staffName(state,actor.email)};
+ const entry=order.entries.find(row=>row.id===file.entryId&&row.type==='material');
+ if(entry)receipt.materialAtUpload={entryId:entry.id,catalogId:entry.catalogId,quantity:entry.quantity,
+  unit:entry.unit,partName:entry.name,stockLocation:entry.stockLocation,stockMovementId:entry.stockMovementId};
  (state.workorderReceiptData??={})[id]=content;
  (order.receipts??=[]).push(receipt);
  (state.events??=[]).unshift({id:randomUUID(),action:'receipt.add',actor:actor.email,reference:order.id,detail:id,at:at()});

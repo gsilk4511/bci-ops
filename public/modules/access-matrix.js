@@ -2,7 +2,7 @@ export const modeLabels={hidden:'Hidden',read:'Read only',write:'Read & write'};
 export const scopeLabels={own:'Own records',assigned:'Assigned records',all:'All permitted records'};
 export const scopedAreas=['customers','projects','workorders','tickets','estimates','invoices','inventory'];
 export const areaLabels={overview:'Home',customers:'Clients and contacts',projects:'Projects',workorders:'Work orders',estimates:'Estimates',tickets:'Tickets',
- invoices:'Invoicing',money:'Money',reports:'Reports',inventory:'Inventory',pricing:'Services and pricing',notifications:'Notifications',
+ invoices:'Invoicing',money:'Money',reports:'Reports',inventory:'Warehouse',pricing:'Services and pricing',notifications:'Notifications',
  payroll:'Payroll',staff:'My Time and staff profiles',training:'Training',team:'Team and access',admin:'Administration',testing:'Database testing'};
 const labels={...areaLabels};
 export const areaLabel=key=>labels[key]||key;
