@@ -1,3 +1,18 @@
+# BCI Operations 0.8.8
+
+- Added an opt-in Business Manager dashboard in My Time & Profile for internal vehicle registration, oil-change and business bill deadlines.
+- Track upcoming and overdue items, then record renewals, service and bill completion. This is a tracking tool, not a payment or notification integration.
+- Business Manager permissions are separate from finance, payroll and the staff directory. The app update does not assign anybody access.
+- Includes the 0.8.7 staff command-center update. No SQL migration, catalog import, or reseed.
+
+# BCI Operations 0.8.7
+
+- My Time & Profile now includes an editable picture, display name, About section and social links; it keeps existing time and leave workflows.
+- The signed-in internal directory contains only employee-shared profile details. It does not disclose coworkers’ pay, leave, time history or contribution values.
+- The private technician dashboard counts distinct logged work orders and projects attributable to the signed-in employee. Older unlinked entries are not guessed.
+- Contribution is attributed project revenue from supported sent or paid work-order invoices before sales tax and ignoring deposit/credit deductions, allocated by verified hours. It is not collected cash, profit or a bonus. Incomplete coverage is labeled. Profit and employment cost are reserved for a later cost model.
+- No provisioning, deployment, production data change, SQL migration, catalog import or reseed is part of this release.
+
 # BCI Operations 0.8.6-catalog.11
 
 - Warehouse files has a one-time administrator button for permanent deletion

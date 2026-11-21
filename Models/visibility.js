@@ -74,7 +74,7 @@ export function visibleState(current,role,permissions) {
  if(has('reports.view')&&!has('pricing.view')&&!has('inventory.view')&&!has('workorders.view'))
   state.catalog=state.catalog.map(item=>({id:item.id,name:item.name,type:item.type}));
  if(!has('payroll.view'))delete state.payrollRuns;
- delete state.staffProfiles;delete state.staffLeave;
+ delete state.staffProfiles;delete state.staffLeave;delete state.businessManager;
  delete state.payrollOther;delete state.activeClocks;delete state.clockDefaults;
  if(!has('finance.view')||!has('invoices.view'))delete state.projectInvoices;
  if(role!=='admin'){

@@ -322,3 +322,37 @@ button.danger{background:#a72323;border:2px solid #8a1818;border-radius:8px;colo
 .bci-material-quick-choices button{text-align:left;white-space:normal;overflow-wrap:anywhere;min-height:44px}
 .bci-material-quick-choices button span{display:block;font-size:.78rem;font-weight:400;margin-top:.2rem}
 @media(max-width:520px){.bci-material-quick-choices{grid-template-columns:minmax(0,1fr)}.bci-material-shortcuts button{min-height:38px}}
+
+/* My Time & Profile */
+.bci-staff-card{display:grid;grid-template-columns:auto minmax(0,1fr);align-items:start;gap:14px;overflow-wrap:anywhere}
+.bci-staff-card h3{margin:2px 0 6px}.bci-staff-avatar{width:72px;height:72px;border-radius:50%;background:#176965;color:#fff;display:grid;place-items:center;overflow:hidden;font-size:1.25rem;font-weight:700}.bci-staff-avatar img{width:100%;height:100%;object-fit:cover}
+.bci-staff-bio{white-space:pre-wrap;margin:.35rem 0}.bci-staff-social{display:flex;flex-wrap:wrap;gap:.4rem 1rem;list-style:none;margin:.5rem 0 0;padding:0}.bci-staff-social a{color:inherit;text-decoration:underline;text-underline-offset:2px}
+.bci-staff-private{margin:1rem 0}.bci-staff-totals,.bci-staff-directory{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr));margin:0 0 12px}.bci-staff-directory article,.bci-staff-totals>div{border:1px solid #818e8e80;border-radius:10px;padding:12px;min-width:0}.bci-staff-totals strong,.bci-staff-totals span{display:block}.bci-staff-totals strong{font-size:1.45rem}
+.bci-staff-links-form{margin:1rem 0;border:1px solid #818e8e80;border-radius:10px;padding:.8rem;min-width:0}.bci-staff-links-form>div{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.bci-staff-contribution{display:grid;grid-template-columns:minmax(0,190px) minmax(0,1fr);align-items:center;gap:22px}.bci-staff-donut{display:grid;place-items:center;aspect-ratio:1;max-width:190px;width:100%;justify-self:center}.bci-staff-donut svg,.bci-staff-total{grid-area:1/1;width:100%}.bci-staff-total{text-align:center;max-width:64%;overflow-wrap:anywhere}.bci-staff-total strong,.bci-staff-total span{display:block}.bci-staff-total strong{font-size:clamp(1rem,2vw,1.3rem)}
+.bci-staff-legend{min-width:0;margin:0}.bci-staff-legend>div{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:.5rem;padding:.45rem .55rem;overflow-wrap:anywhere}.bci-staff-legend dt svg{width:12px;height:12px;margin-right:.45rem;vertical-align:-1px}.bci-staff-legend dd{font-variant-numeric:tabular-nums;margin:0}.bci-staff-reserved{margin-top:5px;background:#101316;color:#fff;border-radius:5px}
+@media(max-width:590px){.bci-staff-contribution,.bci-staff-links-form>div{grid-template-columns:1fr}.bci-staff-links-form>div{gap:0}.bci-staff-contribution{gap:10px}}
+
+/* Private Business Manager board in My Time & Profile */
+.bci-manager{overflow-wrap:anywhere}
+.bci-manager-section-head,.bci-manager-actions{display:flex;align-items:center;justify-content:space-between;gap:.6rem;flex-wrap:wrap}
+.bci-manager-actions{justify-content:flex-start}
+.bci-manager-section-head h3,.bci-manager-card h4,.bci-manager-card h5{margin:.25rem 0}
+.bci-manager-grid,.bci-manager-summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr));gap:.75rem;margin:.5rem 0 1rem}
+.bci-manager-summary>div,.bci-manager-card{border:1px solid #838f8f99;border-radius:10px;padding:.8rem;min-width:0}
+.bci-manager-summary dt,.bci-manager-card dt{font-weight:650;color:inherit}
+.bci-manager-summary dd,.bci-manager-card dd{margin:0}
+.bci-manager-summary dd{margin-top:.3rem;font-size:1.02rem}
+.bci-manager-card dl{margin:.45rem 0}
+.bci-manager-card dl>div{display:grid;grid-template-columns:auto minmax(0,1fr);gap:.75rem;margin:.15rem 0}
+.bci-manager-card dl dd{text-align:right}
+.bci-manager-maintenance{border-top:1px solid #838f8f66;margin:.65rem 0;padding-top:.55rem}
+.bci-manager-maintenance button,.bci-manager-actions,.bci-manager-notes{margin:.55rem 0}
+.bci-manager button,.bci-manager summary{min-height:40px}
+.bci-manager summary{cursor:pointer;padding:.5rem 0;font-weight:650}
+.bci-manager button:focus-visible,.bci-manager summary:focus-visible{outline:2px solid #08746b;outline-offset:3px}
+.bci-manager-status{display:inline-block;border-radius:999px;padding:.25rem .6rem;font-size:.85rem;font-weight:650;color:#202526;background:#e2e8e8}
+.bci-manager-status[data-kind=overdue]{color:#75141d;background:#ffdde0}
+.bci-manager-status[data-kind=due],.bci-manager-status[data-kind=soon]{color:#594000;background:#fae7a8}
+.bci-manager-status[data-kind=paid]{color:#034b28;background:#d0f4df}
+@media(max-width:550px){.bci-manager-grid,.bci-manager-summary{grid-template-columns:1fr}}

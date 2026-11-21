@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {staffAction,staffName,staffView,isInternalProject} from '../Models/staff.js';
+import {staffAction,staffAvatar,staffName,staffView,isInternalProject} from '../Models/staff.js';
 import {authorizePermission,effectivePermissions} from '../Models/permissions.js';
 import {visibleState} from '../Models/visibility.js';
 import {payrollPreview} from '../Models/payroll.js';
@@ -13,9 +13,14 @@ function state(){return {users:[{email:a},{email:b}],customers:[{id:'r',name:'Ra
 test('staff profile has immutable login and privileged balance controls',()=>{
  const s=state();
  staffAction(s,'staff.manage',{email:a,name:'Worker',contactEmail:a,payScale:'Tier 1',vacationHours:40,sickHours:16},manager);
- staffAction(s,'staff.profile',{email:b,name:'A Worker',contactEmail:'contact@example.com',payScale:'Override',vacationHours:999},tech);
- assert.equal(staffName(s,a),'A Worker');
- assert.deepEqual(staffView(s,tech).profile,{email:a,name:'A Worker',contactEmail:'contact@example.com',payScale:'Tier 1',vacationHours:40,sickHours:16});
+ staffAction(s,'staff.profile',{email:b,displayName:'A Worker',bio:'A short bio',socialLinks:[{label:'Portfolio',url:'https://example.com/work'}],name:'Ignored',contactEmail:'contact@example.com',payScale:'Override',vacationHours:999},tech);
+ assert.equal(staffName(s,a),'Worker');
+ const own=staffView(s,tech).profile;
+ assert.deepEqual([own.email,own.name,own.contactEmail,own.payScale,own.vacationHours,own.sickHours,own.displayName],[a,"Worker",a,"Tier 1",40,16,"A Worker"]);
+ const peer=staffView(s,{...tech,email:b}).directory.find(row=>row.id===own.id);
+ assert.deepEqual(Object.keys(peer).sort(),["avatarUrl","bio","displayName","id","socialLinks"]);
+ assert.equal(peer.bio,"A short bio");
+ assert.deepEqual(peer.socialLinks,[{label:"Portfolio",url:"https://example.com/work"}]);
  assert.equal(staffView(s,tech).staffProfiles,undefined);
  assert.equal(visibleState(s,'tech',tech.permissions).staffProfiles,undefined);
  assert.throws(()=>authorizePermission('staff.manage','tech',['staff.view','staff.manage']),/Admin/);
@@ -70,4 +75,37 @@ test('cannot approve leave in a subsequently finalized period',()=>{
  assert.throws(()=>staffAction(s,'staff.leaveReview',{id:request.id,decision:'approve'},manager),/approved/);
  assert.equal(staffView(s,tech).profile.sickHours,16);
  assert.equal(staffView(s,tech).leave[0].status,'Pending');
+});
+
+test('unsafe social and image payloads are rejected; avatar is separately permissioned',()=>{
+ const s=state();
+ const png='iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jefkAAAAASUVORK5CYII=';
+ assert.throws(()=>staffAction(s,'staff.profile',{displayName:'Name',socialLinks:[{label:'bad',url:'javascript:alert(1)'}]},tech),/HTTPS/);
+ assert.throws(()=>staffAction(s,'staff.profile',{displayName:'Name',avatarBase64:Buffer.from('<svg onload=alert(1)>').toString('base64')},tech),/JPEG or PNG/);
+ const saved=staffAction(s,'staff.profile',{displayName:'Name',avatarBase64:png},tech);
+ assert.ok(!JSON.stringify(staffView(s,tech)).includes(png));
+ assert.equal(staffAvatar(s,{...tech,email:b},saved.id).mime,'image/png');
+ assert.equal(staffAvatar(s,{...tech,permissions:[]},saved.id),null);
+ assert.equal(staffAvatar(s,{...tech,email:b},a),null);
+ s.users[0].active=false;
+ assert.equal(staffAvatar(s,{...tech,email:b},saved.id),null);
+ s.users[0].active=true;
+ staffAction(s,'staff.profile',{displayName:'Name',avatarBase64:''},tech);
+ assert.equal(staffAvatar(s,tech,saved.id),null);
+});
+
+test('work and project counts are personal; project titles and links respect permissions and record scope',()=>{
+ const s=state();
+ s.projects.push({id:'secret',name:'Out of scope'});
+ s.workorders=[
+  {id:'w',projectId:'p',title:'Task 1',entries:[{type:'labor',employeeEmail:a,quantity:2},{type:'travel',employeeEmail:a,quantity:1}]},
+  {id:'w2',projectId:'secret',title:'Secret order',entries:[{type:'labor',employeeEmail:a,quantity:2}]},
+  {id:'other',projectId:'p',entries:[{type:'labor',employeeEmail:b,quantity:99}]}
+ ];
+ const view=staffView(s,{...tech,permissions:[...tech.permissions,'projects.view']},new Set(['w']),new Set(['p']));
+ assert.deepEqual(view.overview,{workorders:2,projects:2});
+ assert.deepEqual(view.projects,[{id:'p',name:'BCI ELITE ADMIN',workorders:1,hours:3}]);
+ assert.equal(view.time.at(-1).projectId,null);
+ assert.ok(!JSON.stringify(view).includes('Secret order'));
+ assert.ok(!JSON.stringify(view).includes('Out of scope'));
 });

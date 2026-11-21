@@ -6,7 +6,7 @@ import {recordPrincipal,scopeState,authorizeRecordAction,assignRecord,stampRecor
 import {readWorkReceipt} from '../Models/work-entry.js';
 import {readWarehouseReceipt,warehouseFieldPurchases} from '../Models/warehouse-receipts.js';
 import {previewWorkorderRemoval} from '../Models/records.js';
-import {staffView} from '../Models/staff.js';
+import {staffAvatar,staffView} from '../Models/staff.js';
 import {reconcileStock} from '../Models/stock-demand.js';
 import {estimateRates} from '../Models/estimates.js';
 import {trainingState,trainingAction} from '../Models/training.js';
@@ -259,6 +259,14 @@ const server=http.createServer(async(req,res)=>{
        return res.end(req.method==='HEAD'?undefined:body);
       }catch{return response(res,404,{error:'Catalog photo unavailable'});}
     }
+    if(url.pathname.startsWith('/api/staff-avatar/')){
+      if(req.method!=='GET'&&req.method!=='HEAD')return response(res,405,{error:'Method not allowed'});
+      if(!permissions.includes('staff.view'))return response(res,403,{error:'Staff access required'});
+      let image;try{image=staffAvatar(current,{email:user.email,permissions},url.pathname.split('/').at(-1));}catch{}
+      if(!image)return response(res,404,{error:'Photo unavailable'});
+      res.writeHead(200,{'content-type':image.mime,'content-length':image.bytes.length,'cache-control':'private, no-store','x-content-type-options':'nosniff','cross-origin-resource-policy':'same-origin','referrer-policy':'no-referrer','content-security-policy':"default-src 'none'; frame-ancestors 'none'"});
+      return res.end(req.method==='HEAD'?undefined:image.bytes);
+    }
     const principal=recordPrincipal(current,user,role,permissions,recordScopes);
     const scoped=scopeState(current,principal);
     const rawDatabaseTesting = Boolean(pool && testingOwner && role==='admin' && user.email.toLowerCase()===testingOwner);
@@ -311,7 +319,7 @@ const server=http.createServer(async(req,res)=>{
         mailIntake:permissions.includes('mail.intake')&&permissions.includes('tickets.view')?{
           enabled:mailbox.enabled,address:mailbox.mailbox,lastSuccess:current.mailSync?.identity===mailbox.identity?current.mailSync.lastSuccess:undefined,error:mailError,
           messages:(current.mailQueue||[]).map(({attachments,...message})=>({...message,attachmentCount:attachments.length}))
-        }:undefined,ticketOverview:permissions.includes('tickets.view')?ticketOverview(scoped,principal):undefined,pricingOverview:permissions.includes('pricing.view')?pricingOverview(scoped,permissions):undefined,accessSync:role==='admin'?accessSync.status():undefined,permissionGroups:role==='admin'?permissionGroups:undefined,modulePermissions:role==='admin'?modulePermissions:undefined,permissionMatrix:role==='admin'?permissionMatrix:undefined,stats:finance?moneyStats(scoped):null,staff:staffView(current,principal,new Set(scoped.workorders.map(w=>w.id))),storage:dbProvider,me:{email:user.email,role,accessRevision:current.meta?.accessRevision||0,clock:permissions.includes('workorders.view')?(current.activeClocks||[]).find(c=>c.email===user.email&&scoped.workorders.some(w=>w.id===c.workorderId)):undefined,clockDefault:permissions.includes('workorders.view')?(current.clockDefaults||[]).find(c=>c.email===user.email):undefined,databaseTesting:permissions.includes('database.view'),rawDatabaseTesting,...access}});
+        }:undefined,ticketOverview:permissions.includes('tickets.view')?ticketOverview(scoped,principal):undefined,pricingOverview:permissions.includes('pricing.view')?pricingOverview(scoped,permissions):undefined,accessSync:role==='admin'?accessSync.status():undefined,permissionGroups:role==='admin'?permissionGroups:undefined,modulePermissions:role==='admin'?modulePermissions:undefined,permissionMatrix:role==='admin'?permissionMatrix:undefined,stats:finance?moneyStats(scoped):null,staff:staffView(current,principal,new Set(scoped.workorders.map(w=>w.id)),new Set(scoped.projects.map(project=>project.id)),scoped),storage:dbProvider,me:{email:user.email,role,accessRevision:current.meta?.accessRevision||0,clock:permissions.includes('workorders.view')?(current.activeClocks||[]).find(c=>c.email===user.email&&scoped.workorders.some(w=>w.id===c.workorderId)):undefined,clockDefault:permissions.includes('workorders.view')?(current.clockDefaults||[]).find(c=>c.email===user.email):undefined,databaseTesting:permissions.includes('database.view'),rawDatabaseTesting,...access}});
     }
     if(req.method==='POST'&&(packRoute||['/api/action','/api/training/action'].includes(url.pathname))){
       if(req.headers['sec-fetch-site']==='cross-site'||(publicOrigin&&req.headers.origin!==publicOrigin))return response(res,403,{error:'Untrusted request origin'});

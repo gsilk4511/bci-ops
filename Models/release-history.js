@@ -3,6 +3,12 @@
 const section = (title, ...items) => ({title, items});
 const release = (version, title, summary, ...sections) => ({version, title, summary, sections});
 export const releases = [
+ release('0.8.8','Business Manager dashboard','Track vehicle renewals, vehicle maintenance and business bill deadlines in My Time & Profile.',
+  section('Business Manager','An opt-in permission area keeps the tracker separate from coworker profiles.','Track registration and oil changes per vehicle and record business bill due dates and their completion.'),
+  section('Access and boundaries','Existing staff profiles and time tools are retained. The tracker does not pay bills, connect to a bank, or send reminders.')),
+ release('0.8.7','My Time & Profile command center','An employee dashboard, internal crew directory and technician project contribution view.',
+  section('My Time & Profile','Personal work-order and project totals, time and leave history, and a self-edited display name, photo, bio and social links.','Signed-in staff can browse the peer directory. Payroll, private time and leave, and contribution amounts are not included in peer profiles.'),
+  section('Project contribution','Allocates supported invoiced work across technicians by verified time on each work order and aggregates it by project. Excludes sales credit, sales tax and separate deposit credit.','Profit and employment cost are reserved placeholders. This is not a payout or a payroll calculation.')),
  release('0.8.6-catalog.11','Delete unused imported parts','One-time administrator cleanup for the November 20 manufacturer import only.',
   section('Warehouse files','Preview the exact import batch and permanently delete only unreferenced, unpriced items with no stock record. Confirm the backup and type the preview count. Original parts, history and service records are excluded.'),
   section('Deployment','Installing this release does not delete anything. The preceding image-free Warehouse and separate reversible archive remain available.')),

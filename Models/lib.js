@@ -1,5 +1,6 @@
 import {checkWorkReceipt,saveWorkReceipt,stockMovement,editWorkEntry,mayEditWorkEntry,logEntryChange} from './work-entry.js';
 import {staffName} from './staff.js';
+import {businessManagerAction} from './business-manager.js';
 import {staffAction} from './staff.js';
 import {projectWorkflow,internalOrder,internalProject,verifyFinalBilling,applyDepositCredit} from './project-workflow.js';
 import {reconcileStock, updateMaterialDraft, WAREHOUSE_LOCATION} from './stock-demand.js';
@@ -270,6 +271,7 @@ export function applyAction(state, action, data={}, actor={email:'system'}) {
   if(action==='pricing.profile.save')return savePricing(state,data,actor);
   if(action.startsWith('ticket.'))return ticketAction(state,action,data,actor);
   if(action.startsWith('estimate.'))return estimateAction(state,action,data,actor,fields=>applyAction(state,'project.create',fields,actor),fields=>applyAction(state,'workorder.create',fields,actor));
+  if(action==='businessManager.manage')return businessManagerAction(state,data,actor);
   if(action.startsWith('staff.'))return staffAction(state,action,data,actor,fields=>applyAction(state,'workorder.create',fields,actor));
   if(['project.close','project.followup','billing.deposit'].includes(action))return projectWorkflow(state,action,data,actor);
   let result = {};

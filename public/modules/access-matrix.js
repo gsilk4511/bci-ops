@@ -3,7 +3,7 @@ export const scopeLabels={own:'Own records',assigned:'Assigned records',all:'All
 export const scopedAreas=['customers','projects','workorders','tickets','estimates','invoices','inventory'];
 export const areaLabels={overview:'Home',customers:'Clients and contacts',projects:'Projects',workorders:'Work orders',estimates:'Estimates',tickets:'Tickets',
  invoices:'Invoicing',money:'Money',reports:'Reports',inventory:'Warehouse',pricing:'Services and pricing',notifications:'Notifications',
- payroll:'Payroll',staff:'My Time and staff profiles',training:'Training',team:'Team and access',admin:'Administration',testing:'Database testing'};
+ payroll:'Payroll',staff:'My Time and staff profiles',businessManager:'Business Manager',training:'Training',team:'Team and access',admin:'Administration',testing:'Database testing'};
 const labels={...areaLabels};
 export const areaLabel=key=>labels[key]||key;
 const unique=items=>[...new Set(items.filter(Boolean))];

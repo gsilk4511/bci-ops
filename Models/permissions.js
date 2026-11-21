@@ -27,9 +27,10 @@ export const permissionGroups = {
     'database.finance':'Inspect purchases and invoices',
     'database.payroll':'Inspect approved payroll'
   },
-  'My Time and staff profiles': {'staff.view':'View My Time and profile','staff.profile':'Edit own staff contact details',
+  'My Time and staff profiles': {'staff.view':'View My Time and profile','staff.profile':'Customize own staff profile',
     'staff.leave':'Request vacation or sick time','staff.internal':'Create internal work orders',
     'staff.manage':'Administer staff profiles and pay scales','staff.leaveReview':'Review staff leave'},
+  'Business Manager': {'businessManager.view':'View fleet maintenance and bill tracker','businessManager.manage':'Manage fleet maintenance and bill tracker'},
   'Payroll': {'payroll.view':'View payroll review and exports','payroll.other':'Log shop time or leave','payroll.approve':'Approve pay periods'},
   'Billing and pricing': {
     'billing.deposit':'Record project deposits','finance.view':'View financial reports and internal costs', 'invoice.record':'Record QuickBooks invoices',
@@ -82,6 +83,7 @@ export const permissionMatrix = {
  reports:makeModule('reports.view',[],[],[],['finance.view']),
  payroll:makeModule('payroll.view',[],[],['payroll.other','payroll.approve']),
  staff:makeModule('staff.view',['staff.profile','staff.leave','staff.internal']),
+ businessManager:makeModule('businessManager.view',['businessManager.manage']),
  pricing:makeModule('pricing.view',['catalog.create','catalog.update'],['catalog.delete','pricing.profile.archive'],[
   'pricing.profile.save','pricing.profile.assign','pricing.profile.bulk','pricing.client','pricing.part','pricing.project']),
  notifications:makeModule('notification.view',['notification.manage']),
@@ -131,6 +133,7 @@ function selectedForModes(grants, selectedModes) {
 function validateDependencies(grants) {
  if([...requiresFinance].some(key=>grants.includes(key))&&!grants.includes('finance.view')) throw Error('Enable financial visibility for invoicing, payments, or reserve settings');
  if(grants.includes('invoices.view')&&!grants.includes('workorders.view'))throw Error('Enable Work Orders view for Invoices');
+ if(grants.includes('businessManager.view')&&!grants.includes('staff.view'))throw Error('Enable My Time & Profile view for Business Manager');
  if(grants.includes('payroll.approve')&&!grants.includes('payroll.view'))throw Error('Enable payroll review to approve pay periods');
  for(const grant of grants){
   if(actionGroups.has(grant)&&!actionGroups.get(grant).some(({module})=>grants.includes(permissionMatrix[module].view))) throw Error('Enable module visibility for '+grant);
@@ -193,7 +196,7 @@ export function effectiveAccess(state,user,role) {
  const assignment=(state.users||[]).find(member=>member.email.toLowerCase()===user.email.toLowerCase());
  if(assignment?.profileId)return profileAccess((state.permissionProfiles||[]).find(profile=>profile.id===assignment.profileId));
  const blocked=['project.close','project.followup','billing.deposit','estimate.releaseWorkOrder','ticket.mail','mail.intake','ticket.viewAll','ticket.assign','workorder.return','payroll.view','payroll.approve','invoice.group','finance.view','invoice.record','invoice.pay','workorder.review','purchase.create','inventory.adjust','inventory.transfer','money.view','reports.view','pricing.view','invoices.view','team.view','estimate.accept','estimate.convert','estimate.override'];
- const owner=['pricing.workorder.correct','pricing.profile.save','pricing.profile.assign','pricing.profile.bulk','pricing.client','pricing.part','pricing.project','settings.reserve','catalog.create','catalog.update','catalog.delete','pricing.profile.archive','entry.manage'];
+ const owner=['businessManager.view','businessManager.manage','pricing.workorder.correct','pricing.profile.save','pricing.profile.assign','pricing.profile.bulk','pricing.client','pricing.part','pricing.project','settings.reserve','catalog.create','catalog.update','catalog.delete','pricing.profile.archive','entry.manage'];
  const permissions=[...profilePermissions].filter(key=>!owner.includes(key)&&!nonDelegablePassThrough.includes(key)&&
   (!key.endsWith('.delete')||key==='entry.remove')&&!['customer.update','contact.update','project.update','workorder.update'].includes(key)&&
   (role==='office'||!blocked.includes(key)));
@@ -242,6 +245,7 @@ export function authorizePermission(action,role,permissions,data) {
  if(action==='billing.deposit'&&(!permissions.includes('projects.view')||!permissions.includes('invoices.view')))throw Error('Projects and invoices view required');
  if(action==='estimate.releaseWorkOrder'&&(!permissions.includes('workorders.view')||!permissions.includes('workorder.approve')))throw Error('Work order approval permission required');
  if(action==='estimate.convert'&&(!permissions.includes('projects.view')||!permissions.includes('project.create')))throw Error('Project creation permission required');
+ if(action.startsWith('businessManager.')&&!permissions.includes('staff.view'))throw Error('My Time view permission required');
  if(action==='staff.internal'&&(!permissions.includes('workorders.view')||!permissions.includes('workorder.create')))throw Error('Work order creation permission required');
  if(action==='pricing.workorder.correct'&&!permissions.includes('finance.view'))throw Error('Finance access required');
  const memberships=actionGroups.get(action);
