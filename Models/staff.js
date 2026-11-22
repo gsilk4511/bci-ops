@@ -1,6 +1,7 @@
 import {createHmac,randomBytes,randomUUID} from 'node:crypto';
 import {addOtherTime, validDate} from './payroll.js';
 import {businessManagerView} from './business-manager.js';
+import {changedWageHistory,contributionScopeLimited,contributionWageHistory,contributionYear,profileProfitShare,rateForYear,updatedProfitRates,verifiedWageHistory} from './staff-profit-settings.js';
 import {technicianContribution} from './technician-contribution.js';
 import {defaultProfileStyle,profileStyleOptions} from '../public/modules/profile-style-catalog.js';
 
@@ -144,7 +145,7 @@ function staffTarget(state,actor,input) {
  return target;
 }
 
-export function staffView(state,actor,visibleOrderIds,visibleProjectIds,metricsState) {
+export function staffView(state,actor,visibleOrderIds,visibleProjectIds,metricsState,year=contributionYear()) {
  const email=staffKey(actor?.email);
  if (!email || !has(actor,'staff.view')) return undefined;
  const own = entry => staffKey(entry.employeeEmail || entry.tech) === email;
@@ -176,14 +177,15 @@ export function staffView(state,actor,visibleOrderIds,visibleProjectIds,metricsS
  const admin=actor.role==='admin'&&has(actor,'staff.manage');
  const records=state.staffLeave||[];
  const internalProject=has(actor,'staff.internal')&&has(actor,'workorder.create')&&has(actor,'workorders.view')?internalChoice(state):null;
- const contribution=metricsState?technicianContribution(metricsState,email):undefined;
+ const contribution=metricsState?technicianContribution(metricsState,email,{year,profitShareBps:rateForYear(profileAt(state,email),year),
+  wageHistory:contributionWageHistory(profileAt(state,email)),scopeIncomplete:contributionScopeLimited(state,metricsState,email,year)}):undefined;
  if(contribution)contribution.projects=contribution.projects.map(row=>{
   const visible=projects.get(row.projectId);
-  return {attributedCents:row.attributedCents,laborHours:row.laborHours,orderCount:row.orderCount,projectId:visible?.id??null,projectName:visible?.name??'Project'};
+  return {attributedCents:row.attributedCents,laborHours:row.laborHours,orderCount:row.orderCount,employmentCostCents:row.employmentCostCents,netProfitCents:row.netProfitCents,projectId:visible?.id??null,projectName:visible?.name??'Project'};
  });
  return {businessManager:businessManagerView(state,actor),contribution,profile:{...safeProfile(state,email),...publicProfile(state,email)},directory:directoryEmails(state,actor).map(email=>publicProfile(state,email)).sort((a,b)=>a.displayName.localeCompare(b.displayName)),
   overview:{workorders:ordersWorked.size,projects:projectsWorked.size},projects:[...projects.values()].map(project=>({...project,hours:Math.round(project.hours*100)/100})),time,leave:records.filter(row=>row.email===email),
-  ...(admin?{staffProfiles:[...new Set([email,...(state.users||[]).map(user=>staffKey(user.email))])].filter(Boolean).map(key=>safeProfile(state,key)),
+  ...(admin?{staffProfiles:[...new Set([email,...(state.users||[]).map(user=>staffKey(user.email))])].filter(Boolean).map(key=>({...safeProfile(state,key),profitShareByYear:profileProfitShare(profileAt(state,key)),hourlyWages:verifiedWageHistory(profileAt(state,key))})),
    requests:records.filter(row=>row.status==='Pending')}:{}),internalAvailable:Boolean(internalProject)};
 }
 
@@ -206,12 +208,18 @@ export function staffAction(state,action,data,actor, createOrder) {
  if (action==='staff.manage') {
   if (actor.role!=='admin') throw Error('Admin access required');
   const target=staffTarget(state,actor,data.email);
-  const name=clean(data.name,100),contactEmail=staffKey(data.contactEmail);
-  if (!name||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmail)||contactEmail.length>180) throw Error('Enter a name and valid contact email');
-  const changes={name,contactEmail};
-  Object.assign(changes,{payScale:clean(data.payScale,80),vacationHours:hours(data.vacationHours,'vacation balance'),sickHours:hours(data.sickHours,'sick balance')});
-  Object.assign(ensureProfile(state,target),changes);
-  return {id:target,...safeProfile(state,target)};
+  const changes={};
+  const rateChange=Object.hasOwn(data,'profitShareYear')||Object.hasOwn(data,'profitSharePercent');
+  const wageChange=Object.hasOwn(data,'wageEffectiveDate')||Object.hasOwn(data,'hourlyWage');
+  if((!rateChange&&!wageChange)||['name','contactEmail','payScale','vacationHours','sickHours'].some(key=>Object.hasOwn(data,key))){
+   const name=clean(data.name,100),contactEmail=staffKey(data.contactEmail);
+   if (!name||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmail)||contactEmail.length>180) throw Error('Enter a name and valid contact email');
+   Object.assign(changes,{name,contactEmail,payScale:clean(data.payScale,80),vacationHours:hours(data.vacationHours,'vacation balance'),sickHours:hours(data.sickHours,'sick balance')});
+  }
+  if(rateChange)changes.profitShareBpsByYear=updatedProfitRates(profileAt(state,target),data);
+  if(wageChange)changes.hourlyWages=changedWageHistory(profileAt(state,target),data);
+  const stored=Object.assign(ensureProfile(state,target),changes);
+  return {id:target,...safeProfile(state,target),profitShareByYear:profileProfitShare(stored),hourlyWages:verifiedWageHistory(stored)};
  }
  if (action==='staff.leave') {
   const date=validDate(data.date);

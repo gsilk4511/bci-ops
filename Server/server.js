@@ -6,6 +6,7 @@ import {recordPrincipal,scopeState,authorizeRecordAction,assignRecord,stampRecor
 import {readWorkReceipt} from '../Models/work-entry.js';
 import {readWarehouseReceipt,warehouseFieldPurchases} from '../Models/warehouse-receipts.js';
 import {previewWorkorderRemoval} from '../Models/records.js';
+import {validatedContributionYear} from '../Models/staff-profit-settings.js';
 import {staffAvatar,staffTechnicianIcons,staffView} from '../Models/staff.js';
 import {reconcileStock} from '../Models/stock-demand.js';
 import {estimateRates} from '../Models/estimates.js';
@@ -308,6 +309,8 @@ const server=http.createServer(async(req,res)=>{
       return response(res,200,{...practice,liveAccess:{email:user.email,role,accessRevision:current.meta?.accessRevision||0,...access}});
     }
     if(req.method==='GET'&&url.pathname==='/api/state'){
+      const selection=url.searchParams.get('contributionYear');
+      const selectedContributionYear=selection===null?undefined:validatedContributionYear(selection);
       const finance=permissions.includes('finance.view')&&(permissions.includes('dashboard.view')||permissions.includes('money.view'));
       const exposed=visibleState(scoped,role,permissions);
       if(permissions.includes('invoice.group'))exposed.workorders=exposed.workorders.map(order=>({...order,crewSummary:crewSummary(order.entries)}));
@@ -320,7 +323,7 @@ const server=http.createServer(async(req,res)=>{
         mailIntake:permissions.includes('mail.intake')&&permissions.includes('tickets.view')?{
           enabled:mailbox.enabled,address:mailbox.mailbox,lastSuccess:current.mailSync?.identity===mailbox.identity?current.mailSync.lastSuccess:undefined,error:mailError,
           messages:(current.mailQueue||[]).map(({attachments,...message})=>({...message,attachmentCount:attachments.length}))
-        }:undefined,ticketOverview:permissions.includes('tickets.view')?ticketOverview(scoped,principal):undefined,pricingOverview:permissions.includes('pricing.view')?pricingOverview(scoped,permissions):undefined,accessSync:role==='admin'?accessSync.status():undefined,permissionGroups:role==='admin'?permissionGroups:undefined,modulePermissions:role==='admin'?modulePermissions:undefined,permissionMatrix:role==='admin'?permissionMatrix:undefined,stats:finance?moneyStats(scoped):null,staff:staffView(current,principal,new Set(scoped.workorders.map(w=>w.id)),new Set(scoped.projects.map(project=>project.id)),scoped),storage:dbProvider,me:{email:user.email,role,accessRevision:current.meta?.accessRevision||0,clock:permissions.includes('workorders.view')?(current.activeClocks||[]).find(c=>c.email===user.email&&scoped.workorders.some(w=>w.id===c.workorderId)):undefined,clockDefault:permissions.includes('workorders.view')?(current.clockDefaults||[]).find(c=>c.email===user.email):undefined,databaseTesting:permissions.includes('database.view'),rawDatabaseTesting,...access}});
+        }:undefined,ticketOverview:permissions.includes('tickets.view')?ticketOverview(scoped,principal):undefined,pricingOverview:permissions.includes('pricing.view')?pricingOverview(scoped,permissions):undefined,accessSync:role==='admin'?accessSync.status():undefined,permissionGroups:role==='admin'?permissionGroups:undefined,modulePermissions:role==='admin'?modulePermissions:undefined,permissionMatrix:role==='admin'?permissionMatrix:undefined,stats:finance?moneyStats(scoped):null,staff:staffView(current,principal,new Set(scoped.workorders.map(w=>w.id)),new Set(scoped.projects.map(project=>project.id)),scoped,selectedContributionYear),storage:dbProvider,me:{email:user.email,role,accessRevision:current.meta?.accessRevision||0,clock:permissions.includes('workorders.view')?(current.activeClocks||[]).find(c=>c.email===user.email&&scoped.workorders.some(w=>w.id===c.workorderId)):undefined,clockDefault:permissions.includes('workorders.view')?(current.clockDefaults||[]).find(c=>c.email===user.email):undefined,databaseTesting:permissions.includes('database.view'),rawDatabaseTesting,...access}});
     }
     if(req.method==='POST'&&(packRoute||['/api/action','/api/training/action'].includes(url.pathname))){
       if(req.headers['sec-fetch-site']==='cross-site'||(publicOrigin&&req.headers.origin!==publicOrigin))return response(res,403,{error:'Untrusted request origin'});

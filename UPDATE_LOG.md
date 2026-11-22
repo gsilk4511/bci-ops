@@ -1,3 +1,17 @@
+# BCI Operations 0.9.1
+
+- Technician Contribution uses only the employee’s own verified billed work hours, excluding travel, parts and nonbillable time.
+- Employment cost is hourly wage plus 25%, applied to those work hours. The difference is labor profit. The standard bonus is 5% of positive eligible YTD labor profit; explicit annual staff overrides still work.
+- Admin wage entries are effective dated. The per-work-order overhead-entry screen from 0.9.0 is retired; no payroll or payout automation.
+- Includes 0.8.9 Profile Studio and 0.8.8 Business Manager. No SQL migration or reseed.
+
+# BCI Operations 0.9.0
+
+- Added private project charts for attributed billed revenue, employment cost and profit after direct costs and overhead, plus a year-to-date bonus estimate.
+- Admins set a profit-share percent and enter verified work-order costs. Missing cost records and unavailable inputs are shown explicitly.
+- Displays the Friday nearest December 15 as the scheduled bonus date. This does not send a payment, write to payroll, or finalize an accounting period.
+- Includes 0.8.9 Profile Studio and 0.8.8 Business Manager. No SQL migration or reseed.
+
 # BCI Operations 0.8.9
 
 - Added Profile Studio with a live preview and twenty preset choices each for profile rings, lighting, banners, section colors, text colors and trade icons.

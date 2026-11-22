@@ -3,6 +3,12 @@
 const section = (title, ...items) => ({title, items});
 const release = (version, title, summary, ...sections) => ({version, title, summary, sections});
 export const releases = [
+ release('0.9.1','Work-time bonus formula','Track profit share from a technician’s own billed work time, excluding travel and parts.',
+  section('Labor contribution','Use each verified billed labor line, with a loaded cost of hourly wage plus 25%. The result is labor profit, not company net profit.','Vacation, leave and other nonbillable time do not earn or reduce this estimate. Missing wage history or incomplete invoice evidence is marked unavailable.'),
+  section('Admin settings','Set effective-dated hourly wages and annual profit share in the same staff form as vacation and sick balances. The standard bonus rate is 5% of positive year-to-date labor profit; explicit annual staff overrides remain available.','The Friday nearest December 15 stays a target date. No payroll or payment actions are performed.')),
+ release('0.9.0','Technician contribution and bonus projection','Private project-based revenue, employment cost, net profit and annual bonus tracking.',
+  section('My Time & Profile','See three contribution charts by project. The bonus projection uses the percentage set by an administrator and the net result after recorded direct and allocated overhead costs.'),
+  section('Year-end review','Shows the Friday nearest December 15 as the payout target. Missing verified data stays unavailable and the display does not approve, lock or send a payment.')),
  release('0.8.9','Profile Studio and technician badges','Customize internal team profiles and identify technicians on work orders.',
   section('Profile Studio','20 preset choices in each category: avatar ring, lighting, banner, section color, text color, and technician icon. Preview choices, mix styles, and reset the appearance without clearing profile details.','Appearance is visible on internal profiles. Pay, leave, contribution and Business Manager data are not shared through the crew directory.'),
   section('Work orders','Technician icons follow the employee account linked to internal work-order entries. Client documents and exports do not show the icons.')),

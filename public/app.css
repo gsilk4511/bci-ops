@@ -406,3 +406,24 @@ button.danger{background:#a72323;border:2px solid #8a1818;border-radius:8px;colo
  .modal-box:has(.bci-profile-editor){width:min(850px,100%)}
  .bci-profile-studio-layout{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);align-items:start;gap:16px}
 }
+
+/* Private year-to-date contribution */
+.bci-profit-grid{display:grid;gap:13px;grid-template-columns:repeat(auto-fit,minmax(min(100%,235px),1fr));align-items:start;margin:1rem 0;}
+.bci-profit-card,.bci-profit-bonus{border:1px solid #818e8e80;border-radius:10px;padding:12px;min-width:0;overflow-wrap:anywhere}
+.bci-profit-card h3,.bci-profit-bonus h3{margin:0 0 .4rem}
+.bci-profit-card p{margin:.55rem 0}
+.bci-profit-ring{display:grid;place-items:center;max-width:184px;margin:auto}
+.bci-profit-ring .bci-staff-total{max-width:66%}
+.bci-profit-ring .bci-staff-total strong{font-size:clamp(.9rem,1.5vw,1.12rem)}
+.bci-profit-loss-note{font-weight:625}
+.bci-profit-bonus{display:grid;gap:12px;grid-template-columns:repeat(2,minmax(0,1fr));margin-top:1rem;}
+.bci-profit-bonus-copy>strong{font-size:clamp(1.25rem,2.8vw,2rem);display:block}
+.bci-profit-bonus-copy>p:first-child{margin:0 0 .4rem;font-weight:650}
+.bci-profit-bonus p{margin:.35rem 0}
+.bci-profit-meter{width:100%;height:1.2rem;accent-color:#157f76}
+@media(max-width:600px){.bci-profit-bonus{grid-template-columns:1fr}}
+.bci-wage-history{border:1px solid #818e8e80;border-radius:8px;padding:.55rem .8rem;margin:0 0 .85rem}
+.bci-wage-history summary{cursor:pointer;font-weight:650;padding:.2rem 0}
+.bci-wage-history ul{padding-left:1.2rem}
+.bci-compensation-fields{margin:.85rem 0;padding:.7rem .85rem;border:1px solid #818e8e80;border-radius:8px;min-width:0}
+.bci-compensation-fields legend{font-weight:700}

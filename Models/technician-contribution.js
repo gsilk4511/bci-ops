@@ -5,7 +5,7 @@ const trustedEmail=value=>/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailKey(value))?ema
 const invoiceKey=invoice=>typeof invoice?.number==='string'?invoice.number.trim().toLowerCase():'';
 const validNumber=n=>typeof n==='number'&&Number.isFinite(n)&&n>=0;
 const validHours=n=>validNumber(n)&&n>0;
-const finalized=invoice=>['sent','paid'].includes(invoice?.status)&&!!invoice.sentAt&&!invoice.voidedAt&&!invoice.void;
+const finalized=(invoice,checkMissingDate=false)=>['sent','paid'].includes(invoice?.status)&&(checkMissingDate||!!invoice.sentAt)&&!invoice.voidedAt&&!invoice.void;
 const rounding=n=>Math.round((n+Number.EPSILON)*100);
 const excludedTypes=new Set(['tax','deposit','deposit-credit']);
 const billableTypes=new Set(['labor','material','travel']);
@@ -31,7 +31,41 @@ function allocate(totalCents,hours,email){
  return {cents:rank<0?0:shares[rank].whole+(rank<extra?1:0),totalHours};
 }
 
-export function technicianContribution(state,identity){
+const easternDay=new Intl.DateTimeFormat('en-CA',{timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit'});
+const daysOf=date=>easternDay.format(date);
+const recordedTime=value=>{
+ if(typeof value!=='string'||!/^\d{4}-\d{2}-\d{2}T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(value))return NaN;
+ const day=value.slice(0,10),calendar=new Date(day+'T00:00:00.000Z');
+ if(!Number.isFinite(+calendar)||calendar.toISOString().slice(0,10)!==day)return NaN;
+ return Date.parse(value);
+};
+export function nearestDecemberFriday(year){
+ if(!Number.isInteger(year)||year<1000||year>9999)return null;
+ const date=new Date(Date.UTC(year,11,15));
+ const daysForward=(5-date.getUTCDay()+7)%7;
+ date.setUTCDate(15+(daysForward<=3?daysForward:daysForward-7));
+ return date.toISOString().slice(0,10);
+}
+const validDay=value=>{
+ if(typeof value!=='string'||!/^\d{4}-\d{2}-\d{2}$/.test(value))return false;
+ const calendar=new Date(value+'T00:00:00.000Z');
+ return Number.isFinite(+calendar)&&calendar.toISOString().slice(0,10)===value;
+};
+function wageTable(history){
+ const index=indexUnique(Array.isArray(history)?history.filter(row=>row&&validDay(row.effectiveDate)):[],row=>row.effectiveDate);
+ return [...index.map].sort(([a],[b])=>b.localeCompare(a)).map(([date,row])=>({
+  date,cents:!index.duplicates.has(date)&&Number.isSafeInteger(row.hourlyCents)&&row.hourlyCents>=0?row.hourlyCents:null
+ }));
+}
+export function technicianContribution(state,identity,options){
+ const withCosts=options!=null;
+ const asOf=options?.now instanceof Date&&Number.isFinite(+options.now)?options.now:new Date();
+ const year=options?.year??Number(daysOf(asOf).slice(0,4));
+ const payoutDate=nearestDecemberFriday(year);
+ const profitShareBps=Number.isInteger(options?.profitShareBps)&&options.profitShareBps>=0&&options.profitShareBps<=10000?options.profitShareBps:500;
+ const wages=wageTable(options?.wageHistory);
+ const inYear=time=>elapsed(time)&&daysOf(new Date(time)).startsWith(year+'-');
+ const elapsed=time=>Number.isFinite(time)&&time<=+asOf;
  const email=trustedEmail(identity);
  const scope=state?.workorders||[];
  const snapshots=state?.projectInvoices||[];
@@ -55,30 +89,59 @@ export function technicianContribution(state,identity){
  }
  const projects=new Map();
  const coverage={includedOrders:0,excludedOrders:0,unlinkedLaborOrders:0,unsupportedLegacyOrders:0};
- let totalAttributedCents=0;
+ if(withCosts)Object.assign(coverage,{missingCostOrders:0,missingWageOrders:0,scopeIncomplete:options.scopeIncomplete===true});
+ let totalAttributedCents=0,totalEmploymentCostCents=0,totalNetProfitCents=0;
  for(const order of orders.values()){
   // A material or travel entry alone is not participation; never match on display name.
-  if(!email||order.billingHidden||internalOrder(state,order)||!finalized(order.invoice))continue;
+  if(!email||order.billingHidden||internalOrder(state,order)||!finalized(order.invoice,withCosts))continue;
   const entries=Array.isArray(order.entries)?order.entries:[];
   if(!entries.some(entry=>entry.type==='labor'&&trustedEmail(entry.employeeEmail)===email))continue;
   const group=order.invoice.groupId;
-  if(!group){coverage.unsupportedLegacyOrders++;coverage.excludedOrders++;continue;}
-  const invoice=documents.get(group), number=invoiceKey(order.invoice);
-  if(duplicateOrders.has(order.id)||duplicateDocuments.has(group)||!invoice||invoice.voidedAt||invoice.void||!invoice.sentAt||
-    (invoice.status&&!['sent','paid','open'].includes(invoice.status))||!number||invoiceKey(invoice)!==number||byNumber.get(number)?.size!==1||
-    invoice.projectId!==order.projectId||!order.closeout?.reviewedAt||linkedOrders.get(order.id)?.size!==1||
-    !Array.isArray(invoice.orders)){
-   coverage.excludedOrders++;continue;
+  const orderTime=withCosts?recordedTime(order.invoice.sentAt):null;
+  if(withCosts&&Number.isFinite(orderTime)&&!inYear(orderTime))continue;
+  const number=invoiceKey(order.invoice);
+  let source;
+  if(!group){
+   // Standalone records date back to invoice.record and carry no invoice document.
+   // A complete office-reviewed closeout with identical locked labor is the only safe fallback.
+   const original=order.closeout?.originalEntries;
+   if(!withCosts||!payoutDate||!inYear(orderTime)||duplicateOrders.has(order.id)||!number||byNumber.get(number)?.size!==1||
+    linkedOrders.has(order.id)||!order.closeout?.reviewedAt||!Array.isArray(original)){
+    coverage.unsupportedLegacyOrders++;coverage.excludedOrders++;continue;
+   }
+   const currentLabor=entries.filter(line=>line.type==='labor');
+   const originalLabor=original.filter(line=>line.type==='labor');
+   const laborIndex=indexUnique(currentLabor,line=>line.id);
+   const frozenIndex=indexUnique(originalLabor,line=>line.id);
+   const keys=['id','type','quantity','rate','unit','catalogId','date','startTime','endTime'];
+   const matching=currentLabor.length===originalLabor.length&&laborIndex.map.size===currentLabor.length&&
+     frozenIndex.map.size===originalLabor.length&&!laborIndex.duplicates.size&&!frozenIndex.duplicates.size&&originalLabor.every(line=>{
+      const attached=laborIndex.map.get(line.id);
+      return attached&&keys.every(key=>attached[key]===line[key])&&trustedEmail(line.employeeEmail)===trustedEmail(attached.employeeEmail);
+     });
+   if(!matching){coverage.unsupportedLegacyOrders++;coverage.excludedOrders++;continue;}
+   source=originalLabor;
+  }else{
+   const invoice=documents.get(group);
+   if(withCosts&&(!payoutDate||!inYear(orderTime)||recordedTime(invoice?.sentAt)!==orderTime)){
+    coverage.excludedOrders++;continue;
+   }
+   if(duplicateOrders.has(order.id)||duplicateDocuments.has(group)||!invoice||invoice.voidedAt||invoice.void||!invoice.sentAt||
+     (invoice.status&&!['sent','paid','open'].includes(invoice.status))||!number||invoiceKey(invoice)!==number||byNumber.get(number)?.size!==1||
+     invoice.projectId!==order.projectId||!order.closeout?.reviewedAt||linkedOrders.get(order.id)?.size!==1||
+     !Array.isArray(invoice.orders)){
+    coverage.excludedOrders++;continue;
+   }
+   const invoiceOrders=invoice.orders.filter(row=>row.id===order.id);
+   if(invoiceOrders.length!==1||!Array.isArray(invoiceOrders[0].entries)){coverage.excludedOrders++;continue;}
+   source=invoiceOrders[0].entries;
   }
-  const invoiceOrders=invoice.orders.filter(row=>row.id===order.id);
-  if(invoiceOrders.length!==1||!Array.isArray(invoiceOrders[0].entries)){coverage.excludedOrders++;continue;}
-  const source=invoiceOrders[0].entries;
   const current=indexUnique(entries,e=>e.id);
   const snap=indexUnique(source,e=>e.id);
   const hours=new Map();
-  let grossCents=0,unsafe=false,unlinked=false;
+  let grossCents=0,ownCents=0,employmentCents=0,missingWage=false,unsafe=false,unlinked=false;
   for(const line of source){
-   if(excludedTypes.has(line.type))continue;
+   if(withCosts?line.type!=='labor':excludedTypes.has(line.type))continue;
    if(!billableTypes.has(line.type)||!line.id||snap.duplicates.has(line.id)||!validHours(line.quantity)||!validNumber(line.rate)){
     unsafe=true;break;
    }
@@ -92,12 +155,28 @@ export function technicianContribution(state,identity){
    const key=corroborated?trustedEmail(attached.employeeEmail):'';
    if(!key)unlinked=true;
    hours.set(key,(hours.get(key)||0)+line.quantity);
+   if(withCosts&&key===email){
+    ownCents+=rounding(line.quantity*line.rate);
+    const wage=validDay(line.date)&&wages.find(item=>item.date<=line.date);
+    if(!wage||wage.cents==null)missingWage=true;
+    else employmentCents+=Math.round(line.quantity*wage.cents*1.25);
+   }
   }
   // Do not award all revenue to confirmed employees when someone else's snapshot labor is anonymous.
   // Anonymous hours remain in the denominator and their share is left unattributed.
   if(unsafe||!validHours(hours.get(email))){coverage.excludedOrders++;continue;}
-  const {cents,totalHours}=allocate(grossCents,hours,email);
+  const {cents,totalHours}=withCosts?{cents:ownCents,totalHours:[...hours.values()].reduce((sum,n)=>sum+n,0)}:allocate(grossCents,hours,email);
   if(!Number.isSafeInteger(totalAttributedCents+cents)){coverage.excludedOrders++;continue;}
+  let employmentCostCents=0,netProfitCents=0;
+  if(withCosts){
+   employmentCostCents=employmentCents;
+   netProfitCents=cents-employmentCostCents;
+   if(missingWage||!Number.isSafeInteger(employmentCostCents)||!Number.isSafeInteger(totalEmploymentCostCents+employmentCostCents)||!Number.isSafeInteger(totalNetProfitCents+netProfitCents)){
+    coverage.missingCostOrders++;
+    coverage.missingWageOrders++;
+    employmentCostCents=0;netProfitCents=0;
+   }
+  }
   if(unlinked)coverage.unlinkedLaborOrders++;
   coverage.includedOrders++;
   totalAttributedCents+=cents;
@@ -106,11 +185,26 @@ export function technicianContribution(state,identity){
   existing.laborHours+=hours.get(email);
   existing.totalLaborHours+=totalHours;
   existing.orderCount++;
+  if(withCosts){
+   existing.employmentCostCents=(existing.employmentCostCents||0)+employmentCostCents;
+   existing.netProfitCents=(existing.netProfitCents||0)+netProfitCents;
+   totalEmploymentCostCents+=employmentCostCents;
+   totalNetProfitCents+=netProfitCents;
+  }
   projects.set(order.projectId,existing);
  }
+ const verifiedCosts=withCosts&&coverage.includedOrders>0&&!coverage.excludedOrders&&!coverage.unlinkedLaborOrders&&!coverage.missingCostOrders&&!coverage.scopeIncomplete;
+ if(withCosts&&!verifiedCosts)for(const row of projects.values()){
+  row.employmentCostCents=null;
+  row.netProfitCents=null;
+ }
+ const projectedCents=verifiedCosts&&profitShareBps!=null?
+  Number((BigInt(Math.max(0,totalNetProfitCents))*BigInt(profitShareBps)+5000n)/10000n):null;
  return {
-  status:!coverage.includedOrders?'unavailable':coverage.excludedOrders||coverage.unlinkedLaborOrders?'partial':'available',
-  basis:'Grouped invoice work-order charges before deposits or tax, allocated by recorded on-job labor hours. Travel hours do not earn credit; legacy invoices without a matching snapshot are excluded.',
+  ...(withCosts?{totalEmploymentCostCents:verifiedCosts?totalEmploymentCostCents:null,totalNetProfitCents:verifiedCosts?totalNetProfitCents:null,
+   bonus:{status:projectedCents==null?'unavailable':'available',profitShareBps,projectedCents,year,payoutDate}}:{}),
+  status:!coverage.includedOrders?'unavailable':coverage.excludedOrders||coverage.unlinkedLaborOrders||coverage.scopeIncomplete?'partial':'available',
+  basis:withCosts?'Own verified invoiced work labor, at the recorded customer labor rate. Employment cost uses the effective hourly wage for each work date plus 25%. Parts, travel, and leave are excluded.':'Grouped invoice work-order charges before deposits or tax, allocated by recorded on-job labor hours. Travel hours do not earn credit; legacy invoices without a matching snapshot are excluded.',
   totalAttributedCents:coverage.includedOrders?totalAttributedCents:null,
   projects:[...projects.values()].sort((a,b)=>b.attributedCents-a.attributedCents||(a.projectId<b.projectId?-1:1)),
   coverage,profit:null,employmentCost:null,

@@ -2,6 +2,7 @@ import {can, data, esc, f, head, modal, render, send, table, today} from '../app
 
 import {profileCard, directoryProfile, personalProfileFields, personalProfilePayload, bindProfileEditor} from './staff-profile.js';
 import {contributionPanel} from './staff-contribution.js';
+import {contributionYear,openCompensationProfile,rateLabel} from './staff-contribution-admin.js';
 import {businessManagerPanel} from './business-manager.js';
 
 let firstDay='',lastDay='';
@@ -20,6 +21,7 @@ export function staffPage() {
  const entries=ordered(staff.time.filter(inRange));
  const leave=ordered(staff.leave.filter(inRange));
  const admin=Array.isArray(staff.staffProfiles);
+ const rateYear=contributionYear(staff);
  const totals=Object.fromEntries(Object.keys(categories).map(type=>[type,[...entries,...leave.filter(row=>row.status==='Approved')].filter(e=>e.type===type).reduce((sum,e)=>sum+e.quantity,0)]));
  return head('My Time & Profile','Staff','Review your work orders, record time off, or start a new internal task.',
   (can('staff.leave')?action('leave','+ Add Time Off'):'')+(staff.internalAvailable&&can('staff.internal')?action('internal','+ New Internal Work Order'):''))
@@ -45,7 +47,7 @@ export function staffPage() {
    <section class="panel"><h2>Time off</h2>${table(['Date','Category','Hours','Status'],leave.map(row=>`<tr><td>${esc(row.date)}</td><td>${esc(categories[row.type])}</td><td>${number(row.quantity)}</td><td>${esc(row.status)}</td></tr>`))}</section>`
   +`<section class="panel"><h2>Team directory</h2><p>Read-only profiles shared internally.</p>
    ${staff.directory?.length?`<div class="bci-staff-directory">${staff.directory.map(directoryProfile).join('')}</div>`:'<p>No other team profiles are available.</p>'}</section>`
-  +(admin?`<section class="panel"><h2>Staff profiles</h2>${table(['Employee','Sign-in','Vacation','Sick',''],staff.staffProfiles.map(row=>`<tr><td>${esc(row.name)}</td><td>${esc(row.email)}</td><td>${number(row.vacationHours)} h</td><td>${number(row.sickHours)} h</td><td>${can('staff.manage')?action('manage','Edit',row.email):''}</td></tr>`))}</section>
+  +(admin?`<section class="panel"><h2>Staff profiles</h2>${table(['Employee','Sign-in','Vacation','Sick',rateYear+' profit share',''],staff.staffProfiles.map(row=>`<tr><td>${esc(row.name)}</td><td>${esc(row.email)}</td><td>${number(row.vacationHours)} h</td><td>${number(row.sickHours)} h</td><td>${esc(rateLabel(row,rateYear))}</td><td>${can('staff.manage')?action('manage','Edit staff profile',row.email):''}</td></tr>`))}</section>
    <section class="panel"><h2>Pending time off</h2>${table(['Employee','Date','Category','Hours',''],staff.requests.map(row=>`<tr><td>${esc(staff.staffProfiles.find(member=>member.email===row.email)?.name||row.email)}</td><td>${esc(row.date)}</td><td>${esc(categories[row.type])}</td><td>${number(row.quantity)}</td><td>${can('staff.leaveReview')?action('review','Review',row.id):''}</td></tr>`))}</section>`:'');
 }
 function profileFields(row,admin) {
@@ -79,7 +81,7 @@ document.addEventListener('click',event=>{
   case 'project': if(can('projects.view')&&staff.projects?.some(row=>String(row.id)===id))document.dispatchEvent(new CustomEvent('bci:open-project',{detail:id}));break;
   case 'manage': {
    const row=staff.staffProfiles?.find(item=>item.email===id);
-   if(row&&can('staff.manage'))modal('Edit staff profile',profileFields(row,true),values=>send('staff.manage',{...values,email:id}),`<p>Sign-in: ${esc(row.email)} (unchanged)</p>`);break;
+   if(row&&can('staff.manage'))openCompensationProfile(row,contributionYear(staff),profileFields(row,true));break;
   }
   case 'leave': if(can('staff.leave'))modal('Add time off',f('type','Type',{select:[['vacation','Vacation'],['sick','Sick time']]})+
    f('date','Date',{type:'date',required:true,value:today()})+f('quantity','Hours',{type:'number',required:true,min:'0.01',step:'0.01'}),

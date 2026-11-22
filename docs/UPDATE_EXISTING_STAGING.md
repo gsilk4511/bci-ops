@@ -1,4 +1,4 @@
-# Update existing BCI Operations staging to 0.8.9
+# Update existing BCI Operations staging to 0.9.1
 
 ## Greg: use the existing staging stack
 
@@ -10,7 +10,7 @@
    `mariadb.env`, MariaDB database name, named volume, bridge, and service
    hostname `db`. Do not replace these with bundled examples.
 4. Confirm the app build context points to the updated source. In the active
-   Compose file, change the app image tag to `bci-operations:0.8.9`. Do not
+   Compose file, change the app image tag to `bci-operations:0.9.1`. Do not
    change the database service. Use the actual app service name if different.
 
 From the deployment directory:
@@ -21,10 +21,17 @@ docker compose -f compose.bci-operations-fixed.yml up -d --build --no-deps --for
 docker compose -f compose.bci-operations-fixed.yml exec -T bci-operations node -e "fetch('http://127.0.0.1:3100/api/health').then(r=>r.json()).then(console.log)"
 ```
 
-Recreate by itself does not build a new image. Verify `0.8.9` in the health
+Recreate by itself does not build a new image. Verify `0.9.1` in the health
 response and beside the BCI logo. No SQL migration, reimport or reseed.
 If you roll back, restore the previous source, restore its former image tag
 and rebuild only the app. Keep the database and its volume in place.
+
+## Randy: test technician contribution and bonus projection
+
+Use only synthetic work orders, employee accounts and financial inputs in
+staging. See TECHNICIAN-CONTRIBUTION.md for the work-time, wage and attribution rules.
+Confirm that standard staff cannot edit percentages or wages, or view
+anyone else’s results. No payout action is included.
 
 ## Randy: test Profile Studio
 
@@ -48,5 +55,5 @@ Installing the update does not change Leslie’s account or permissions.
 - Verify the work-order/project counts against entries from the same user,
   remembering that historical time without an employee account link isn't
   attributed. Cross-check a test invoice with documented time distribution.
-- Verify Profit and Employment cost are labeled but not populated. No bonus
-  payout is calculated. See TECHNICIAN-CONTRIBUTION.md for coverage details.
+- Verify the three charts and private bonus estimate. Missing wage history
+  or unavailable invoice evidence must not produce a fabricated bonus.

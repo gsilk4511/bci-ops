@@ -29,7 +29,7 @@ export const permissionGroups = {
   },
   'My Time and staff profiles': {'staff.view':'View My Time and profile','staff.profile':'Customize own staff profile',
     'staff.leave':'Request vacation or sick time','staff.internal':'Create internal work orders',
-    'staff.manage':'Administer staff profiles and pay scales','staff.leaveReview':'Review staff leave'},
+    'staff.manage':'Administer staff profiles, wages and profit share','staff.leaveReview':'Review staff leave'},
   'Business Manager': {'businessManager.view':'View fleet maintenance and bill tracker','businessManager.manage':'Manage fleet maintenance and bill tracker'},
   'Payroll': {'payroll.view':'View payroll review and exports','payroll.other':'Log shop time or leave','payroll.approve':'Approve pay periods'},
   'Billing and pricing': {
