@@ -1,3 +1,4 @@
+import {workOrderTechnicianIcon} from './work-order-technician-icon.js';
 import {workEntryControls,editOrderButton,receiptPanel} from './work-entry.js';
 import {workorderDeleteButton} from './records.js';
 // Owns the work order detail presentation.
@@ -15,7 +16,7 @@ function journalEntries(order) {
   const note = entry.journalNote ?? entry.description;
   return `<li class="field-journal-entry">
    <dl class="field-journal-meta">
-    <div><dt>Date / tech</dt><dd>${esc(entry.date)} <span class="muted">${esc(entry.tech)}</span></dd></div>
+    <div><dt>Date / tech</dt><dd>${esc(entry.date)} <span class="muted"><span class="work-order-tech-identity">${workOrderTechnicianIcon(entry.technicianIcon,esc)}<span>${esc(entry.tech)}</span></span></span></dd></div>
     <div><dt>Qty</dt><dd>${esc(qty)} ${esc(entry.unit)}</dd></div>
     <div><dt>Charge</dt><dd>${fmt(entry.quantity * entry.rate)}</dd></div>
    </dl>

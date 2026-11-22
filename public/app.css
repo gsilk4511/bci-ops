@@ -356,3 +356,53 @@ button.danger{background:#a72323;border:2px solid #8a1818;border-radius:8px;colo
 .bci-manager-status[data-kind=due],.bci-manager-status[data-kind=soon]{color:#594000;background:#fae7a8}
 .bci-manager-status[data-kind=paid]{color:#034b28;background:#d0f4df}
 @media(max-width:550px){.bci-manager-grid,.bci-manager-summary{grid-template-columns:1fr}}
+
+/* Profile styles are decorative internal work-order metadata, not document output. */
+.work-order-tech-identity{display:inline-flex;align-items:center;gap:.28rem;min-width:0;max-width:100%;vertical-align:middle}
+.work-order-tech-identity span{min-width:0;overflow-wrap:anywhere}
+.work-order-tech-icon{display:inline-block;width:1.1rem;height:1.1rem;flex:0 0 1.1rem;vertical-align:middle}
+.work-order-tech-icon-group{display:inline-flex;align-items:center;gap:.18rem;vertical-align:middle;margin-inline-start:.42rem;opacity:.83}
+@media print{.work-order-tech-icon,.work-order-tech-icon-group{display:none!important}}
+
+/* Profile Studio: appearance is intentionally limited to the public profile card. */
+.bci-profile-theme{position:relative;isolation:isolate;overflow:hidden;border:1px solid var(--profile-border,#697283);border-radius:14px;color:var(--profile-text,#f7fafc);background:#111823;overflow-wrap:anywhere;}
+.bci-profile-banner{height:104px;background:var(--profile-banner,#25476c);box-shadow:inset 0 -22px 34px #0004}
+.bci-profile-body{position:relative;z-index:1;padding:0 18px 18px}
+.bci-profile-arrival{position:absolute;inset:0;background:var(--profile-light,transparent);pointer-events:none;opacity:.45}
+.bci-profile-identity{display:grid;grid-template-columns:auto minmax(0,1fr);gap:13px;align-items:end;margin-top:-31px;min-height:86px}
+.bci-profile-identity h3{margin:0 0 2px;color:inherit;font-size:1.28rem}
+.bci-profile-ring{display:inline-grid;place-items:center;padding:5px;border-radius:50%;background:var(--profile-ring,#a27c4a);box-shadow:0 0 18px var(--profile-glow,#0004);}
+.bci-profile-ring .bci-staff-avatar{outline:2px solid #10151d;outline-offset:-1px}
+.bci-profile-about{margin-top:13px;border:1px solid var(--profile-border,#697283);border-radius:9px;padding:12px;background:var(--profile-surface,#161d28)}
+.bci-profile-about h4{color:inherit;margin:0 0 5px;font-size:.88rem;letter-spacing:.06em;text-transform:uppercase}
+.bci-profile-about .bci-staff-bio,.bci-profile-about .bci-staff-social a{color:inherit}
+.bci-profile-icon{display:inline-flex;gap:5px;align-items:center;line-height:1.25;font-size:.88rem;max-width:100%;font-weight:650}
+.bci-profile-identity .bci-profile-icon{color:var(--profile-muted,#dde2e8)}
+.bci-profile-icon svg{width:21px;height:21px;flex:0 0 auto}
+.bci-profile-disclosure{border:1px solid #818e8e80;border-radius:9px;min-width:0;overflow:hidden;align-self:start}
+.bci-profile-disclosure>summary{cursor:pointer;display:flex;align-items:center;min-height:46px;gap:9px;padding:10px 13px;overflow-wrap:anywhere;list-style:none;font-weight:650}
+.bci-profile-disclosure>summary::-webkit-details-marker{display:none}
+.bci-profile-open-label{font-weight:400;font-size:.85rem;margin-left:auto;flex-shrink:0}
+.bci-profile-disclosure[open] .bci-profile-open-label{display:none}
+.bci-profile-disclosure[open]>summary::after{content:'−';margin-left:auto}
+.bci-profile-disclosure .bci-profile-theme{border:0;border-radius:0}
+.bci-profile-disclosure>summary:focus-visible,.bci-profile-studio button:focus-visible{outline:2px solid currentColor;outline-offset:-4px}
+.bci-profile-studio{padding:14px;border:1px solid #818e8e80;border-radius:10px;margin:14px 0}
+.bci-profile-studio-head{display:flex;gap:10px;justify-content:space-between;align-items:flex-start;flex-wrap:wrap}
+.bci-profile-studio-head h3,.bci-profile-studio-head p{margin:0 0 7px}
+.bci-profile-studio-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 12px}
+.bci-profile-preview-label{font-weight:700;margin:.4rem 0}
+.bci-profile-editor-hint{margin:.7rem 0 0}
+.bci-profile-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+@media(max-width:480px){.bci-profile-studio-grid{grid-template-columns:1fr}.bci-profile-body{padding-inline:12px}.bci-profile-open-label{display:none}.bci-profile-disclosure:not([open])>summary::after{content:'+';margin-left:auto}}
+@media(prefers-reduced-motion:no-preference){
+ .bci-profile-arrival{animation:bci-profile-enter .85s ease-out both}
+ .bci-profile-theme.bci-profile-preview .bci-profile-arrival{animation:none}
+}
+@keyframes bci-profile-enter{0%{opacity:.02;transform:scale(1.16)}55%{opacity:.66}100%{opacity:.45;transform:scale(1)}}
+.bci-profile-editor-details{margin:.8rem 0 1rem}.bci-profile-editor-details>summary{cursor:pointer;font-weight:650;padding:.45rem 0}
+.bci-profile-editor-details[open]>summary{margin-bottom:.6rem}
+@media(min-width:760px){
+ .modal-box:has(.bci-profile-editor){width:min(850px,100%)}
+ .bci-profile-studio-layout{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);align-items:start;gap:16px}
+}

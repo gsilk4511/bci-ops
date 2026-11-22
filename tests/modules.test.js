@@ -116,16 +116,25 @@ test('each tab module links and renders with shared live state',async()=>{
  assert.match(entry.namespace.detail(state.workorders[0]),/scope/i);
  // The on-screen field journal keeps all metadata above a full-width, escaped note.
  const journalEntry={id:'layout-1',type:'labor',date:'2026-11-16',tech:'Sample Tech',name:'Cable technician',
-  quantity:25/3,unit:'hr',rate:95,description:'Original note',journalNote:'First line\nSecond line <sample>'};
+  quantity:25/3,unit:'hr',rate:95,technicianIcon:'rj45',description:'Original note',journalNote:'First line\nSecond line <sample>'};
  const journalOrder={...state.workorders[0],approvedAt:'2026-11-16T12:00:00Z',entries:[journalEntry,{...journalEntry,id:'layout-2',type:'material',
-  quantity:1.2345,unit:'box',rate:0,name:'Boxes',journalNote:undefined}]};
+  quantity:1.2345,unit:'box',rate:0,name:'Boxes',technicianIcon:'rj45',journalNote:undefined}]};
  const journal=entry.namespace.detail(journalOrder);
  assert.match(journal,/field-journal-meta[\s\S]*?Date \/ tech[\s\S]*?Sample Tech[\s\S]*?Qty[\s\S]*?8\.33 hr[\s\S]*?Charge[\s\S]*?\$791\.67[\s\S]*?<\/dl>[\s\S]*?field-journal-work">Cable technician[\s\S]*?field-journal-note">First line\nSecond line &lt;sample&gt;/);
  assert.match(journal,/data-entry-mode="wo_demo">Edit Work Order/);
  assert.doesNotMatch(journal,/data-entry-edit=/);
  assert.match(journal,/1\.2345 box/);
+ assert.equal((journal.match(/class="work-order-tech-icon" role="img" aria-label="Technician icon: /g)||[]).length,2);
+ assert.doesNotMatch(entry.namespace.detail({...journalOrder,entries:[{...journalEntry,technicianIcon:'<bad-id>'}]}),/work-order-tech-icon|<bad-id>/);
+ const originalList=state.workorders;
+ state.workorders=[journalOrder];
+ const technicianList=entry.namespace.workorders();
+ assert.equal((technicianList.match(/aria-label="Technician styles on this work order"/g)||[]).length,2,'one group each for desktop/mobile');
+ assert.equal((technicianList.match(/class="work-order-tech-icon" role="img"/g)||[]).length,2,'repeated styles deduplicated in list summaries');
+ state.workorders=originalList;
  assert.equal(journalEntry.quantity,25/3);
  const journalPrint=entry.namespace.workOrderDocument(journalOrder);
+ assert.doesNotMatch(journalPrint,/work-order-tech-icon|Technician icon:/);
  assert.match(journalPrint, /<th scope="col">Date \/ Tech<\/th><th scope="col">Qty \/ Hours<\/th><th scope="col">Charge<\/th>/);
  assert.match(journalPrint, /<tbody class="work-order-journal-entry">\s*<tr class="work-order-journal-meta">[\s\S]*?2026-11-16[\s\S]*?Sample Tech[\s\S]*?<td>8\.33 hr<\/td><td>\$791\.67<\/td><\/tr>\s*<tr class="work-order-journal-work"><td colspan="3"><b>Cable technician<\/b><div class="ticket-text">Original note<\/div><\/td><\/tr>\s*<\/tbody>/);
  assert.match(journalPrint, /<td>1\.2345 box<\/td>/);

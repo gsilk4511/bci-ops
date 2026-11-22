@@ -1,6 +1,6 @@
 import {can, data, esc, f, head, modal, render, send, table, today} from '../app.js';
 
-import {profileCard, personalProfileFields, personalProfilePayload} from './staff-profile.js';
+import {profileCard, directoryProfile, personalProfileFields, personalProfilePayload, bindProfileEditor} from './staff-profile.js';
 import {contributionPanel} from './staff-contribution.js';
 import {businessManagerPanel} from './business-manager.js';
 
@@ -26,7 +26,7 @@ export function staffPage() {
   +`<section class="panel"><h2>My profile</h2>
    ${profileCard(profile)}
    <p class="bci-staff-private"><strong>Only visible to you and authorized admins:</strong> ${esc(profile.contactEmail||'')} · Pay scale: ${esc(profile.payScale||'Not set')} · Vacation: ${number(profile.vacationHours)} h · Sick: ${number(profile.sickHours)} h</p>
-   ${can('staff.profile')?action('profile','Edit my profile'):''}</section>`
+   ${can('staff.profile')?action('profile','Open Profile Studio'):''}</section>`
   +(can('businessManager.view')?businessManagerPanel(staff.businessManager,can('businessManager.manage')):'')
   +`<section class="panel"><h2>My work orders &amp; projects</h2>
    <div class="bci-staff-totals">
@@ -44,7 +44,7 @@ export function staffPage() {
     ${table(['Date','Category','Hours','Work order','Project','Notes','Status'],entries.map(row=>`<tr><td>${esc(row.date)}</td><td>${esc(categories[row.type])}</td><td>${number(row.quantity)}</td><td>${timeLink(row)}</td><td>${esc(row.project||'')}</td><td>${esc(row.note)}</td><td>${esc(row.status)}</td></tr>`))}</section>
    <section class="panel"><h2>Time off</h2>${table(['Date','Category','Hours','Status'],leave.map(row=>`<tr><td>${esc(row.date)}</td><td>${esc(categories[row.type])}</td><td>${number(row.quantity)}</td><td>${esc(row.status)}</td></tr>`))}</section>`
   +`<section class="panel"><h2>Team directory</h2><p>Read-only profiles shared internally.</p>
-   ${staff.directory?.length?`<div class="bci-staff-directory">${staff.directory.map(peer=>`<article>${profileCard({displayName:peer.displayName,bio:peer.bio,avatarUrl:peer.avatarUrl,socialLinks:peer.socialLinks})}</article>`).join('')}</div>`:'<p>No other team profiles are available.</p>'}</section>`
+   ${staff.directory?.length?`<div class="bci-staff-directory">${staff.directory.map(directoryProfile).join('')}</div>`:'<p>No other team profiles are available.</p>'}</section>`
   +(admin?`<section class="panel"><h2>Staff profiles</h2>${table(['Employee','Sign-in','Vacation','Sick',''],staff.staffProfiles.map(row=>`<tr><td>${esc(row.name)}</td><td>${esc(row.email)}</td><td>${number(row.vacationHours)} h</td><td>${number(row.sickHours)} h</td><td>${can('staff.manage')?action('manage','Edit',row.email):''}</td></tr>`))}</section>
    <section class="panel"><h2>Pending time off</h2>${table(['Employee','Date','Category','Hours',''],staff.requests.map(row=>`<tr><td>${esc(staff.staffProfiles.find(member=>member.email===row.email)?.name||row.email)}</td><td>${esc(row.date)}</td><td>${esc(categories[row.type])}</td><td>${number(row.quantity)}</td><td>${can('staff.leaveReview')?action('review','Review',row.id):''}</td></tr>`))}</section>`:'');
 }
@@ -70,7 +70,12 @@ document.addEventListener('click',event=>{
  if(!button||!can('staff.view')||!data.staff)return;
  const id=button.dataset.staffId,staff=data.staff;
  switch(button.dataset.staffAction){
-  case 'profile': if(can('staff.profile'))modal('Edit my profile',personalProfileFields(staff.profile),async values=>send('staff.profile',await personalProfilePayload(values)));break;
+  case 'profile': if(can('staff.profile')){
+   modal('Profile Studio',personalProfileFields(staff.profile),async values=>send('staff.profile',await personalProfilePayload(values)));
+   const form=document.querySelector('#actionForm');
+   form?.classList.add('bci-profile-editor');
+   bindProfileEditor(form,staff.profile);
+  }break;
   case 'project': if(can('projects.view')&&staff.projects?.some(row=>String(row.id)===id))document.dispatchEvent(new CustomEvent('bci:open-project',{detail:id}));break;
   case 'manage': {
    const row=staff.staffProfiles?.find(item=>item.email===id);

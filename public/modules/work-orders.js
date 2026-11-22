@@ -1,3 +1,4 @@
+import {workOrderTechnicianIcons} from './work-order-technician-icon.js';
 // Owns the work orders presentation. Shared state comes from the application shell.
 import { can, bill, billingName, customer, data, empty, esc, fmt, head, labelFor, project, status, table } from '../app.js';
 
@@ -30,7 +31,7 @@ function mobileRow(w) {
       <div><dt>Created</dt><dd>${createdDate(w.createdAt)}</dd></div>
     </dl>
     <div class="wo-mobile-main">
-      ${titleButton(w)}
+      ${titleButton(w)}${workOrderTechnicianIcons(w.entries,esc)}
       <p class="muted wo-mobile-scope">${esc(w.description || 'No scope recorded.')}</p>
     </div>
   </li>`;
@@ -38,7 +39,7 @@ function mobileRow(w) {
 
 export function workorders() {
   const orders = data.workorders;
-  const desktop = table(['Job', 'Customer / project', 'State', 'Entries', 'Estimated bill'], orders.map(w => `<tr><td>${titleButton(w)}<div class="muted tiny">${esc((w.description || '').slice(0, 80))}</div></td><td>${esc(labelFor(w))}</td><td>${status(w.status)}</td><td>${w.entries.length}</td><td>${fmt(bill(w).total)}</td></tr>`));
+  const desktop = table(['Job', 'Customer / project', 'State', 'Entries', 'Estimated bill'], orders.map(w => `<tr><td>${titleButton(w)}${workOrderTechnicianIcons(w.entries,esc)}<div class="muted tiny">${esc((w.description || '').slice(0, 80))}</div></td><td>${esc(labelFor(w))}</td><td>${status(w.status)}</td><td>${w.entries.length}</td><td>${fmt(bill(w).total)}</td></tr>`));
   const mobile = orders.length ? `<ul class="wo-mobile-list" aria-label="Work orders">${orders.map(mobileRow).join('')}</ul>` : empty('No records found');
   return head('Work orders', 'Operations', 'Scope approval comes before job entries. Every entry stays linked to the work order.', can('workorder.create')?'<button class="primary" data-open="workorder">+ New Work Order</button>':'')
     + `<section class="panel"><div class="wo-desktop">${desktop}</div><div class="wo-mobile">${mobile}</div></section>`;

@@ -1,4 +1,5 @@
 import {esc} from '../app.js';
+import {profileTheme,profileIcon,studioFields,styleFromValues,bindStudio} from './profile-studio.js';
 
 export const maxSocialLinks=6;
 export const maxPhotoBytes=240*1024;
@@ -14,19 +15,30 @@ function safePhotoUrl(value){
  const url=String(value||'');
  return /^\/api\/[a-zA-Z0-9/_-]+(?:\?[a-zA-Z0-9_=&%-]+)?$/.test(url)?url:'';
 }
-export function profileCard(profile){
- const name=profile.displayName||profile.name||'Team member', photo=safePhotoUrl(profile.avatarUrl);
+function profileIdentity(profile,name,previewPhoto=''){
+ const photo=previewPhoto||safePhotoUrl(profile.avatarUrl);
+ return `<div class="bci-profile-ring"><div class="bci-staff-avatar">${photo?`<img src="${esc(photo)}" alt="" width="72" height="72" decoding="async">`:`<span aria-hidden="true">${esc(initials(name))}</span>`}</div></div>`;
+}
+export function profileCard(profile,{preview=false,previewPhoto=''}={}){
+ const name=profile.displayName||profile.name||'Team member';
  const links=(Array.isArray(profile.socialLinks)?profile.socialLinks:[]).slice(0,maxSocialLinks)
   .map(link=>[safeProfileLink(link?.url),String(link?.label||'Social profile')]).filter(([url])=>url);
- return `<div class="bci-staff-card">
-  <div class="bci-staff-avatar">${photo?`<img src="${esc(photo)}" alt="" width="72" height="72" loading="lazy" decoding="async">`:`<span aria-hidden="true">${esc(initials(name))}</span>`}</div>
-  <div><h3>${esc(name)}</h3>
-  <p class="bci-staff-bio">${esc(profile.bio||'No introduction added yet.')}</p>
-  ${links.length?`<ul class="bci-staff-social" aria-label="Social links">${links.map(([url,label])=>`<li><a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(label)}</a></li>`).join('')}</ul>`:''}</div></div>`;
+ return profileTheme(profile.style,`<div class="bci-profile-identity">${profileIdentity(profile,name,previewPhoto)}
+  <div><h3>${esc(name)}</h3>${profileIcon(profile.style)}</div></div>
+  <div class="bci-profile-about"><h4>About</h4><p class="bci-staff-bio">${esc(profile.bio||'No introduction added yet.')}</p>
+  ${links.length?`<ul class="bci-staff-social" aria-label="Social links">${links.map(([url,label])=>`<li>${preview?esc(label):`<a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(label)}</a>`}</li>`).join('')}</ul>`:''}</div>`,preview?'preview':'');
+}
+export function directoryProfile(peer){
+ const shared={displayName:peer.displayName,bio:peer.bio,avatarUrl:peer.avatarUrl,socialLinks:peer.socialLinks,style:peer.style};
+ return `<details class="bci-profile-disclosure"><summary>
+  ${profileIcon(shared.style,false)}<span>${esc(shared.displayName||'Team member')}</span><span class="bci-profile-open-label" aria-hidden="true">View profile</span>
+  </summary>${profileCard(shared)}</details>`;
 }
 export function personalProfileFields(row){
  const links=Array.isArray(row.socialLinks)?row.socialLinks:[];
- return `<p>Only your display name, photo, about and social links appear to signed-in coworkers. Social links are optional.</p>
+ return `<p>Your display name, photo, about, social links and appearance can be seen by signed-in coworkers. Social links are optional.</p>
+ ${studioFields(row.style,profileCard(row,{preview:true}))}
+ <details class="bci-profile-editor-details"><summary>Profile details, photo and social links</summary>
  <div class="field"><label for="staffDisplayName">Display name</label><input id="staffDisplayName" name="displayName" maxlength="100" required value="${esc(row.displayName||row.name||'')}"></div>
  <div class="field"><label for="staffBio">About me</label><textarea id="staffBio" name="bio" maxlength="1200" rows="4">${esc(row.bio||'')}</textarea></div>
  <div class="field"><label for="staffAvatar">New profile photo</label><input id="staffAvatar" type="file" name="avatarFile" accept="image/jpeg,image/png" aria-describedby="staffPhotoHint"><small id="staffPhotoHint">JPEG or PNG. Resized before saving.</small></div>
@@ -34,7 +46,8 @@ export function personalProfileFields(row){
  <fieldset class="bci-staff-links-form"><legend>Social links</legend>
  ${Array.from({length:maxSocialLinks},(_,i)=>`<div><div class="field"><label for="staffSocialLabel${i}">Link ${i+1} label</label><input id="staffSocialLabel${i}" name="socialLabel${i}" maxlength="40" value="${esc(links[i]?.label||'')}"></div>
  <div class="field"><label for="staffSocialUrl${i}">Link ${i+1} HTTPS address</label><input id="staffSocialUrl${i}" name="socialUrl${i}" type="url" maxlength="512" placeholder="https://" value="${esc(links[i]?.url||'')}"></div></div>`).join('')}
- </fieldset>`;
+ </fieldset></details>
+ <p class="bci-profile-sr" role="status" id="profileStudioStatus"></p>`;
 }
 async function photoToBase64(file){
  if(!['image/jpeg','image/png'].includes(file.type)||file.size>15*1024*1024)throw Error('Choose a JPEG or PNG photo under 15 MB.');
@@ -68,9 +81,44 @@ export async function personalProfilePayload(values){
   if(!url||!label)throw Error('Each social link needs a label and a valid HTTPS address.');
   socialLinks.push({label,url});
  }
- const payload={displayName:values.displayName,bio:values.bio,socialLinks};
+ const payload={displayName:values.displayName,bio:values.bio,socialLinks,style:styleFromValues(values)};
  if(values.removeAvatar&&values.avatarFile?.size)throw Error('Choose a replacement photo or remove the current one, not both.');
  if(values.removeAvatar)payload.avatarBase64='';
  if(values.avatarFile?.size)payload.avatarBase64=await photoToBase64(values.avatarFile);
  return payload;
+}
+
+export function bindProfileEditor(form,row){
+ if(!form)return;
+ const target=form.querySelector('#bciProfilePreview'), status=form.querySelector('#profileStudioStatus');
+ if(!target)return;
+ let previewPhoto='',currentFile=null,requestId=0;
+ function refresh(){
+  const values=Object.fromEntries(new FormData(form));
+  const socialLinks=Array.from({length:maxSocialLinks},(_,i)=>({label:values['socialLabel'+i],url:values['socialUrl'+i]}));
+  target.innerHTML=profileCard({...row,displayName:values.displayName||'Team member',bio:values.bio||'',socialLinks,
+   avatarUrl:values.removeAvatar?'':row.avatarUrl,style:styleFromValues(values)},{preview:true,previewPhoto:values.removeAvatar?'':previewPhoto});
+ }
+ bindStudio(form,refresh,status);
+ form.addEventListener('invalid',event=>{
+  const details=event.target.closest('details');
+  if(details)details.open=true;
+ },true);
+ form.addEventListener('input',event=>{
+  if(event.target.name!=='avatarFile')refresh();
+ });
+ form.addEventListener('change',async event=>{
+  if(event.target.name!=='avatarFile')return;
+  const file=event.target.files?.[0]||null;
+  if(file===currentFile)return;
+  currentFile=file;
+  const request=++requestId;
+  previewPhoto='';refresh();
+  if(!file)return;
+  try{
+   const result=await photoToBase64(file);
+   if(request===requestId&&form.isConnected){previewPhoto='data:image/jpeg;base64,'+result;refresh();status.textContent='Photo preview updated.';}
+  }catch(error){if(request===requestId&&form.isConnected)status.textContent=error.message;}
+ });
+ form.elements.namedItem('profileStyle-ring')?.focus();
 }

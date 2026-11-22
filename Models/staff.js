@@ -2,6 +2,7 @@ import {createHmac,randomBytes,randomUUID} from 'node:crypto';
 import {addOtherTime, validDate} from './payroll.js';
 import {businessManagerView} from './business-manager.js';
 import {technicianContribution} from './technician-contribution.js';
+import {defaultProfileStyle,profileStyleOptions} from '../public/modules/profile-style-catalog.js';
 
 export const staffKey = value => String(value || '').trim().toLowerCase();
 const has = (actor, grant) => actor.permissions?.includes(grant);
@@ -93,11 +94,36 @@ function socialLinks(value){
   return {label:link.label.trim(),url:url.href};
  });
 }
+const styleKeys=Object.keys(defaultProfileStyle);
+const allowedStyles=Object.fromEntries(styleKeys.map(key=>[key,new Set(profileStyleOptions[key].map(option=>option.id))]));
+function normalizedStyle(value){
+ return Object.fromEntries(styleKeys.map(key=>[key,allowedStyles[key].has(value?.[key])?value[key]:defaultProfileStyle[key]]));
+}
+function updatedStyle(previous,next){
+ if(!next||typeof next!=='object'||Array.isArray(next))throw Error('Choose valid profile style options');
+ const result=normalizedStyle(previous);
+ for(const [key,value] of Object.entries(next)){
+  if(!Object.hasOwn(allowedStyles,key)||typeof value!=='string'||!allowedStyles[key].has(value))
+   throw Error('Choose an available profile style');
+  result[key]=value;
+ }
+ return result;
+}
+export function staffTechnicianIcons(state,actor,orders){
+ if(!actor?.email||!has(actor,'workorders.view'))return orders;
+ const active=new Set(directoryEmails(state,actor));
+ const icons=new Map((state.staffProfiles||[]).filter(profile=>active.has(staffKey(profile.email)))
+  .map(profile=>[staffKey(profile.email),normalizedStyle(profile.style).icon]));
+ return orders.map(order=>({...order,entries:(order.entries||[]).map(entry=>{
+  const match=typeof entry.employeeEmail==='string'&&icons.get(staffKey(entry.employeeEmail));
+  return match&&['labor','travel','material'].includes(entry.type)?{...entry,technicianIcon:match}:entry;
+ })}));
+}
 function publicProfile(state,email){
  const row=profileAt(state,email);
  const id=profileId(email);
  return {id,displayName:row?.displayName||row?.name||(state.users||[]).find(user=>staffKey(user.email)===email)?.name||'Team member',bio:row?.bio||'',
-  avatarUrl:row?.avatarBase64?'/api/staff-avatar/'+id:'',socialLinks:row?.socialLinks||[]};
+  avatarUrl:row?.avatarBase64?'/api/staff-avatar/'+id:'',socialLinks:row?.socialLinks||[],style:normalizedStyle(row?.style)};
 }
 function directoryEmails(state,actor){
  return [...new Set([staffKey(actor.email),...(state.users||[]).filter(row=>row.active!==false).map(row=>staffKey(row.email)),
@@ -168,6 +194,7 @@ export function staffAction(state,action,data,actor, createOrder) {
   const displayName=clean(data.displayName,100),bio=clean(data.bio,1200);
   if(!displayName)throw Error('Enter a display name');
   const changes={displayName,bio,socialLinks:socialLinks(data.socialLinks??[])};
+  if(Object.hasOwn(data,'style'))changes.style=updatedStyle(profileAt(state,email)?.style,data.style);
   if(Object.hasOwn(data,'avatarBase64')){
    if(typeof data.avatarBase64!=='string')throw Error('Invalid profile photo');
    const image=avatarImage(data.avatarBase64);

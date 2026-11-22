@@ -9,6 +9,7 @@ import {join} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {setTimeout as sleep} from 'node:timers/promises';
 import {seed} from '../Models/lib.js';
+import {defaultProfileStyle,profileStyleOptions} from '../public/modules/profile-style-catalog.js';
 
 test('staff profile, private fields, and avatar are separated through authenticated HTTP', {timeout:12000}, async()=>{
  const dir=await mkdtemp(join(tmpdir(),'bci-changelog-'));
@@ -19,6 +20,13 @@ test('staff profile, private fields, and avatar are separated through authentica
  const former='former@example.invalid', photo='iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jefkAAAAASUVORK5CYII=';
  roles.users=[{email:office,role:'office'},{email:tech,role:'tech'},{email:former,role:'tech',active:false}];
  roles.staffProfiles=[{email:office,name:'Office',displayName:'Public office name',contactEmail:'private-contact@example.invalid',payScale:'private pay tier',vacationHours:102,avatarBase64:photo},{email:former,name:'Former employee'}];
+ const officeIcon=profileStyleOptions.icon.find(option=>option.id!==defaultProfileStyle.icon).id;
+ roles.staffProfiles[0].style={icon:officeIcon};
+ const sampleEntry={type:'labor',catalogId:'cat_3',name:'Cable technician',quantity:1,unit:'hr',rate:95,cost:34};
+ roles.workorders[0].entries=[
+  {id:'staff-test-bound',...sampleEntry,employeeEmail:office},
+  {id:'staff-test-legacy',...sampleEntry,tech:office},
+ ];
  roles.staffLeave=[{id:'priv_leave',email:office,status:'Approved'}];
  const token=email=>{
   const encode=value=>Buffer.from(JSON.stringify(value)).toString('base64url');
@@ -47,6 +55,8 @@ test('staff profile, private fields, and avatar are separated through authentica
   assert.equal(response.status,200,await response.clone().text());
   const result=await response.json(),profile=result.staff.directory.find(row=>row.displayName==='Public office name');
   assert.ok(profile);
+  assert.deepEqual(profile.style,{...defaultProfileStyle,icon:officeIcon});
+  assert.deepEqual(result.workorders[0].entries.map(entry=>entry.technicianIcon),[officeIcon,undefined]);
   assert.equal(result.staff.directory.some(row=>row.displayName==='Former employee'),false);
   assert.equal(result.staff.contribution.status,'unavailable');
   const supplied=JSON.stringify(result.staff);
@@ -58,12 +68,17 @@ test('staff profile, private fields, and avatar are separated through authentica
   assert.equal(image.headers.get('content-type'),'image/png');
   assert.equal(image.headers.get('cache-control'),'private, no-store');
   assert.equal(Buffer.from(await image.arrayBuffer()).toString('base64'),photo);
+  const icon=profileStyleOptions.icon.find(option=>option.id!==defaultProfileStyle.icon).id;
   const change=await fetch('http://'+address+'/api/action',{method:'POST',headers:{'cf-access-jwt-assertion':token(tech),'content-type':'application/json'},
-   body:JSON.stringify({action:'staff.profile',data:{email:office,name:'Wrong',displayName:'Own display',payScale:'wrong',vacationHours:999}})});
+   body:JSON.stringify({action:'staff.profile',data:{email:office,name:'Wrong',displayName:'Own display',payScale:'wrong',vacationHours:999,style:{icon}}})});
   assert.equal(change.status,200,await change.clone().text());
   const after=(await (await req('/api/state',tech)).json()).staff;
   assert.equal(after.profile.displayName,'Own display');
   assert.equal(after.profile.payScale,'');
+  assert.equal(after.profile.style.icon,icon);
+  const invalid=await fetch('http://'+address+'/api/action',{method:'POST',headers:{'cf-access-jwt-assertion':token(tech),'content-type':'application/json'},
+   body:JSON.stringify({action:'staff.profile',data:{displayName:'Own display',style:{icon:'<arbitrary-HTML>'}}})});
+  assert.equal(invalid.status,400,await invalid.clone().text());
   assert.equal(after.directory.find(row=>row.id===profile.id).displayName,'Public office name');
  }finally{
   if(server.exitCode===null){server.kill();await once(server,'exit');}

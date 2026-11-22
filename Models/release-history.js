@@ -3,6 +3,9 @@
 const section = (title, ...items) => ({title, items});
 const release = (version, title, summary, ...sections) => ({version, title, summary, sections});
 export const releases = [
+ release('0.8.9','Profile Studio and technician badges','Customize internal team profiles and identify technicians on work orders.',
+  section('Profile Studio','20 preset choices in each category: avatar ring, lighting, banner, section color, text color, and technician icon. Preview choices, mix styles, and reset the appearance without clearing profile details.','Appearance is visible on internal profiles. Pay, leave, contribution and Business Manager data are not shared through the crew directory.'),
+  section('Work orders','Technician icons follow the employee account linked to internal work-order entries. Client documents and exports do not show the icons.')),
  release('0.8.8','Business Manager dashboard','Track vehicle renewals, vehicle maintenance and business bill deadlines in My Time & Profile.',
   section('Business Manager','An opt-in permission area keeps the tracker separate from coworker profiles.','Track registration and oil changes per vehicle and record business bill due dates and their completion.'),
   section('Access and boundaries','Existing staff profiles and time tools are retained. The tracker does not pay bills, connect to a bank, or send reminders.')),

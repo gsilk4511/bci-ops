@@ -6,7 +6,7 @@ import {recordPrincipal,scopeState,authorizeRecordAction,assignRecord,stampRecor
 import {readWorkReceipt} from '../Models/work-entry.js';
 import {readWarehouseReceipt,warehouseFieldPurchases} from '../Models/warehouse-receipts.js';
 import {previewWorkorderRemoval} from '../Models/records.js';
-import {staffAvatar,staffView} from '../Models/staff.js';
+import {staffAvatar,staffTechnicianIcons,staffView} from '../Models/staff.js';
 import {reconcileStock} from '../Models/stock-demand.js';
 import {estimateRates} from '../Models/estimates.js';
 import {trainingState,trainingAction} from '../Models/training.js';
@@ -311,6 +311,7 @@ const server=http.createServer(async(req,res)=>{
       const finance=permissions.includes('finance.view')&&(permissions.includes('dashboard.view')||permissions.includes('money.view'));
       const exposed=visibleState(scoped,role,permissions);
       if(permissions.includes('invoice.group'))exposed.workorders=exposed.workorders.map(order=>({...order,crewSummary:crewSummary(order.entries)}));
+      exposed.workorders=staffTechnicianIcons(current,principal,exposed.workorders);
       return response(res,200,{...exposed,warehouseFieldPurchases:warehouseFieldPurchases(current,scoped,principal),teamAccess:role==='admin'?Object.fromEntries([...new Set([user.email,...(current.users||[]).map(member=>member.email),...(process.env.BCI_ADMIN_EMAILS||'').split(',').map(email=>email.trim().toLowerCase()).filter(Boolean)])].map(email=>{
           const account={email};
           const effectiveRole=roleFor(current,account);

@@ -1,4 +1,4 @@
-# Update existing BCI Operations staging to 0.8.8
+# Update existing BCI Operations staging to 0.8.9
 
 ## Greg: use the existing staging stack
 
@@ -10,7 +10,7 @@
    `mariadb.env`, MariaDB database name, named volume, bridge, and service
    hostname `db`. Do not replace these with bundled examples.
 4. Confirm the app build context points to the updated source. In the active
-   Compose file, change the app image tag to `bci-operations:0.8.8`. Do not
+   Compose file, change the app image tag to `bci-operations:0.8.9`. Do not
    change the database service. Use the actual app service name if different.
 
 From the deployment directory:
@@ -21,10 +21,17 @@ docker compose -f compose.bci-operations-fixed.yml up -d --build --no-deps --for
 docker compose -f compose.bci-operations-fixed.yml exec -T bci-operations node -e "fetch('http://127.0.0.1:3100/api/health').then(r=>r.json()).then(console.log)"
 ```
 
-Recreate by itself does not build a new image. Verify `0.8.8` in the health
+Recreate by itself does not build a new image. Verify `0.8.9` in the health
 response and beside the BCI logo. No SQL migration, reimport or reseed.
 If you roll back, restore the previous source, restore its former image tag
 and rebuild only the app. Keep the database and its volume in place.
+
+## Randy: test Profile Studio
+
+See PROFILE-STUDIO.md. Check the edit preview, saved look after reload, a
+coworker's internal profile, and the icon on linked work-order entries.
+Confirm the client printout is unchanged. A staff member can edit their
+own profile if they already have the Customize own staff profile grant.
 
 ## Randy: set up Business Manager access
 

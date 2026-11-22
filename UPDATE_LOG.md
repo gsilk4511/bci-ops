@@ -1,3 +1,10 @@
+# BCI Operations 0.8.9
+
+- Added Profile Studio with a live preview and twenty preset choices each for profile rings, lighting, banners, section colors, text colors and trade icons.
+- Coworkers can open an internal profile and see its appearance and shared details. Private profile fields are unchanged.
+- Technician icons appear on internal work orders for linked employees, not on client output.
+- Includes Business Manager from 0.8.8 and the 0.8.7 staff views. No SQL migration, reimport or reseed.
+
 # BCI Operations 0.8.8
 
 - Added an opt-in Business Manager dashboard in My Time & Profile for internal vehicle registration, oil-change and business bill deadlines.

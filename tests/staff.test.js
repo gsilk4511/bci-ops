@@ -1,8 +1,9 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {staffAction,staffAvatar,staffName,staffView,isInternalProject} from '../Models/staff.js';
+import {staffAction,staffAvatar,staffName,staffTechnicianIcons,staffView,isInternalProject} from '../Models/staff.js';
 import {authorizePermission,effectivePermissions} from '../Models/permissions.js';
 import {visibleState} from '../Models/visibility.js';
+import {defaultProfileStyle,profileStyleOptions} from '../public/modules/profile-style-catalog.js';
 import {payrollPreview} from '../Models/payroll.js';
 
 const a='worker@example.com',b='other@example.com',o='admin@example.com';
@@ -18,7 +19,7 @@ test('staff profile has immutable login and privileged balance controls',()=>{
  const own=staffView(s,tech).profile;
  assert.deepEqual([own.email,own.name,own.contactEmail,own.payScale,own.vacationHours,own.sickHours,own.displayName],[a,"Worker",a,"Tier 1",40,16,"A Worker"]);
  const peer=staffView(s,{...tech,email:b}).directory.find(row=>row.id===own.id);
- assert.deepEqual(Object.keys(peer).sort(),["avatarUrl","bio","displayName","id","socialLinks"]);
+ assert.deepEqual(Object.keys(peer).sort(),["avatarUrl","bio","displayName","id","socialLinks","style"]);
  assert.equal(peer.bio,"A short bio");
  assert.deepEqual(peer.socialLinks,[{label:"Portfolio",url:"https://example.com/work"}]);
  assert.equal(staffView(s,tech).staffProfiles,undefined);
@@ -108,4 +109,32 @@ test('work and project counts are personal; project titles and links respect per
  assert.equal(view.time.at(-1).projectId,null);
  assert.ok(!JSON.stringify(view).includes('Secret order'));
  assert.ok(!JSON.stringify(view).includes('Out of scope'));
+});
+
+test('staff customization preserves valid legacy defaults and strictly accepts only configured IDs',()=>{
+ const s=state();
+ assert.deepEqual(staffView(s,tech).profile.style,defaultProfileStyle);
+ const style=Object.fromEntries(Object.keys(defaultProfileStyle).map(key=>[key,profileStyleOptions[key].find(option=>option.id!==defaultProfileStyle[key]).id]));
+ const save=(stylePatch)=>staffAction(s,'staff.profile',{displayName:'One',...stylePatch},tech);
+ assert.deepEqual(save({style}).style,style);
+ assert.deepEqual(save({}).style,style);
+ const ring=defaultProfileStyle.ring;
+ assert.deepEqual(save({style:{ring}}).style,{...style,ring});
+ assert.throws(()=>save({style:{ring:'<script>'}}),/available profile style/);
+ assert.throws(()=>save({style:{custom:'any'}}),/available profile style/);
+ assert.throws(()=>save({style:JSON.parse('{"__proto__":"x"}')}),/available profile style/);
+ assert.throws(()=>save({style:null}),/valid profile style/);
+ assert.deepEqual(staffView(s,{...tech,email:b}).directory.find(row=>row.displayName==='One').style,{...style,ring});
+});
+
+test('staff technician icons use stable employee identity not display name or actor',()=>{
+ const s=state(),icon=profileStyleOptions.icon.find(option=>option.id!==defaultProfileStyle.icon).id;
+ staffAction(s,'staff.profile',{displayName:'One',style:{icon}},tech);
+ const orders=[{id:'one',entries:[{id:1,type:'labor',employeeEmail:a},{id:2,type:'labor',tech:a},{id:3,type:'labor',createdBy:a},{id:4,type:'labor',employeeEmail:b}]}];
+ const result=staffTechnicianIcons(s,tech,orders);
+ assert.deepEqual(result[0].entries.map(row=>row.technicianIcon),[icon,undefined,undefined,undefined]);
+ assert.equal(orders[0].entries[0].technicianIcon,undefined);
+ assert.equal(staffTechnicianIcons(s,{...tech,email:b,permissions:['staff.view']},orders),orders);
+ s.users[0].active=false;
+ assert.equal(staffTechnicianIcons(s,{...tech,email:b},orders)[0].entries[0].technicianIcon,undefined);
 });
