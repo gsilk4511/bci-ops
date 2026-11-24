@@ -7,7 +7,7 @@ the appearance to use the default look, without changing the profile photo,
 name, bio or social links. Styles use built-in options; no remote assets or
 custom CSS are required.
 
-Your saved appearance follows your internal profile. Coworkers can browse
+Your saved appearance follows your internal profile and sets the look of your My Time & Profile workspace. Each coworker card retains that person’s own profile appearance. Other BCI Operations screens keep the app theme. Coworkers can browse
 profile looks and shared contact links, but not your payroll, time-off history,
 private job metrics, or Business Manager records. Only individuals with the
 existing self-profile edit grant can save their own appearance. Icons are

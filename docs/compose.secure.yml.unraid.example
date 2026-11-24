@@ -2,7 +2,7 @@
 services:
   bci-operations:
     build: .
-    image: bci-operations:0.9.1
+    image: bci-operations:0.9.3
     container_name: bci-operations-secure
     restart: unless-stopped
     user: "99:100"

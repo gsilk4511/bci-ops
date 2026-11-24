@@ -1,5 +1,5 @@
 import {workOrderTechnicianIcon} from './work-order-technician-icon.js';
-import {workEntryControls,editOrderButton,receiptPanel} from './work-entry.js';
+import {canEditJournalNote,workEntryControls,editOrderButton,receiptPanel} from './work-entry.js';
 import {workorderDeleteButton} from './records.js';
 // Owns the work order detail presentation.
 // Shared state is imported as live bindings from the application shell.
@@ -18,10 +18,11 @@ function journalEntries(order) {
    <dl class="field-journal-meta">
     <div><dt>Date / tech</dt><dd>${esc(entry.date)} <span class="muted"><span class="work-order-tech-identity">${workOrderTechnicianIcon(entry.technicianIcon,esc)}<span>${esc(entry.tech)}</span></span></span></dd></div>
     <div><dt>Qty</dt><dd>${esc(qty)} ${esc(entry.unit)}</dd></div>
-    <div><dt>Charge</dt><dd>${fmt(entry.quantity * entry.rate)}</dd></div>
+    <div><dt>Charge</dt><dd>${fmt(entry.quantity * entry.rate)}${entry.sharedTravel?' <small>Shared travel</small>':''}</dd></div>
    </dl>
    <div class="field-journal-work">${esc(entry.name)}</div>
    ${note ? `<div class="ticket-text field-journal-note">${esc(note)}</div>` : ''}
+   ${canEditJournalNote(order,entry)?`<button class="secondary small no-print" data-open="entry-note" data-entry-id="${esc(entry.id)}">Edit notes</button>`:''}
    ${workEntryControls(order,entry)}
   </li>`;
  }).join('')}</ul>`;

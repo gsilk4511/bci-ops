@@ -36,6 +36,7 @@ export function repriceOpenOrders(state,{catalogId,customerId,projectId}={}){
     // Older entries lack a change-order link. Keep any potentially signed lines at their existing price.
     const signedItems=new Set((order.changes||[]).filter(change=>change.status==='approved').flatMap(change=>change.lines.map(line=>line.catalogId)));
     for(const entry of order.entries){
+      if(entry.sharedTravel)continue;
       if(catalogId&&entry.catalogId!==catalogId||customerId&&entry.type!=='material'||entry.changeId||
           !Object.hasOwn(entry,'changeId')&&signedItems.has(entry.catalogId))continue;
       const item=items.get(entry.catalogId);

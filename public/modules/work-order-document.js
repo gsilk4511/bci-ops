@@ -1,3 +1,4 @@
+import {printJournalEntries} from './work-order-journal.js';
 import {bill,billingName,contactLine,customer,esc,fmt,jobContact,project,projectLabel,roundMoney,table} from '../app.js';
 
 const dateTime=value=>value?new Intl.DateTimeFormat('en-US',{
@@ -12,7 +13,7 @@ export function workOrderDocument(order){
  const parent=project(order.projectId);
  const payer=customer(parent?.customerId);
  const original=order.closeout;
- const entries=original?.originalEntries||order.entries;
+ const entries=printJournalEntries(order);
  const changes=original?.originalChanges||order.changes;
  const signoff=original?.originalApproval||order.approval;
  const amounts=bill({...order,entries});

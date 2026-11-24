@@ -136,11 +136,11 @@ test('each tab module links and renders with shared live state',async()=>{
  const journalPrint=entry.namespace.workOrderDocument(journalOrder);
  assert.doesNotMatch(journalPrint,/work-order-tech-icon|Technician icon:/);
  assert.match(journalPrint, /<th scope="col">Date \/ Tech<\/th><th scope="col">Qty \/ Hours<\/th><th scope="col">Charge<\/th>/);
- assert.match(journalPrint, /<tbody class="work-order-journal-entry">\s*<tr class="work-order-journal-meta">[\s\S]*?2026-11-16[\s\S]*?Sample Tech[\s\S]*?<td>8\.33 hr<\/td><td>\$791\.67<\/td><\/tr>\s*<tr class="work-order-journal-work"><td colspan="3"><b>Cable technician<\/b><div class="ticket-text">Original note<\/div><\/td><\/tr>\s*<\/tbody>/);
+ assert.match(journalPrint, /<tbody class="work-order-journal-entry">\s*<tr class="work-order-journal-meta">[\s\S]*?2026-11-16[\s\S]*?Sample Tech[\s\S]*?<td>8\.33 hr<\/td><td>\$791\.67<\/td><\/tr>\s*<tr class="work-order-journal-work"><td colspan="3"><b>Cable technician<\/b><div class="ticket-text">First line[\s\S]*Second line &lt;sample&gt;<\/div><\/td><\/tr>\s*<\/tbody>/);
  assert.match(journalPrint, /<td>1\.2345 box<\/td>/);
  assert.equal((journalPrint.match(/<tbody class="work-order-journal-entry">/g)||[]).length,2);
  assert.match(entry.namespace.workOrderDocument({...journalOrder,entries:[]}), /<td colspan="3">No records found<\/td>/);
- const escapedPrint=entry.namespace.workOrderDocument({...journalOrder,entries:[{...journalEntry,name:'<Part>',description:'First line\n<note>'}]});
+ const escapedPrint=entry.namespace.workOrderDocument({...journalOrder,entries:[{...journalEntry,name:'<Part>',journalNote:'First line\n<note>'}]});
  assert.match(escapedPrint,/&lt;Part&gt;<\/b><div class="ticket-text">First line\n&lt;note&gt;<\/div>/);
  const previousMe=state.me;
  state.me={...previousMe,role:'tech',permissions:[]};

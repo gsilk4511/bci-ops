@@ -26,6 +26,8 @@ const entryOwner=(entry)=>Boolean(me?.email)&&Boolean(entry.employeeEmail||Strin
  String(entry.employeeEmail||entry.tech).toLowerCase()===me.email.toLowerCase();
 const entryAvailable=(order,entry)=>!practiceMode&&can('workorders.view')&&!order.invoice&&Boolean(order.approvedAt)&&
  (me?.role==='admin'||can('entry.manage')||entryOwner(entry))&&!entry.payrollLocked;
+export const canEditJournalNote=(order,entry)=>!practiceMode&&can('workorders.view')&&can('entry.update')&&Boolean(order.approvedAt)&&
+ (me?.role==='admin'||can('entry.manage')||entryOwner(entry));
 export const canEditEntry=(order,entry)=>entryAvailable(order,entry)&&can('entry.update');
 export const canRemoveEntry=(order,entry)=>entryAvailable(order,entry)&&can('entry.remove');
 let editingOrder=null;
@@ -53,8 +55,9 @@ function editEntry(order,entry){
   f('endTime','End',{type:'time',required:true,value:entry.endTime})+'</div>':
   f('quantity',entry.type==='material'?'Quantity':'Hours',{type:'number',min:0.001,step:'any',value:entry.quantity,required:true});
  return modal('Edit work-order entry',values+f('date','Date',{type:'date',required:true,value:entry.date})+quantity+
+  (entry.type==='travel'?'<label class="shared-travel-choice"><input type="checkbox" name="sharedTravel" value="yes" '+(entry.sharedTravel?'checked':'')+'> Shared travel (record my time, no client charge)</label>':'')+
   f('description',entry.type==='material'?'Notes':'What did you work on?',{textarea:true,required:entry.type!=='material',value:entry.journalNote??entry.description}),
-  patch=>send('entry.update',{...patch,workorderId:order.id,entryId:entry.id,revision:entry.revision||''}),
+  patch=>send('entry.update',{...patch,sharedTravel:entry.type==='travel'?patch.sharedTravel==='yes':undefined,workorderId:order.id,entryId:entry.id,revision:entry.revision||''}),
   '<p>Changes affect work-order totals. A submitted work order will be reviewed again.</p>');
 }
 function removeEntry(order,entry){

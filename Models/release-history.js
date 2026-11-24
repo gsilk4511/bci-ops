@@ -3,6 +3,11 @@
 const section = (title, ...items) => ({title, items});
 const release = (version, title, summary, ...sections) => ({version, title, summary, sections});
 export const releases = [
+ release('0.9.3','Work-order corrections, shared travel and vehicle profiles','Keep field-journal printouts current and manage company vehicles separately.',
+  section('Work orders','Correct current journal notes without changing the issued invoice or original closeout. Work-order printing displays the latest description.','Shared travel keeps the employee’s recorded hours while preventing an additional client charge.'),
+  section('Vehicles and navigation','Authorized staff can manage company vehicles, service schedules, inspections and repair histories in the separate Vehicles tab.','Phone tabs show their full labels in a horizontally scrollable row.')),
+ release('0.9.2','Full-page staff themes','Carry Profile Studio appearance throughout My Time & Profile.',
+  section('Staff workspace','The signed-in staff member’s saved palette and lighting follow the page and its panels. The existing profile card and individually themed coworker cards are unchanged.','Sidebar, other app screens, workflow status colors, access permissions and calculations are unchanged.')),
  release('0.9.1','Work-time bonus formula','Track profit share from a technician’s own billed work time, excluding travel and parts.',
   section('Labor contribution','Use each verified billed labor line, with a loaded cost of hourly wage plus 25%. The result is labor profit, not company net profit.','Vacation, leave and other nonbillable time do not earn or reduce this estimate. Missing wage history or incomplete invoice evidence is marked unavailable.'),
   section('Admin settings','Set effective-dated hourly wages and annual profit share in the same staff form as vacation and sick balances. The standard bonus rate is 5% of positive year-to-date labor profit; explicit annual staff overrides remain available.','The Friday nearest December 15 stays a target date. No payroll or payment actions are performed.')),

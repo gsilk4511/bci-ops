@@ -1,3 +1,17 @@
+# BCI Operations 0.9.3
+
+- Work-order PDFs reflect current journal descriptions after submission, review or invoicing. Existing issued invoice and closeout snapshots remain unchanged.
+- The shared travel checkbox keeps an employee’s travel time for payroll and the journal, and does not add a client charge.
+- Vehicles are separate from Business Manager bills, with dedicated permissions, vehicle profiles and service/inspection tracking.
+- Phone navigation fits full tab labels in a horizontally scrollable row.
+- Uses the existing database model; back up data and preserve deployment settings.
+
+# BCI Operations 0.9.2
+
+- Saved Profile Studio appearance now extends across My Time & Profile, including its page heading and panels. The existing profile card, permissions and workflows are unchanged.
+- Styling is limited to the staff workspace. Coworker cards retain their own looks; other app screens keep the app theme.
+- Includes 0.9.1's contribution and bonus setup. No SQL migration or reseed.
+
 # BCI Operations 0.9.1
 
 - Technician Contribution uses only the employee’s own verified billed work hours, excluding travel, parts and nonbillable time.

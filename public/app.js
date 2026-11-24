@@ -1,9 +1,10 @@
 import {servicesPage} from './modules/services.js';
 import {changelogPage,wireChangelog} from './modules/changelog.js';
 import {assignmentLink} from './modules/record-assignments.js';
-import {canEditEntry,receiptPicker,receiptPayload} from './modules/work-entry.js';
+import {canEditJournalNote,receiptPicker,receiptPayload} from './modules/work-entry.js';
 import {clientPortal,readyForProgress} from './modules/project-billing.js';
 import {staffPage} from './modules/staff.js';
+import {fleetPage} from './modules/fleet.js';
 import {workOrderDocument} from './modules/work-order-document.js';
 import {invoicesPage} from './modules/invoices.js';
 import {estimatesPage} from './modules/estimates.js';
@@ -57,7 +58,7 @@ const today=()=>{
  return [now.getFullYear(),pad(now.getMonth()+1),pad(now.getDate())].join('-');
 };
 const roundMoney=value=>Math.round((value+Number.EPSILON)*100)/100;
-const navItems=[['dashboard','◫','Home'],['training','▷','Training'],['customers','♙','Customers'],['projects','▦','Projects'],['estimates','≡','Estimates'],['invoices','▤','Invoices'],['workorders','▤','Work Orders'],['tickets','◇','Tickets'],['notifications','◉','Notifications'],['inventory','▣','Warehouse'],['money','◈','Money'],['reports','▥','Reports'],['payroll','▤','Payroll'],['staff','◷','My Time & Profile'],['services','≡','Services'],['catalog','▦','Pricing'],['team','♧','Team'],['testing','▦','Database Testing'],['changelog','▤','Changelog'],['trash','▤','Trash']];
+const navItems=[['dashboard','◫','Home'],['training','▷','Training'],['customers','♙','Customers'],['projects','▦','Projects'],['estimates','≡','Estimates'],['invoices','▤','Invoices'],['workorders','▤','Work Orders'],['tickets','◇','Tickets'],['notifications','◉','Notifications'],['inventory','▣','Warehouse'],['money','◈','Money'],['reports','▥','Reports'],['payroll','▤','Payroll'],['staff','◷','My Time & Profile'],['services','≡','Services'],['catalog','▦','Pricing'],['team','♧','Team'],['fleet','▰','Vehicles'],['testing','▦','Database Testing'],['changelog','▤','Changelog'],['trash','▤','Trash']];
 let data=null,me=null,view='dashboard',selectedWO=null,reportType='purchases',reportStart='',reportEnd='',moneyCustomer='all',moneyStatus='all';
 const customer=id=>data.customers.find(c=>c.id===id),project=id=>data.projects.find(p=>p.id===id),catalog=id=>data.catalog.find(c=>c.id===id),wo=id=>data.workorders.find(w=>w.id===id);
 let selectedClientPortal=null;
@@ -68,7 +69,7 @@ const status=s=>`<span class="status ${esc(s)}">${esc((s||'').replaceAll('-',' '
 const empty=(s)=>`<div class="empty">${esc(s)}</div>`;
 function bill(w){const buckets={labor:0,material:0,travel:0,cost:0};for(const e of w.entries){buckets[e.type]+=roundMoney(e.rate*e.quantity);buckets.cost+=roundMoney((e.cost||0)*e.quantity);}buckets.total=w.internalTask&&!w.invoice?0:roundMoney(buckets.labor+buckets.material+buckets.travel-(w.invoice?.depositCredit||0));buckets.profit=roundMoney(buckets.total-buckets.cost);return buckets;}
 const can=key=>me?.permissions?.includes(key);
-const viewPermissions={staff:'staff.view',estimates:'estimates.view',training:'training.view',notifications:'notification.view',tickets:'tickets.view',dashboard:'dashboard.view',customers:'customers.view',projects:'projects.view',workorders:'workorders.view',inventory:'inventory.view',money:'money.view',reports:'reports.view',payroll:'payroll.view',services:'pricing.view',catalog:'pricing.view',team:'team.view',testing:'database.view'};
+const viewPermissions={fleet:'vehicles.view',staff:'staff.view',estimates:'estimates.view',training:'training.view',notifications:'notification.view',tickets:'tickets.view',dashboard:'dashboard.view',customers:'customers.view',projects:'projects.view',workorders:'workorders.view',inventory:'inventory.view',money:'money.view',reports:'reports.view',payroll:'payroll.view',services:'pricing.view',catalog:'pricing.view',team:'team.view',testing:'database.view'};
 const visibleView=id=>id==='invoices'?!practiceMode&&can('invoices.view')&&can('finance.view')&&can('workorders.view'):practiceMode&&!['training','customers','projects','workorders'].includes(id)?false:id==='trash'?me?.role==='admin':['team','changelog'].includes(id)?me?.role==='admin':can(viewPermissions[id]);
 
 const formPermissions={customer:'customer.create',contact:'contact.create',project:'project.create','new-project':'project.create','project-contact':'project.contact','clock-setup':'clock.in',
@@ -78,14 +79,23 @@ const formPermissions={customer:'customer.create',contact:'contact.create',proje
  'warehouse-item':'catalog.create',service:'catalog.create',invoice:'invoice.record',payment:'invoice.pay',catalog:'catalog.create',reserve:'settings.reserve'};
 function nav(){
  const groups=[['Field work',['dashboard','workorders','tickets','projects','customers','inventory','notifications','staff']],
-  ['Office',['estimates','invoices','services','catalog','money','reports','payroll']],['Admin',['training','team','testing','changelog','trash']]];
- $('#nav').innerHTML=groups.map(([label,ids])=>{
+  ['Office',['estimates','invoices','services','catalog','money','reports','payroll']],['Admin',['training','team','fleet','testing','changelog','trash']]];
+ const rail=$('#nav'), priorScroll=rail.scrollLeft;
+ rail.setAttribute('aria-label','Workspace navigation');
+ rail.innerHTML=groups.map(([label,ids])=>{
   const buttons=ids.filter(visibleView).map(id=>{
    const [,icon,name]=navItems.find(item=>item[0]===id);
-   return `<button class="nav-item ${view===id?'active':''}" data-nav="${id}"><span class="nav-icon">${icon}</span>${name}</button>`;
+   return `<button class="nav-item ${view===id?'active':''}" data-nav="${id}"${view===id?' aria-current="page"':''}><span class="nav-icon" aria-hidden="true">${icon}</span>${name}</button>`;
   }).join('');
   return buttons?`<div class="nav-group"><div class="nav-group-label">${label}</div>${buttons}</div>`:'';
  }).join('');
+ if(priorScroll)rail.scrollLeft=priorScroll;
+ const active=rail.querySelector?.('[aria-current="page"]');
+ if(active&&rail.scrollWidth>rail.clientWidth){
+  const start=active.offsetLeft-rail.offsetLeft,end=start+active.offsetWidth;
+  if(start<rail.scrollLeft)rail.scrollLeft=start;
+  else if(end>rail.scrollLeft+rail.clientWidth)rail.scrollLeft=end-rail.clientWidth;
+ }
 }
 
 function head(title,kicker,sub,button=''){return `<div class="pagehead"><div><div class="eyebrow">${esc(kicker)}</div><h1>${esc(title)}</h1><div class="muted">${esc(sub)}</div></div>${button}</div>`;}
@@ -477,12 +487,12 @@ function openProjectInvoice(w,billingStage='progress'){
   return {customer:payer.business||payer.name,address:payer.address,project:projectRecord.name,projectNumber:projectRecord.number,po:projectRecord.po,
    layout:form.elements.layout.value,number:form.elements.number.value,depositCredit,notes:Object.fromEntries(draftNotes),
    orders:orders.map(order=>({id:order.id,title:order.title,crew:order.crewSummary||[],
-     entries:order.entries.map(e=>({...e,description:draftNotes.get(e.id)??e.description}))}))};
+     entries:order.entries.filter(e=>!e.sharedTravel).map(e=>({...e,description:draftNotes.get(e.id)??e.description}))}))};
  }
  function updateNotes(){
   const details=$('#invoiceNotes');
   details.innerHTML=form.elements.layout.value==='itemized'?'<details><summary>Edit customer-facing descriptions</summary>'+
-   selected().flatMap(order=>order.entries).map(e=>`<label class="field">${esc(e.date)} · ${esc(e.name)}
+   selected().flatMap(order=>order.entries.filter(entry=>!entry.sharedTravel)).map(e=>`<label class="field">${esc(e.date)} · ${esc(e.name)}
      <textarea data-invoice-note="${esc(e.id)}" maxlength="1000">${esc(draftNotes.get(e.id)??e.description)}</textarea></label>`).join('')+'</details>':'';
  }
  form.addEventListener('change',event=>{if(['invoiceOrder','layout'].includes(event.target.name))updateNotes();});
@@ -492,7 +502,7 @@ function openProjectInvoice(w,billingStage='progress'){
 // The shell selects a screen and binds shared UI controls. Each screen owns its markup.
 function render(){
  nav();
- const views={staff:staffPage,invoices:invoicesPage,estimates:estimatesPage,training:trainingPage,notifications:notificationsPage,tickets:ticketsPage,dashboard,customers,projects:projectsHub,workorders,inventory:warehouse,money:moneyPage,reports,payroll:payrollPage,services:servicesPage,catalog:catalogPage,team:teamPage,testing:testingPage,changelog:changelogPage,trash:trashPage};
+ const views={fleet:fleetPage,staff:staffPage,invoices:invoicesPage,estimates:estimatesPage,training:trainingPage,notifications:notificationsPage,tickets:ticketsPage,dashboard,customers,projects:projectsHub,workorders,inventory:warehouse,money:moneyPage,reports,payroll:payrollPage,services:servicesPage,catalog:catalogPage,team:teamPage,testing:testingPage,changelog:changelogPage,trash:trashPage};
  const allowed=visibleView(view);
  const content=!allowed?'<section class="panel"><h1>No module access</h1><p>Ask your administrator to assign a permission profile.</p></section>':
   managingRecords()?recordManager():
@@ -703,6 +713,7 @@ function openWorkEntry(w,material){
   '<input type="hidden" name="location" value="'+esc(warehouseName)+'"><p class="muted tiny">Stock source: '+esc(warehouseName)+'</p><p id="materialStock" role="status"></p>'+shared+
   (!practiceMode&&can('receipt.add')?'<button type="button" class="secondary" id="addEntryReceipt">+ Add Receipt</button><div id="entryReceiptFields" hidden>'+receiptPicker()+'</div>':''):
   f('type','Time type',{select:[['labor','Work'],['travel','Travel']]})+item+
+  '<div id="sharedTravelChoice" class="shared-travel-choice" hidden><label><input type="checkbox" name="sharedTravel" value="yes" disabled> Shared travel (record my time, no client charge)</label><p class="muted tiny">Use when another employee is logging the travel charge.</p></div>'+
   shared+
   '<div class="grid2">'+f('startTime','Start',{type:'time',required:true})+f('endTime','End',{type:'time',required:true})+'</div>'+
   f('description','What did you work on?',{textarea:true,required:true,hint:'Time is saved under your signed-in profile.'});
@@ -717,7 +728,7 @@ function openWorkEntry(w,material){
   const {receiptPhoto,partSearchText,partCategoryFilter,partTypeFilter,partBrandFilter,...entryValues}=values;
   if(material&&needsPartPricing(data.catalog.find(item=>item.id===entryValues.catalogId),entryValues.changeId))throw Error('Pricing needed: set a price or use a priced profile or approved change before logging this part.');
   const receipt=material?await receiptPayload(receiptPhoto,submissionId):null;
-  await send('entry.add',{...entryValues,receipt,draftId,submissionId,type:material?'material':values.type,workorderId:w.id});
+  await send('entry.add',{...entryValues,sharedTravel:!material&&values.type==='travel'&&values.sharedTravel==='yes',receipt,draftId,submissionId,type:material?'material':values.type,workorderId:w.id});
   saved=true;
  });
  const form=$('#actionForm');
@@ -802,7 +813,9 @@ function openWorkEntry(w,material){
    choices.some(item=>item.id===me.clockDefault?.catalogId)?me.clockDefault.catalogId:choices.length===1?choices[0].id:'';
  }
  const filterChanged=()=>{limit=pageSize;refreshItems();};
- form.elements.type?.addEventListener('change',refreshItems);
+ const showSharedTravel=()=>{if(material)return;const enabled=form.elements.type.value==='travel';form.querySelector('#sharedTravelChoice').hidden=!enabled;form.elements.sharedTravel.disabled=!enabled;if(!enabled)form.elements.sharedTravel.checked=false;};
+ form.elements.type?.addEventListener('change',()=>{showSharedTravel();refreshItems();});
+ showSharedTravel();
  form.elements.changeId?.addEventListener('change',filterChanged);
  partSearchText?.addEventListener('input',filterChanged);
  partSearchText?.addEventListener('keydown',event=>{if(event.key==='Enter')event.preventDefault();});
@@ -913,7 +926,7 @@ function openForm(kind,entryId){if(formPermissions[kind]&&!can(formPermissions[k
  case 'log-time':return openWorkEntry(w,false);
  case 'entry-note': {
   const entry=w?.entries.find(item=>item.id===entryId);
-  if(!entry||!canEditEntry(w,entry))return;
+  if(!entry||!canEditJournalNote(w,entry))return;
   return modal('Edit field journal notes',
    f('note','Notes',{textarea:true,value:entry.journalNote??entry.description}),
    values=>send('entry.editNote',{workorderId:w.id,entryId:entry.id,revision:entry.journalNoteRevision||'',note:values.note}),
@@ -936,7 +949,7 @@ function openForm(kind,entryId){if(formPermissions[kind]&&!can(formPermissions[k
   const p=project(w.projectId), payer=customer(p?.customerId);
   return printDocument(invoiceDocument({customer:billingName(payer),address:payer?.address,
    project:p?.name,projectNumber:p?.number,po:p?.po,number:w.invoice?.number,layout:'totals',
-   orders:[{title:w.title,entries:w.entries,crew:[]}]}));
+   orders:[{title:w.title,entries:w.entries.filter(entry=>!entry.sharedTravel),crew:[]}]}));
  }
  case 'invoice':return modal('Record manually entered QuickBooks invoice',f('number','QuickBooks invoice number',{required:true}),x=>send('invoice.record',{...x,workorderId:w.id}),'<div class="notice">First enter three summary lines (Time, Materials, Travel) in QuickBooks and attach your detailed BCI PDF. There is no QuickBooks API integration.</div>');
  case 'payment': {
@@ -995,7 +1008,7 @@ function openForm(kind,entryId){if(formPermissions[kind]&&!can(formPermissions[k
 function signFields(){return `<div class="field"><label>Customer signature (draw below)</label><canvas class="sign-canvas" width="440" height="160" aria-label="Signature drawing area"></canvas><button type="button" class="secondary small" id="clearSig">Clear signature</button></div><label class="signature-terms"><input type="checkbox" name="consent" required> I approve the scope and accept the estimated T&M terms shown above.</label>`;}
 function initSignature(){const c=document.querySelector('.sign-canvas');if(!c)return;const form=c.closest('form'),ctx=c.getContext('2d');ctx.strokeStyle='#182022';ctx.lineWidth=2.6;ctx.lineCap='round';ctx.lineJoin='round';let drawing=false;function point(e){const b=c.getBoundingClientRect();return {x:(e.clientX-b.left)*c.width/b.width,y:(e.clientY-b.top)*c.height/b.height};}c.addEventListener('pointerdown',e=>{c.setPointerCapture(e.pointerId);drawing=true;const p=point(e);ctx.beginPath();ctx.moveTo(p.x,p.y);ctx.lineTo(p.x+.15,p.y+.15);ctx.stroke();form.dataset.signed='1';});c.addEventListener('pointermove',e=>{if(!drawing)return;const p=point(e);ctx.lineTo(p.x,p.y);ctx.stroke();});c.addEventListener('pointerup',()=>drawing=false);c.addEventListener('pointercancel',()=>drawing=false);document.getElementById('clearSig').addEventListener('click',()=>{ctx.clearRect(0,0,c.width,c.height);delete form.dataset.signed;});}
 function approveChange(changeId){if(!can('change.approve'))return;const w=wo(selectedWO),co=w.changes.find(c=>c.id===changeId);if(!co)return;modal('Approve change order',`<p><b>${esc(co.description)}</b></p>${co.lines.map(l=>`<div class="list-item">${esc(l.name)} × ${l.quantity} <b>${fmt(l.quantity*l.rate)}</b></div>`).join('')}<p class="lineTotal">Estimated ${fmt(co.estimatedTotal)}</p><div class="notice">BCI ELITE must procure parts within your timeline, which may increase shipping and office coordination costs. This is an elevated time-and-materials estimate, not a fixed price. Final charges may be lower or higher. Supporting receipts are available upon request with the final invoice.</div>`+f('signedBy','Approver full name',{required:true})+signFields(),x=>send('change.approve',{workorderId:w.id,changeId,...x}),'<p class="muted tiny">Drawn signature captured. The app records the technician account, but cannot independently verify the identity or authority of the signer.</p>');initSignature();}
-document.addEventListener('click',e=>{const target=e.target.closest('[data-nav],[data-project],[data-wo],[data-open],[data-change],[data-print],[data-client-portal]');if(!target)return;if(target.dataset.nav&&visibleView(target.dataset.nav)){view=target.dataset.nav;selectedWO=null;selectedProject=null;selectedClientPortal=null;render();}if(target.dataset.clientPortal&&can('customers.view')&&customer(target.dataset.clientPortal)){selectedClientPortal=target.dataset.clientPortal;selectedWO=null;selectedProject=null;view='customers';render();}if(target.dataset.project&&can('projects.view')){selectedProject=target.dataset.project;selectedWO=null;view='projects';render();}if(target.dataset.wo&&can('workorders.view')){selectedWO=target.dataset.wo;view='workorders';render();}if(target.dataset.open)openForm(target.dataset.open,target.dataset.entryId);if(target.dataset.change)approveChange(target.dataset.change);if(target.dataset.print)window.print();});
+document.addEventListener('click',e=>{const target=e.target.closest('[data-nav],[data-project],[data-wo],[data-open],[data-change],[data-print],[data-client-portal]');if(!target)return;if(target.dataset.nav&&visibleView(target.dataset.nav)){view=target.dataset.nav;selectedWO=null;selectedProject=null;selectedClientPortal=null;render();if(e.detail===0&&target.classList.contains('nav-item'))$('#nav').querySelector?.('[aria-current="page"]')?.focus({preventScroll:true});}if(target.dataset.clientPortal&&can('customers.view')&&customer(target.dataset.clientPortal)){selectedClientPortal=target.dataset.clientPortal;selectedWO=null;selectedProject=null;view='customers';render();}if(target.dataset.project&&can('projects.view')){selectedProject=target.dataset.project;selectedWO=null;view='projects';render();}if(target.dataset.wo&&can('workorders.view')){selectedWO=target.dataset.wo;view='workorders';render();}if(target.dataset.open)openForm(target.dataset.open,target.dataset.entryId);if(target.dataset.change)approveChange(target.dataset.change);if(target.dataset.print)window.print();});
 document.addEventListener('keydown',event=>{
  if(event.key==='Escape'&&!$('.bci-photo-viewer[open]')&&!$('#modal').hidden&&!$('#actionForm')?.dataset.saving&&!$('#catalogImport')?.dataset.saving)$('#modal').hidden=true;
 });

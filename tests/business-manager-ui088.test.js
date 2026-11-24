@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import {readFileSync} from 'node:fs';
 
-test('manager renders separate vehicles with due statuses and paid bills outside the open queue',async()=>{
+test('manager bills retain due and paid statuses while vehicles are absent',async()=>{
  const escape=value=>String(value??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;');
  const context=vm.createContext({document:{addEventListener(){}}});
  const values={can:()=>false,data:{},esc:escape,f:()=>'',modal:()=>{},send:()=>{},today:()=>'2026-11-21'};
@@ -25,19 +25,14 @@ test('manager renders separate vehicles with due statuses and paid bills outside
  ]};
  assert.equal(screen.namespace.businessManagerPanel(undefined,true),'');
  const readOnly=screen.namespace.businessManagerPanel(model,false);
- assert.match(readOnly,/Overdue<\/dt><dd>1/);
- assert.match(readOnly,/Due in the next 30 days<\/dt><dd>2/);
- assert.match(readOnly,/Next due<\/dt><dd>Van one &lt;Test&gt;: Oil change/);
- assert.match(readOnly,/data-kind="due">Due today/);
- assert.match(readOnly,/data-kind="soon">Due soon/);
- assert.match(readOnly,/data-kind="none">Odometer only/);
- assert.match(readOnly,/data-kind="later">Scheduled/);
+ assert.match(readOnly,/Overdue<\/dt><dd>0/);
+ assert.match(readOnly,/Due in the next 30 days<\/dt><dd>0/);
+ assert.match(readOnly,/Next due<\/dt><dd>Open bill due/);
+ assert.doesNotMatch(readOnly,/Van one|Van two|Registration|Oil change|managerFleetHeading/);
  assert.match(readOnly,/Read only/);
  assert.doesNotMatch(readOnly,/data-manager-action/);
  assert.match(readOnly,/Open bills[\s\S]*Open bill due[\s\S]*<summary>Paid bills \(1\)<\/summary>[\s\S]*Previously paid bill/);
  const write=screen.namespace.businessManagerPanel(model,true);
- assert.match(write,/data-manager-action="registration" data-manager-id="van1"/);
- assert.match(write,/data-manager-action="oil" data-manager-id="van2"/);
  assert.match(write,/data-manager-action="paid" data-manager-id="due"/);
  assert.doesNotMatch(write,/data-manager-action="(?:paid|bill)" data-manager-id="paid"/);
 });

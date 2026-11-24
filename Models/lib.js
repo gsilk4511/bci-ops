@@ -1,3 +1,4 @@
+import {vehiclesAction} from './vehicles.js';
 import {checkWorkReceipt,saveWorkReceipt,stockMovement,editWorkEntry,mayEditWorkEntry,logEntryChange} from './work-entry.js';
 import {staffName} from './staff.js';
 import {businessManagerAction} from './business-manager.js';
@@ -166,11 +167,13 @@ const addWorkEntry = (state, wo, data, actor, previous=null) => {
   const change=changeId?find(wo.changes,changeId,'Change order'):null;
   const signedLine=change?.lines.find(line=>line.catalogId===cat.id);
   if(change&&(change.status!=='approved'||!signedLine))throw Error('Choose an item on the approved change order');
-  const rate=internalOrder(state,wo)?0:previous?.catalogId===cat.id?previous.rate:signedLine?.rate??orderRate(state,wo,cat,project,client,cost);
+  const sharedTravel=type==='travel'&&(data.sharedTravel===undefined?previous?.sharedTravel===true:data.sharedTravel===true);
+  const rate=internalOrder(state,wo)||sharedTravel?0:previous?.catalogId===cat.id&&!previous.sharedTravel?previous.rate:signedLine?.rate??orderRate(state,wo,cat,project,client,cost);
   if(rate==null)throw Error('Set a fixed price or record a purchase cost before billing this part');
   const description=type==='material'?text(data.description||'Materials used','Description',1000):text(data.description,'Work notes',1000);
   const entry = {id:id('entry'), at:now(), date, startTime:startTime||null, endTime:endTime||null, type, catalogId:cat.id, name:cat.name, quantity, unit:cat.unit, rate, cost,
     changeId, tech:previous?.tech??staffName(state,actor.email),employeeEmail:previous?previous.employeeEmail:employeeKey(actor.email),createdBy:previous?.createdBy??actor.email,description};
+  if(sharedTravel)entry.sharedTravel=true;
   if(type!=='material')checkTimeEntry(state,entry,previous?.id);
   if(previous){
     if(type==='material'){entry.stockLocation=previous.stockLocation;entry.stockMovementId=previous.stockMovementId;}
@@ -271,6 +274,7 @@ export function applyAction(state, action, data={}, actor={email:'system'}) {
   if(action==='pricing.profile.save')return savePricing(state,data,actor);
   if(action.startsWith('ticket.'))return ticketAction(state,action,data,actor);
   if(action.startsWith('estimate.'))return estimateAction(state,action,data,actor,fields=>applyAction(state,'project.create',fields,actor),fields=>applyAction(state,'workorder.create',fields,actor));
+  if(action==='vehicles.manage')return vehiclesAction(state,data,actor);
   if(action==='businessManager.manage')return businessManagerAction(state,data,actor);
   if(action.startsWith('staff.'))return staffAction(state,action,data,actor,fields=>applyAction(state,'workorder.create',fields,actor));
   if(['project.close','project.followup','billing.deposit'].includes(action))return projectWorkflow(state,action,data,actor);
@@ -382,8 +386,7 @@ export function applyAction(state, action, data={}, actor={email:'system'}) {
       const entry=find(wo.entries,data.entryId,'Field journal entry');
       if(!mayEditWorkEntry(entry,actor))throw Error('You can only edit entries recorded under your account');
       if((entry.journalNoteRevision||'')!==data.revision)throw Error('This note changed. Refresh the work order and try again');
-      if(wo.invoice)throw Error('An invoice already contains this order. Use an invoice adjustment instead.');
-      if(entry.type!=='material')checkTimeEntry(state,{date:entry.date});
+      // Note overlay is journal-only; neither the approved payroll row nor billing snapshot changes.
       const old=structuredClone(entry);
       entry.journalNote=text(data.note,'Work notes',1000);
       entry.journalNoteRevision=id('note');
@@ -396,7 +399,7 @@ export function applyAction(state, action, data={}, actor={email:'system'}) {
       return editWorkEntry(state,wo,action,data,actor,entry=>addWorkEntry(state,wo,{
         type:entry.type,catalogId:data.catalogId||entry.catalogId,date:data.date,
         startTime:data.startTime,endTime:data.endTime,quantity:data.quantity,
-        description:data.description,changeId:entry.changeId,location:entry.stockLocation
+        description:data.description,sharedTravel:data.sharedTravel,changeId:entry.changeId,location:entry.stockLocation
       },actor,entry));
     }
     case 'receipt.add': return saveWorkReceipt(state,woFor(state,data.workorderId),data,actor);
@@ -481,7 +484,7 @@ export function applyAction(state, action, data={}, actor={email:'system'}) {
       const snapshot={id:id('invoice'),number,layout:data.layout,sentAt,projectId:project.id,billingStage,depositCredit:money(Object.values(allocations).reduce((s,v)=>s+v,0)),customer:customer.business||customer.name,
         address:customer.address,project:project.name,projectNumber:project.number,po:project.po,
         orders:orders.map(w=>({id:w.id,title:w.title,crew:crewSummary(w.entries),
-          entries:w.entries.map(e=>({id:e.id,type:e.type,date:e.date,name:e.name,catalogId:e.catalogId,unit:e.unit,quantity:e.quantity,
+          entries:w.entries.filter(e=>!e.sharedTravel).map(e=>({id:e.id,type:e.type,date:e.date,name:e.name,catalogId:e.catalogId,unit:e.unit,quantity:e.quantity,
             startTime:e.startTime,endTime:e.endTime,rate:e.rate,description:String(data.notes?.[e.id]??e.description??'').trim().slice(0,1000)}))}))};
       (state.projectInvoices??=[]).push(snapshot);
       for(const w of orders){

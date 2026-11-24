@@ -25,7 +25,7 @@ async function withManagerServer(ready){
  await writeFile(setup,'const fetchOriginal=globalThis.fetch;globalThis.fetch=(url,...args)=>String(url)==='+JSON.stringify(team+'/cdn-cgi/access/certs')+'?Promise.resolve(Response.json('+JSON.stringify(keyset)+')):fetchOriginal(url,...args);');
  const state=seed();
  state.users=[{email:typeEmail.tech,role:'tech'},{email:typeEmail.reader,role:'tech',profileId:'manager-reader'}];
- state.permissionProfiles=[{id:'manager-reader',name:'Manager read only',schemaVersion:4,modes:{staff:'read',businessManager:'read'},permissions:['staff.view','businessManager.view']}];
+ state.permissionProfiles=[{id:'manager-reader',name:'Manager read only',schemaVersion:4,modes:{staff:'read',businessManager:'read'},permissions:['staff.view','businessManager.view','vehicles.view']}];
  await writeFile(db,JSON.stringify(state));
  const server=spawn(process.execPath,['--import',setup,fileURLToPath(new URL('../Server/server.js',import.meta.url))],{env:{
   ...Object.fromEntries(['PATH','HOME','SYSTEMROOT','TEMP'].flatMap(key=>process.env[key]?[[key,process.env[key]]]:[])),

@@ -1,3 +1,4 @@
+import {vehiclesAction} from './vehicles.js';
 import {randomUUID} from 'node:crypto';
 import {validDate} from './payroll.js';
 
@@ -26,7 +27,6 @@ function number(value,label,max,decimal=false){
  if(!['string','number'].includes(typeof value)||!pattern.test(String(value))||Number(value)>max)throw Error('Enter '+label+' from 0 to '+max);
  return Number(value);
 }
-const mileage=value=>number(value,'mileage',9999999);
 const dollars=value=>number(value,'the bill amount',99999999.99,true);
 const requiredRow=(rows,id,label)=>{
  if(typeof id!=='string'||!trackedId.test(id))throw Error('Invalid '+label+' ID');
@@ -39,11 +39,6 @@ function completedDate(value){
  if(result>today())throw Error('Completion or paid date cannot be in the future');
  return result;
 }
-function nextDate(value,completed){
- const result=date(value);
- if(result&&result<=completed)throw Error('Next due date must be after the completion date');
- return result;
-}
 const completionDates=record=>({dueDate:record?.dueDate??null,lastCompletedDate:record?.lastCompletedDate??null});
 const vehicleView=row=>({id:row.id,name:row.name,plate:row.plate||'',notes:row.notes||'',registration:completionDates(row.registration),
  oil:{...completionDates(row.oil),dueMileage:row.oil?.dueMileage??null,lastMileage:row.oil?.lastMileage??null}});
@@ -52,7 +47,7 @@ const billView=row=>({id:row.id,name:row.name,vendor:row.vendor||'',dueDate:row.
 
 export function businessManagerView(state,actor){
  if(!can(actor,'staff.view')||!can(actor,'businessManager.view'))return undefined;
- return {today:today(),vehicles:(state.businessManager?.vehicles||[]).map(vehicleView),
+ return {today:today(),vehicles:can(actor,'vehicles.view')?(state.businessManager?.vehicles||[]).map(vehicleView):[],
   bills:(state.businessManager?.bills||[]).map(billView)};
 }
 
@@ -64,33 +59,17 @@ export function businessManagerAction(state,data,actor){
  const {vehicles,bills}=tracker;
  switch(data.operation){
   case 'saveVehicle': {
-   const existing=own(data,'id')?requiredRow(vehicles,data.id,'Vehicle'):null;
-   const name=string(data.name,'a vehicle name',100,true),plate=string(data.plate,'plate',30),notes=string(data.notes,'notes',1200);
-   const registration={...existing?.registration,dueDate:date(data.registrationDueDate)};
-   const oil={...existing?.oil,dueDate:date(data.oilDueDate),dueMileage:mileage(data.oilDueMileage)};
-   for(const record of [registration,oil])if(record.dueDate&&record.lastCompletedDate&&record.dueDate<=record.lastCompletedDate)
-    throw Error('Next due date must be after the completion date');
-   if(oil.dueMileage!=null&&oil.lastMileage!=null&&oil.dueMileage<=oil.lastMileage)
-    throw Error('Next oil-change mileage must be greater than the last recorded mileage');
-   const row={id:existing?.id||randomUUID(),name,plate,notes,registration,oil};
-   if(existing)Object.assign(existing,row);else vehicles.push(row);
-   state.businessManager=tracker;
+   const result=vehiclesAction(state,{...data,about:data.notes},actor);
+   const row=state.businessManager.vehicles.find(item=>item.id===result.id);
+   if(data.notes!==undefined)row.notes=row.about;
    return vehicleView(row);
   }
   case 'completeRegistration':
   case 'completeOil': {
-   const row=requiredRow(vehicles,data.id,'Vehicle'),key=data.operation==='completeOil'?'oil':'registration';
-   const completed=completedDate(data.completedDate),dueDate=nextDate(data.nextDueDate,completed);
-   const previous=row[key]||{};
-   if(previous.lastCompletedDate&&completed<previous.lastCompletedDate)throw Error('Completion cannot be before the last recorded date');
-   const update={dueDate,lastCompletedDate:completed};
-   if(key==='oil'){
-    const lastMileage=mileage(data.completedMileage)??previous.lastMileage??null,dueMileage=mileage(data.nextDueMileage);
-    if(lastMileage!==null&&previous.lastMileage!=null&&lastMileage<previous.lastMileage)throw Error('Oil-change mileage cannot be lower than the last recorded mileage');
-    if(lastMileage!==null&&dueMileage!==null&&dueMileage<=lastMileage)throw Error('Next oil-change mileage must be greater than the last recorded mileage');
-    Object.assign(update,{dueMileage,lastMileage});
-   }
-   row[key]=update;
+   const type=data.operation==='completeOil'?'oil':'registration';
+   const row=requiredRow(vehicles,data.id,'Vehicle');
+   if(row[type]?.lastCompletedDate&&data.completedDate<row[type].lastCompletedDate)throw Error('Completion cannot be before the last recorded date');
+   vehiclesAction(state,{...data,type,operation:'recordService',date:data.completedDate,mileage:data.completedMileage},actor);
    return vehicleView(row);
   }
   case 'saveBill': {

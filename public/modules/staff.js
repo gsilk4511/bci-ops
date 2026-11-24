@@ -4,6 +4,7 @@ import {profileCard, directoryProfile, personalProfileFields, personalProfilePay
 import {contributionPanel} from './staff-contribution.js';
 import {contributionYear,openCompensationProfile,rateLabel} from './staff-contribution-admin.js';
 import {businessManagerPanel} from './business-manager.js';
+import {staffWorkspaceTheme} from './staff-workspace-theme.js';
 
 let firstDay='',lastDay='';
 const categories={work:'Customer work',travel:'Travel',internal:'Internal work',vacation:'Vacation',sick:'Sick'};
@@ -23,7 +24,7 @@ export function staffPage() {
  const admin=Array.isArray(staff.staffProfiles);
  const rateYear=contributionYear(staff);
  const totals=Object.fromEntries(Object.keys(categories).map(type=>[type,[...entries,...leave.filter(row=>row.status==='Approved')].filter(e=>e.type===type).reduce((sum,e)=>sum+e.quantity,0)]));
- return head('My Time & Profile','Staff','Review your work orders, record time off, or start a new internal task.',
+ const content=head('My Time & Profile','Staff','Review your work orders, record time off, or start a new internal task.',
   (can('staff.leave')?action('leave','+ Add Time Off'):'')+(staff.internalAvailable&&can('staff.internal')?action('internal','+ New Internal Work Order'):''))
   +`<section class="panel"><h2>My profile</h2>
    ${profileCard(profile)}
@@ -49,6 +50,7 @@ export function staffPage() {
    ${staff.directory?.length?`<div class="bci-staff-directory">${staff.directory.map(directoryProfile).join('')}</div>`:'<p>No other team profiles are available.</p>'}</section>`
   +(admin?`<section class="panel"><h2>Staff profiles</h2>${table(['Employee','Sign-in','Vacation','Sick',rateYear+' profit share',''],staff.staffProfiles.map(row=>`<tr><td>${esc(row.name)}</td><td>${esc(row.email)}</td><td>${number(row.vacationHours)} h</td><td>${number(row.sickHours)} h</td><td>${esc(rateLabel(row,rateYear))}</td><td>${can('staff.manage')?action('manage','Edit staff profile',row.email):''}</td></tr>`))}</section>
    <section class="panel"><h2>Pending time off</h2>${table(['Employee','Date','Category','Hours',''],staff.requests.map(row=>`<tr><td>${esc(staff.staffProfiles.find(member=>member.email===row.email)?.name||row.email)}</td><td>${esc(row.date)}</td><td>${esc(categories[row.type])}</td><td>${number(row.quantity)}</td><td>${can('staff.leaveReview')?action('review','Review',row.id):''}</td></tr>`))}</section>`:'');
+ return staffWorkspaceTheme(profile.style,content);
 }
 function profileFields(row,admin) {
  const common=f('name','Name',{required:true,value:row.name})+f('contactEmail','Contact email',{type:'email',required:true,value:row.contactEmail});

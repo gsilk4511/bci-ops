@@ -30,6 +30,7 @@ export const permissionGroups = {
   'My Time and staff profiles': {'staff.view':'View My Time and profile','staff.profile':'Customize own staff profile',
     'staff.leave':'Request vacation or sick time','staff.internal':'Create internal work orders',
     'staff.manage':'Administer staff profiles, wages and profit share','staff.leaveReview':'Review staff leave'},
+  'Vehicles': {'vehicles.view':'View fleet profiles and service history','vehicles.manage':'Manage fleet profiles and service history'},
   'Business Manager': {'businessManager.view':'View fleet maintenance and bill tracker','businessManager.manage':'Manage fleet maintenance and bill tracker'},
   'Payroll': {'payroll.view':'View payroll review and exports','payroll.other':'Log shop time or leave','payroll.approve':'Approve pay periods'},
   'Billing and pricing': {
@@ -83,6 +84,7 @@ export const permissionMatrix = {
  reports:makeModule('reports.view',[],[],[],['finance.view']),
  payroll:makeModule('payroll.view',[],[],['payroll.other','payroll.approve']),
  staff:makeModule('staff.view',['staff.profile','staff.leave','staff.internal']),
+ vehicles:makeModule('vehicles.view',['vehicles.manage']),
  businessManager:makeModule('businessManager.view',['businessManager.manage']),
  pricing:makeModule('pricing.view',['catalog.create','catalog.update'],['catalog.delete','pricing.profile.archive'],[
   'pricing.profile.save','pricing.profile.assign','pricing.profile.bulk','pricing.client','pricing.part','pricing.project']),

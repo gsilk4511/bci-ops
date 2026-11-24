@@ -1,5 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {printJournalEntries} from '../public/modules/work-order-journal.js';
+import {payrollPreview} from '../Models/payroll.js';
 import {seed,applyAction,invoiceFor,moneyStats} from '../Models/lib.js';
 const signatureData='data:image/png;base64,'+Buffer.from(Buffer.concat([Buffer.from('89504e470d0a1a0a','hex'),Buffer.alloc(400,7)])).toString('base64');
 const signed={signatureData,consent:true};
@@ -66,9 +68,36 @@ test('journal note corrections preserve submitted entries and grouped invoice de
  const invoice=applyAction(state,'invoice.group',{workorderIds:[order.id],number:'QA-NOTE',layout:'itemized'},actor);
  assert.equal(invoice.orders[0].entries[0].description,'Original dictation');
  assert.throws(()=>applyAction(state,'entry.editNote',edit,actor),/changed/);
- assert.throws(()=>applyAction(state,'entry.editNote',{...edit,note:'Final correction',revision:entry.journalNoteRevision},actor),/invoice adjustment/);
- assert.equal(entry.journalNote,'Corrected wording');
+ assert.equal(printJournalEntries(order)[0].description,'Corrected wording');
+ const prior=JSON.stringify(invoice),closeout=JSON.stringify(order.closeout);
+ state.payrollRuns=[{start:entry.date,end:entry.date}];
+ applyAction(state,'entry.editNote',{...edit,note:'Final correction',revision:entry.journalNoteRevision},actor);
+ assert.equal(entry.journalNote,'Final correction');
+ assert.equal(printJournalEntries(order)[0].description,'Final correction');
+ assert.equal(JSON.stringify(invoice),prior);
+ assert.equal(JSON.stringify(order.closeout),closeout);
  assert.equal(entry.quantity,2);
  assert.equal(order.closeout.originalEntries[0].description,'Original dictation');
  assert.equal(invoice.orders[0].entries[0].description,'Original dictation');
+});
+
+test('shared travel records both employees for payroll without a second billable charge',()=>{
+ const state=seed(),order=state.workorders[0],first={email:'driver@example.invalid'},second={email:'rider@example.invalid'};
+ const base={workorderId:order.id,type:'travel',catalogId:'cat_5',date:'2026-11-11',startTime:'08:00',endTime:'09:00',description:'Travel'
+ };
+ applyAction(state,'workorder.approve',{workorderId:order.id,signedBy:'Demo Customer',...signed},first);
+ const charge=applyAction(state,'entry.add',base,first);
+ const shared=applyAction(state,'entry.add',{...base,description:'Rode with driver',sharedTravel:true},second);
+ assert.equal(charge.rate,65);
+ assert.equal(shared.quantity,1);
+ assert.equal(shared.rate,0);
+ assert.equal(invoiceFor(state,order).total,65);
+ assert.equal(shared.cost,20);
+ assert.deepEqual(payrollPreview(state,base.date,base.date).rows.map(row=>row.travel),[1,1]);
+ applyAction(state,'workorder.close',{workorderId:order.id},first);
+ applyAction(state,'workorder.review',{workorderId:order.id},first);
+ assert.equal(printJournalEntries(order).length,2);
+ const invoice=applyAction(state,'invoice.group',{workorderIds:[order.id],number:'SHARED-1',layout:'itemized'},first);
+ assert.deepEqual(invoice.orders[0].entries.map(row=>row.id),[charge.id]);
+ assert.equal(order.entries.length,2);
 });
