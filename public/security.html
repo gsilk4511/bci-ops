@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/security.css"><title>BCI Operations · User Security</title></head>
+<body><main><h1>BCI Operations · User Security</h1>
+<p>Cloudflare verifies your identity first. Your BCI authenticator adds a second check.</p>
+<p id="feedback" role="status" aria-live="polite"></p><a id="continue" href="/" hidden>Continue to BCI Operations</a>
+<div id="app-signin" hidden></div><section id="setup" hidden><h2>Set up an authenticator</h2><form id="begin"><label>Invitation from your administrator <input name="invitation" type="password" autocomplete="off"></label><button type="submit">Start or restart QR setup</button></form>
+<div id="scan" hidden><p>Scan this private QR code with Bitwarden Authenticator. Do not share it.</p><img id="qr" alt="Private authenticator enrollment QR" width="256" height="256">
+<form id="confirm"><label>Code from Bitwarden <input name="code" inputmode="numeric" pattern="[0-9]{6}" autocomplete="one-time-code" required></label><button type="submit">Confirm setup</button></form></div>
+</section><section id="signin" hidden><h2>Verify your authenticator</h2><form id="verify"><label>Six-digit code <input name="code" inputmode="numeric" pattern="[0-9]{6}" autocomplete="one-time-code" required></label><button type="submit">Verify</button></form>
+<form id="recovery"><label>One-time recovery code <input name="code" type="password" autocomplete="off" required></label><button type="submit">Use recovery code</button></form>
+<form id="replace-recovery" hidden><p>Replacing recovery codes invalidates every old code.</p><button type="submit">Replace recovery codes</button></form>
+<button id="logout" type="button" hidden>Sign out of BCI verification</button></section>
+<section id="codes" hidden><h2>Save these one-time codes now</h2><p>Keep them in an approved secure location separate from your device. Copy them first, then test one code above. A code can be used once.</p><ul></ul><button id="hideCodes" type="button">Clear codes from screen</button></section>
+<section id="admin" hidden><h2>Invite an approved staff member</h2><p>Add the email and intended role in Team first. Convey the one-time invitation securely.</p><form id="invite"><label>Approved staff email <input name="email" type="email" required></label><button type="submit">Generate invitation</button></form><label id="invitation" hidden>Copy once <input autocomplete="off" readonly></label></section>
+<div id="agent" hidden></div></main><script type="module" src="/security.js"></script></body></html>

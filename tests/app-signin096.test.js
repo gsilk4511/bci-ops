@@ -1,0 +1,70 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {createHmac,randomBytes} from 'node:crypto';
+import {securityConfig,identityId} from '../UserSecurity/enrollment.js';
+import {createTotpEnrollment,encryptTotp} from '../UserSecurity/mfa.js';
+import {signInConfig,canUseEmail,appAuthView,performAppSignIn,bootSignIn} from '../UserSecurity/signin.js';
+import {roleFor} from '../Models/auth.js';
+const tech={email:'existing@example.invalid',issuer:'https://staging.cloudflareaccess.com',sub:'CF-existing'};
+const owner={email:'owner@example.invalid',issuer:tech.issuer,sub:'CF-owner'};
+const env={PUBLIC_ORIGIN:'https://staging.example.invalid',BCI_USER_SECURITY:'optional',BCI_MFA_ENCRYPTION_KEY:randomBytes(32).toString('base64url'),BCI_ADMIN_EMAILS:owner.email+',other@example.invalid'};
+const security=securityConfig(env);
+const config=signInConfig({BCI_APP_SIGNIN:'pilot',BCI_SIGNIN_PILOTS:tech.email,BCI_SIGNIN_EMAIL:'on'},security);
+const t=1730419080000, passphrase='synthetic long field crew passphrase';
+const wrap=state=>({async transact(fn){const copy=structuredClone(state);const result=await fn(copy);Object.assign(state,copy);return result;}});
+const act=(state,user,body,cookie,email=true,at=t)=>performAppSignIn(wrap(state),security,config,user,body,cookie,email,at,async uri=>uri);
+function code(secret,now){
+ const a='ABCDEFGHIJKLMNOPQRSTUVWXYZ234567', bits=[...secret].map(x=>a.indexOf(x).toString(2).padStart(5,'0')).join('');
+ const key=Buffer.from(bits.match(/.{8}/g).map(x=>parseInt(x,2)));
+ const time=Buffer.alloc(8);time.writeBigUInt64BE(BigInt(Math.floor(now/30000)));
+ const h=createHmac('sha1',key).update(time).digest();
+ return String((h.readUInt32BE(h[19]&15)&0x7fffffff)%1e6).padStart(6,'0');
+}
+test('existing person keeps exact profile, work journal, payroll and prior TOTP; no reinvite',async()=>{
+ const id=identityId(tech),{secret}=createTotpEnrollment(tech.email);
+ const business={users:[{id:'immutable-user',email:tech.email,role:'tech',active:true,profileId:'permissions'}],staffProfiles:{[tech.email]:{email:tech.email,name:'Technician',payScale:'privacy-test'}},workorders:[{entries:[{employeeEmail:tech.email,employeeId:'immutable-user',description:'completed work'}]}],payrollRuns:[{entries:[{employeeEmail:tech.email,employeeId:'immutable-user',hours:8}]}]};
+ const before=structuredClone(business);
+ assert.equal(roleFor(business,tech),'tech');
+ assert.equal(roleFor(business,{email:'unapproved@example.invalid'}),null);
+ const original=encryptTotp(secret,security.key,id);
+ const state={accounts:{[id]:{id,email:tech.email,enabled:true,secret:original,lastCounter:-1,recovery:[]}}};
+ const step=await act(state,tech,{operation:'password',password:passphrase});
+ assert.ok(step.cookie.startsWith('__Host-'));
+ assert.equal(appAuthView(state,security,config,tech,step.cookie,true,t).allowed,false);
+ assert.match((await act(state,tech,{operation:'begin-totp'},step.cookie)).error,/existing/);
+ assert.match((await act(state,tech,{operation:'email-send'},step.cookie)).error,/Authenticator required/);
+ const login=await act(state,tech,{operation:'totp-verify',code:code(secret,t)},step.cookie);
+ assert.equal(appAuthView(state,security,config,tech,login.cookie,true,t).recent,true);
+ assert.deepEqual(business,before);
+ assert.equal(state.accounts[id].secret,original);
+ assert.match((await act(state,tech,{operation:'totp-verify',code:code(secret,t)},step.cookie)).error,/password first/);
+ assert.match((await act(state,tech,{operation:'password',password:'totally wrong synthetic password'},undefined,true,t+30000)).error,/Invalid BCI/);
+ const next=await act(state,tech,{operation:'password',password:passphrase},undefined,true,t+30000);
+ assert.equal(appAuthView(state,security,config,tech,next.cookie,true,t+30000).passwordStep,true);
+});
+test('email option is bounded and does not survive privilege promotion; no code/body address persistence',async()=>{
+ assert.equal(canUseEmail(config,'admin',[]),false);
+ assert.equal(canUseEmail(config,'tech',['finance.view']),false);
+ assert.equal(canUseEmail(config,'tech',['workorders.view']),true);
+ const state={};
+ const step=await act(state,tech,{operation:'password',password:passphrase});
+ const sent=await act(state,tech,{operation:'email-send',email:'not-staff@example.invalid'},step.cookie);
+ assert.match(sent.delivery.code,/^[0-9]{6}$/);
+ assert.ok(!JSON.stringify(state).includes('not-staff@example.invalid'));
+ assert.match((await act(state,tech,{operation:'email-send'},step.cookie)).error,/Wait/);
+ const login=await act(state,tech,{operation:'email-verify',code:sent.delivery.code},step.cookie);
+ const status=appAuthView(state,security,config,tech,login.cookie,true,t);
+ assert.equal(status.allowed,true);assert.equal(status.recent,false);
+ assert.equal(appAuthView(state,security,config,tech,login.cookie,false,t).allowed,false);
+ assert.match((await act(state,tech,{operation:'email-verify',code:sent.delivery.code},step.cookie)).error,/password first/);
+});
+test('recovery inventory gates activation, not restarts; roles and assigned emails stay canonical',()=>{
+ const required=signInConfig({BCI_APP_SIGNIN:'required'},security);
+ const state={accounts:{}};
+ assert.equal(bootSignIn(state,required,security),false);
+ for(const email of security.owners)state.accounts[email]={email,password:'test-marker',enabled:true,recoveryVerified:true,recovery:['not-a-key']};
+ assert.equal(bootSignIn(state,required,security),true);
+ for(const person of Object.values(state.accounts)){person.recovery=[];person.recoveryVerified=false;}
+ assert.equal(bootSignIn(state,required,security),true);
+ assert.equal(bootSignIn(state,required,{...security,owners:[owner.email,'different@example.invalid']}),false);
+});

@@ -3,6 +3,12 @@
 const section = (title, ...items) => ({title, items});
 const release = (version, title, summary, ...sections) => ({version, title, summary, sections});
 export const releases = [
+ release('0.9.6','BCI Operations sign-in staging','Add a BCI password and verification step after Cloudflare without replacing current users.',
+  section('Account continuity','Active users remain connected to their existing profiles, grants, work and payroll. A prior authenticator carries forward; new enrollment offers authenticator and restricted optional email verification.'),
+  section('Rollout','Both BCI sign-in and email are off by default. Separate pilot controls and two protected-administrator recovery drills gate first enforcement. Cloudflare remains connected.')),
+ release('0.9.5','User Security and Agent API staging','Optional staging tools for authenticator enrollment and a scoped machine connection test.',
+  section('User Security','Off by default. Use Cloudflare identity, Team invitations, Bitwarden-compatible QR setup and single-use recovery codes.'),
+  section('Agent API','Separately enabled admin page can issue and revoke short-lived connection-test credentials. No business access or automation is connected.')),
  release('0.9.4','Pricing tables and profile editing','Find billing clients, labor and parts without one long list.',
   section('Pricing','Billing clients start collapsed. Clients, base labor and travel rates, and base parts rates each have independent search, sorting and page size.'),
   section('Profiles','New and Edit share the split grids. Draft rules and bulk selections stay in place when switching pages; preview and approval behavior is unchanged.')),

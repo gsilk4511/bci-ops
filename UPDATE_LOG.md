@@ -1,3 +1,13 @@
+# 0.9.6 — BCI Operations sign-in staging
+
+- Optional pilot for BCI passphrase plus authenticator or eligible approved email verification after Cloudflare. Existing users retain their accounts.
+- Default off. Follow docs/APP_SIGNIN.md before pilot or enforcement.
+
+# 0.9.5 — User Security staging candidate
+
+- User Security and Agent API are off by default. See docs/USER_SECURITY.md before enabling either.
+- Separate opt-in MariaDB migration and external encryption key; no changes to existing business records.
+
 # 0.9.4 — Pricing tables and profile editing
 
 - Billing clients start collapsed. Clients, base labor (including travel), and base parts tables have independent search, sort, and pagination.

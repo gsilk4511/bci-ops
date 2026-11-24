@@ -1,4 +1,4 @@
-# Update existing BCI Operations staging to 0.9.4
+# Update existing BCI Operations staging to 0.9.6
 
 ## Greg: use the existing staging stack
 
@@ -10,7 +10,7 @@
    `mariadb.env`, MariaDB database name, named volume, bridge, and service
    hostname `db`. Do not replace these with bundled examples.
 4. Confirm the app build context points to the updated source. In the active
-   Compose file, change the app image tag to `bci-operations:0.9.4`. Do not
+   Compose file, change the app image tag to `bci-operations:0.9.6`. Do not
    change the database service. Use the actual app service name if different.
 
 From the deployment directory:
@@ -21,8 +21,8 @@ docker compose -f compose.bci-operations-fixed.yml up -d --build --no-deps --for
 docker compose -f compose.bci-operations-fixed.yml exec -T bci-operations node -e "fetch('http://127.0.0.1:3100/api/health').then(r=>r.json()).then(console.log)"
 ```
 
-Recreate by itself does not build a new image. Verify `0.9.4` in the health
-response and beside the BCI logo. No SQL migration, reimport or reseed.
+Recreate by itself does not build a new image. Verify `0.9.6` in the health
+response and beside the BCI logo. For the default-off install no SQL migration, reimport or reseed is needed. To test optional User Security separately, follow USER_SECURITY.md.
 If you roll back, restore the previous source, restore its former image tag
 and rebuild only the app. Keep the database and its volume in place.
 
@@ -66,7 +66,7 @@ Installing the update does not change Leslie’s account or permissions.
 - Verify the three charts and private bonus estimate. Missing wage history
   or unavailable invoice evidence must not produce a fabricated bonus.
 
-## Verify 0.9.4 before promoting
+## Verify 0.9.6 before promoting
 
 1. On a synthetic completed/reviewed/invoiced work order, use Edit notes in Original field journal. Print Work Order should display the changed note; the issued invoice should remain unchanged.
 2. Record normal travel for the driver and shared travel for another signed-in employee. Both hours should appear in the journal and payroll review; only normal travel appears as a charge on the invoice.
@@ -78,3 +78,9 @@ Installing the update does not change Leslie’s account or permissions.
 - Confirm Billing clients starts closed. Expand it, search, and use Next and Previous on a list with more than ten matches.
 - Expand Base catalog rates and existing pricing rules. Labor includes travel; Parts is separate. Search, sort and change the page size independently.
 - Open New profile or Edit. With synthetic staging data, edit one rule on each of two pages, sort or search, then Preview. Both changes must appear. Save and reopen to confirm both. Check that prior rates, assignments, and issued invoices are unchanged outside the intended staging edits.
+
+## Optional BCI Sign-In staging pilot
+
+This package ships with the 0.9.6 sign-in feature and SMTP off. Do not activate
+for live users or remove Cloudflare. See APP_SIGNIN.md for the pilot,
+account-retention checks, recovery and rollback.

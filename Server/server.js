@@ -1,3 +1,8 @@
+import {signInConfig,isAppSignIn,canUseEmail,bootSignIn,appAuthView,performAppSignIn,invalidateEmailDelivery} from '../UserSecurity/signin.js';
+import {createEmailChannel} from '../UserSecurity/email-channel.js';
+import {securityConfig,requiredReady,verifyStoredEncryptionKey,securityView,inviteAccount,performEnrollment} from '../UserSecurity/enrollment.js';
+import {makeSecurityStore} from '../UserSecurity/store.js';
+import {listAgentCredentials,issueAgentCredential,revokeAgentCredential,authorizeAgentCredential,agentStatus} from '../UserSecurity/agent-api.js';
 import {vehiclePhoto,vehiclesView} from '../Models/vehicles.js';
 import {applyWarehousePurge,previewWarehousePurge} from '../Models/warehouse-purge.js';
 import {applyWarehousePatch,exportWarehouse,previewWarehousePatch} from '../Models/warehouse-export.js';
@@ -28,7 +33,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { seed, applyAction, moneyStats, crewSummary } from '../Models/lib.js';
-import { identity, roleFor, projectState } from '../Models/auth.js';
+import { identity, roleFor, projectState, authorizeMachinePerimeter } from '../Models/auth.js';
 const root=fileURLToPath(new URL('../',import.meta.url));
 const manufacturerImportManifest=JSON.parse(await fs.readFile(path.join(root,'scripts','manufacturer-import-nov20-2026.manifest.json'),'utf8'));
 const {version:release}=JSON.parse(await fs.readFile(path.join(root,'package.json'),'utf8'));
@@ -77,6 +82,30 @@ if(dbProvider==='mariadb') {
   await fs.mkdir(path.dirname(stateFile),{recursive:true});
   try{state=JSON.parse(await fs.readFile(stateFile,'utf8'));}catch(e){if(e.code!=='ENOENT')throw e;state=seed();await fs.writeFile(stateFile,JSON.stringify(state,null,2));}
 } else throw new Error('DB_PROVIDER must be json or mariadb');
+const security=securityConfig(process.env);
+const signIn=signInConfig(process.env,security);
+const emailChannel=signIn.emailEnabled?await createEmailChannel(process.env):null;
+const securityStore=security.mode==='off'?null:await makeSecurityStore(pool);
+if(securityStore){
+ const startingSecurity=await securityStore.read();
+ verifyStoredEncryptionKey(startingSecurity,security);
+ if(!requiredReady(startingSecurity,security))throw Error('User Security enforcement blocked: enroll and verify recovery for two independent protected administrators first');
+}
+const startingAppGate=signIn.mode==='required'?await securityStore.transact(state=>bootSignIn(state,signIn,security)):true;
+let appGateReady=startingAppGate;
+const agentAudience=process.env.BCI_AGENT_ACCESS_AUD;
+const agentCommonName=process.env.BCI_AGENT_ACCESS_COMMON_NAME;
+if(security.agentEnabled&&(!agentAudience||agentAudience===process.env.CF_ACCESS_AUD||!agentCommonName))
+ throw Error('Agent API needs its own verified Access audience and service identity');
+async function securityBody(req){
+ if(req.headers.origin!==publicOrigin||req.headers['sec-fetch-site']==='cross-site')throw Error('Untrusted request origin');
+ if(String(req.headers['content-type']||'').split(';')[0].trim().toLowerCase()!=='application/json')throw Error('JSON required');
+ let size=0;const chunks=[];
+ for await(const chunk of req){size+=chunk.length;if(size>8192)throw Error('Request too large');chunks.push(chunk);}
+ const result=JSON.parse(Buffer.concat(chunks).toString('utf8'));
+ if(!result||typeof result!=='object'||Array.isArray(result))throw Error('Invalid request');
+ return result;
+}
 async function load() {
   if(dbProvider==='json')return state;
   const conn=await pool.getConnection();try{const rows=await conn.query('SELECT state_json FROM pilot_state WHERE id=1');if(!rows.length)throw new Error('Missing staging data');return parseStoredState(rows[0].state_json);}finally{conn.release();}
@@ -197,7 +226,7 @@ function dispatchPush(){
 const testingOwner = (process.env.BCI_TESTING_OWNER_EMAIL||'').trim().toLowerCase();
 const quoteIdentifier = name => '`'+name.replaceAll('`','``')+'`';
 async function inspectDatabase(url) {
-  const tables = await pool.query("SELECT TABLE_NAME AS name FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_TYPE='BASE TABLE' ORDER BY TABLE_NAME");
+  const tables = await pool.query("SELECT TABLE_NAME AS name FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_TYPE='BASE TABLE' AND TABLE_NAME<>'bci_user_security' ORDER BY TABLE_NAME");
   const requested = url.searchParams.get('table') ?? tables[0]?.name;
   if (!requested) return {tables, columns:[], rows:[], page:0, more:false};
   const name=tables.find(table=>table.name===requested)?.name;
@@ -221,11 +250,79 @@ const server=http.createServer(async(req,res)=>{
   try {
     const url=new URL(req.url,'http://local');
     if(req.method==='GET'&&url.pathname==='/api/health')return response(res,200,{ok:true,release,storage:dbProvider,auth:process.env.APP_AUTH_MODE||'cloudflare'});
+    if(url.pathname.startsWith('/api/agent/')){
+      if(!security.agentEnabled||!appGateReady||url.pathname!=='/api/agent/v1/status')return response(res,404,{error:'Not found'});
+      if(req.method!=='GET')return response(res,405,{error:'Method not allowed'});
+      try{await authorizeMachinePerimeter(req,agentAudience,agentCommonName);}catch{return response(res,401,{error:'Agent login required'});}
+      const authHeaders=req.rawHeaders.filter((value,index)=>index%2===0&&value.toLowerCase()==='authorization');
+      const machine=authHeaders.length===1?authorizeAgentCredential(await securityStore.read(),req.headers.authorization):null;
+      if(!machine)return response(res,401,{error:'Agent credential rejected'});
+      return response(res,200,agentStatus(machine,release));
+    }
     let user;
     try{user=await identity(req);}catch(e){return response(res,401,{error:e.message});}
     const photoRoute=url.pathname.startsWith('/api/catalog-photo/');
     const current=await (photoRoute?loadPhotoAccess():load());const role=roleFor(current,user);
     if(!role)return response(res,403,{error:'Email is not authorized for BCI Operations. Ask Greg to add this user.'});
+    if(securityStore){
+      const securityAsset=['/security','/security.js','/security.css','/signin.js','/modules/agent-api.js'].includes(url.pathname);
+      const appLogin=isAppSignIn(signIn,user);
+      const emailAllowed=appLogin&&canUseEmail(signIn,role,effectivePermissions(current,user,role));
+      let auth={};
+      if(!securityAsset||url.pathname==='/security'){
+        const securityState=await securityStore.read();
+        auth=appLogin?appAuthView(securityState,security,signIn,user,req.headers.cookie,emailAllowed):securityView(securityState,security,user,req.headers.cookie);
+      }
+      if(url.pathname==='/api/security/session'){
+        if(req.method==='GET')return response(res,200,{mode:security.mode,admin:role==='admin',agent:security.agentEnabled&&role==='admin',...auth,appLogin,rolloutReady:appGateReady});
+        if(req.method!=='POST')return response(res,405,{error:'Method not allowed'});
+        const body=await securityBody(req);
+        const result=appLogin?await performAppSignIn(securityStore,security,signIn,user,body,req.headers.cookie,emailAllowed):
+          await securityStore.transact(store=>performEnrollment(store,security,user,body,req.headers.cookie));
+        if(result.delivery){
+          try{await emailChannel.sendCode(user,result.delivery.code);}
+          catch{
+            await invalidateEmailDelivery(securityStore,security,user,req.headers.cookie,result.delivery.challengeId);
+            return response(res,503,{error:'Could not send the code. Try again later or contact your administrator.'});
+          }
+        }
+        if(appLogin&&!appGateReady&&!result.error&&body.operation==='recovery')appGateReady=await securityStore.transact(state=>bootSignIn(state,signIn,security));
+        if(result.cookie)res.setHeader('set-cookie',result.cookie);
+        return result.error?response(res,400,{error:result.error}):response(res,200,{qr:result.qr,codes:result.codes});
+      }
+      if(url.pathname==='/api/security/invite'){
+        const bootstrap=!appLogin&&security.mode==='optional'&&security.owners.includes(user.email)&&!auth.enrolled&&
+          !Object.values((await securityStore.read()).accounts||{}).some(a=>a.enabled&&a.recoveryVerified&&security.owners.includes(a.email));
+        if(role!=='admin'||(!auth.recent&&!bootstrap))return response(res,403,{error:'Recent authenticator verification required'});
+        if(req.method!=='POST')return response(res,405,{error:'Method not allowed'});
+        const body=await securityBody(req);
+        const target=String(body.email||'').trim().toLowerCase();
+        if(!roleFor(current,{email:target}))return response(res,400,{error:'Add the verified staff email and role in Team first'});
+        return response(res,200,await securityStore.transact(store=>{
+          if(bootstrap&&!securityView(store,security,user,req.headers.cookie).recent&&Object.values(store.accounts||{}).some(a=>a.enabled&&a.recoveryVerified&&security.owners.includes(a.email)))throw Error('Verify your authenticator first');
+          return inviteAccount(store,security,user,target);
+        }));
+      }
+      if(url.pathname==='/api/security/agent-credentials'){
+        if(!security.agentEnabled||!appGateReady)return response(res,404,{error:'Not found'});
+        if(role!=='admin'||!auth.recent)return response(res,403,{error:'Recent authenticator verification required'});
+        if(req.method==='GET')return response(res,200,{credentials:listAgentCredentials(await securityStore.read())});
+        if(req.method!=='POST')return response(res,405,{error:'Method not allowed'});
+        const body=await securityBody(req);
+        return response(res,200,await securityStore.transact(store=>{
+          if(!securityView(store,security,user,req.headers.cookie).recent)throw Error('Verify your authenticator first');
+          if(body.operation==='issue')return issueAgentCredential(store,body,user.email);
+          if(body.operation==='revoke')return revokeAgentCredential(store,body.id,user.email);
+          throw Error('Unknown credential operation');
+        }));
+      }
+      if(!securityAsset&&(!auth.allowed||(appLogin&&!appGateReady))){
+        if(url.pathname==='/'&&req.method==='GET'){res.writeHead(303,{location:'/security','cache-control':'no-store'});return res.end();}
+        return response(res,403,{error:'Complete authenticator verification first'});
+      }
+    }else if(['/security','/security.js','/security.css','/signin.js','/modules/agent-api.js'].includes(url.pathname)||url.pathname.startsWith('/api/security/')){
+      return response(res,404,{error:'Not found'});
+    }
     if(url.pathname==='/api/changelog'){
       if(role!=='admin')return response(res,403,{error:'Admin access required'});
       if(req.method!=='GET')return response(res,405,{error:'Method not allowed'});
@@ -422,12 +519,13 @@ const server=http.createServer(async(req,res)=>{
       return response(res,200,{ok:true,result:safeResult});
     }
     if(req.method!=='GET'&&req.method!=='HEAD')return response(res,405,{error:'Method not allowed'});
-    let rel=url.pathname==='/'?'index.html':decodeURIComponent(url.pathname.slice(1));
+    if(url.pathname==='/security.html')return response(res,404,{error:'Not found'});
+    let rel=url.pathname==='/'?'index.html':url.pathname==='/security'?'security.html':decodeURIComponent(url.pathname.slice(1));
     if(rel.includes('..')||rel.includes('\\')||rel.startsWith('.'))return response(res,403,{error:'Forbidden'});
     const file=path.resolve(publicRoot,rel);
     if(!file.startsWith(publicRoot+path.sep))return response(res,403,{error:'Forbidden'});
     let body;try{body=await fs.readFile(file);}catch(e){if(e.code==='ENOENT')return response(res,404,{error:'Not found'});throw e;}
-    if(rel==='index.html')body=body.toString('utf8').replace('{{BCI_RELEASE}}',release);
+    if(rel==='index.html')body=body.toString('utf8').replace('{{BCI_RELEASE}}',release).replace('{{BCI_SECURITY_LINK}}',securityStore?'<a href="/security">User Security</a>':'');
     res.writeHead(200,{'content-type':mime[path.extname(file)]||'application/octet-stream','cache-control':'no-store','x-content-type-options':'nosniff','referrer-policy':'no-referrer','x-frame-options':'DENY','content-security-policy':"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'"});
     return res.end(req.method==='HEAD'?undefined:body);
   }catch(e){

@@ -22,6 +22,17 @@ export async function identity(req) {
     return { email: 'local-admin@example.invalid', sub: 'local-development' };
   }
   if (mode !== 'cloudflare' || !team.startsWith('https://') || !team.endsWith('.cloudflareaccess.com') || !audience) throw new Error('Cloudflare Access verification is not configured');
+  const payload=await validatedAssertion(req,audience);
+  const email = String(payload.email || '').trim().toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error('Access identity has no verified email');
+  return {email, sub:String(payload.sub||''), issuer:team};
+}
+export async function authorizeMachinePerimeter(req,machineAudience,commonName){
+  if(mode!=='cloudflare'||!machineAudience||machineAudience===audience||!commonName)throw new Error('Agent Access policy is not configured');
+  const payload=await validatedAssertion(req,machineAudience);
+  if(payload.email||payload.common_name!==commonName)throw new Error('Agent Access identity rejected');
+}
+async function validatedAssertion(req,expectedAudience){
   const token = req.headers['cf-access-jwt-assertion'];
   if (typeof token !== 'string' || token.length > 12000) throw new Error('Cloudflare Access token required');
   const segments = token.split('.');
@@ -30,7 +41,7 @@ export async function identity(req) {
   const payload = parse64(segments[1]);
   if (header.alg !== 'RS256' || !header.kid || typeof header.kid !== 'string') throw new Error('Unsupported Access token');
   const currentTime = Math.floor(Date.now()/1000);
-  if (payload.iss !== team || !((Array.isArray(payload.aud) ? payload.aud : [payload.aud]).includes(audience)) ||
+  if (payload.iss !== team || !((Array.isArray(payload.aud) ? payload.aud : [payload.aud]).includes(expectedAudience)) ||
       typeof payload.exp !== 'number' || payload.exp <= currentTime ||
       typeof payload.nbf === 'number' && payload.nbf > currentTime + 30 ||
       typeof payload.iat === 'number' && payload.iat > currentTime + 30) throw new Error('Access token claims rejected');
@@ -40,9 +51,7 @@ export async function identity(req) {
   let ok = false;
   try { ok = verify('RSA-SHA256', Buffer.from(`${segments[0]}.${segments[1]}`), createPublicKey({key, format:'jwk'}), Buffer.from(segments[2], 'base64url')); } catch {}
   if (!ok) throw new Error('Invalid Access token signature');
-  const email = String(payload.email || '').trim().toLowerCase();
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error('Access identity has no verified email');
-  return {email, sub:String(payload.sub||'')};
+  return payload;
 }
 export function roleFor(state, user) {
   const admins = (process.env.BCI_ADMIN_EMAILS||'').split(',').map(x=>x.trim().toLowerCase()).filter(Boolean);

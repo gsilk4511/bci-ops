@@ -1,6 +1,6 @@
 {
   "name": "bci-operations-pilot",
-  "version": "0.9.4",
+  "version": "0.9.6",
   "private": true,
   "description": "BCI Operations authenticated staging application",
   "type": "module",
@@ -13,6 +13,6 @@
     "node": ">=20"
   },
   "dependencies": {
-    "mariadb": "^3.4.0", "web-push": "^3.6.7"
+    "nodemailer": "10.6.1", "qrcode": "1.5.4", "mariadb": "^3.4.0", "web-push": "^3.6.7"
   }
 }
