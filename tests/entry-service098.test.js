@@ -1,0 +1,104 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {seed,applyAction} from '../Models/lib.js';
+import {authorizePermission} from '../Models/permissions.js';
+
+const tech={email:'worker@example.invalid',role:'tech'};
+const admin={email:'admin@example.invalid',role:'admin'};
+const date='2026-11-19';
+function fixture(){
+ const state=seed(),order=state.workorders[0];
+ order.approvedAt='2026-11-19T13:00:00.000Z';order.status='released';
+ state.catalog.push({id:'helper',name:'Conduit Helper',type:'labor',group:'Labor',unit:'hr',price:71,changePrice:85,cost:24,sku:'HELPER'});
+ const run=(action,data={},actor=tech)=>applyAction(state,action,{workorderId:order.id,...data},actor);
+ const logged=(extra={})=>run('entry.add',{type:'labor',catalogId:'cat_3',date,startTime:'07:00',endTime:'09:00',description:'Placed conduit',...extra});
+ const patch=(entry,extra={})=>({entryId:entry.id,revision:entry.revision||'',catalogId:'helper',date:entry.date,startTime:entry.startTime,endTime:entry.endTime,quantity:entry.quantity,description:entry.description,...extra});
+ return {state,order,run,logged,patch};
+}
+test('admin changes original worker service, preserves recorded time and applies the selected rate/profile',()=>{
+ const {state,order,run,logged,patch}=fixture();
+ order.pricingProfileId='contract';
+ state.pricingProfiles=[{id:'contract',rules:{helper:{fixed:78}},markup:25}];
+ const original=logged();
+ original.quantity=2.25; // Historical carried quantity differs from rounded timestamp math.
+ original.employeeAttribution={email:'worker@example.invalid',name:'Crew Member',batch:'reconciled'};
+ run('workorder.close');run('workorder.review',{},admin);
+ const frozen=structuredClone(order.closeout);
+ assert.throws(()=>run('entry.update',patch(original),{email:'other@example.invalid',role:'tech'}),/your account/);
+ run('entry.update',patch(original),admin);
+ const row=order.entries[0];
+ assert.deepEqual([row.name,row.catalogId,row.rate,row.cost],['Conduit Helper','helper',78,24]);
+ for(const k of ['id','at','date','quantity','startTime','endTime','employeeEmail','employeeAttribution','createdBy','description'])assert.deepEqual(row[k],original[k],k);
+ assert.equal(order.status,'ready-for-review');
+ assert.deepEqual(order.closeoutHistory.at(-1),frozen);
+ assert.throws(()=>run('entry.update',patch(original),admin),/changed/);
+});
+test('rejects item type, non-hourly or unpriced service, and leaves payroll/invoice locks intact',()=>{
+ const {state,order,run,logged,patch}=fixture(), row=logged();
+ state.catalog.push({...state.catalog.find(x=>x.id==='helper'),id:'pieces',unit:'ea'});
+ state.catalog.push({...state.catalog.find(x=>x.id==='helper'),id:'unpriced',needsPricing:true});
+ assert.throws(()=>run('entry.update',patch(row,{catalogId:'cat_5'}),admin),/labor catalog/);
+ assert.throws(()=>run('entry.update',patch(row,{catalogId:'pieces'}),admin),/hourly service/);
+ assert.throws(()=>run('entry.update',patch(row,{catalogId:'unpriced'}),admin),/fixed price/);
+ assert.throws(()=>authorizePermission('entry.update','tech',['workorders.view']),/denied/i);
+ state.payrollRuns=[{start:date,end:date}];
+ assert.throws(()=>run('entry.update',patch(row),admin),/pay period/);
+ state.payrollRuns=[];
+ state.projectInvoices=[{orders:[{id:order.id}]}];
+ assert.throws(()=>run('entry.update',patch(row),admin),/invoice already contains/);
+ assert.equal(order.entries[0].catalogId,'cat_3');
+});
+test('signed change allows only a service already on its signed lines and applies its signed price',()=>{
+ const {order,run,logged,patch}=fixture();
+ const change={id:'signed',status:'approved',lines:[{catalogId:'cat_3',rate:100}]};
+ order.changes.push(change);
+ const row=logged({changeId:change.id});
+ assert.throws(()=>run('entry.update',patch(row),admin),/approved change order/);
+ change.lines.push({catalogId:'helper',rate:82});
+ const before=structuredClone(change);
+ run('entry.update',patch(row),admin);
+ assert.equal(order.entries[0].rate,82);
+ assert.deepEqual(change,before);
+});
+test('ticket Undo Closeout releases work with reason, preserves records, and reuses ticket after resubmission',()=>{
+ const {state,order,run,logged}=fixture();
+ logged();
+ run('entry.add',{type:'material',catalogId:'cat_2',date,quantity:1,description:'Hardware installed'});
+ order.receipts=[{id:'receipt',entryId:order.entries[1].id}];
+ run('workorder.close');
+ const ticket=state.tickets.find(x=>x.workorderId===order.id);
+ const originalCloseout=structuredClone(order.closeout);
+ const originals=structuredClone([order.entries,order.receipts,state.inventory,state.movements,order.approval]);
+ const request={closeoutAt:order.closeout.at,reviewedAt:null,reason:'Helpers must finish the remaining run'};
+ assert.throws(()=>authorizePermission('workorder.undoCloseout','tech',['workorders.view']),/denied/i);
+ assert.doesNotThrow(()=>authorizePermission('workorder.undoCloseout','office',['workorders.view','workorder.return']));
+ assert.throws(()=>run('workorder.undoCloseout',{...request,reason:''},admin),/correction request/);
+ run('workorder.review',{},admin);
+ assert.throws(()=>run('workorder.undoCloseout',request,admin),/closeout changed/i);
+ const reviewed=structuredClone(order.closeout);
+ run('workorder.undoCloseout',{...request,reviewedAt:order.closeout.reviewedAt},admin);
+ assert.equal(order.closeout,null);
+ assert.equal(order.status,'released');
+ assert.equal(order.correctionRequest.note,request.reason);
+ assert.deepEqual(order.closeoutHistory.at(-1),reviewed);
+ assert.equal(ticket.status,'In progress');
+ assert.ok(ticket.activity.some(x=>x.message.includes('Closeout undone')));
+ assert.deepEqual([order.entries,order.receipts,state.inventory,state.movements,order.approval],originals);
+ logged({startTime:'09:00',endTime:'10:00'});
+ run('workorder.close');
+ assert.equal(order.correctionRequest,undefined);
+ assert.equal(order.closeout.originalEntries.length,originalCloseout.originalEntries.length+1);
+ assert.equal(ticket.status,'Ready for review');
+ assert.equal(state.tickets.filter(x=>x.workorderId===order.id).length,1);
+});
+test('Undo Closeout cannot release invoice-linked or payroll-approved work',()=>{
+ const {state,order,run,logged}=fixture();
+ logged();run('workorder.close');
+ const request={closeoutAt:order.closeout.at,reviewedAt:null,reason:'Not finished'};
+ state.projectInvoices=[{orders:[{id:order.id}]}];
+ assert.throws(()=>run('workorder.undoCloseout',request,admin),/invoice already/);
+ state.projectInvoices=[];state.payrollRuns=[{start:date,end:date}];
+ assert.throws(()=>run('workorder.undoCloseout',request,admin),/approved payroll/);
+ assert.equal(order.status,'ready-for-review');
+ assert.ok(order.closeout);
+});

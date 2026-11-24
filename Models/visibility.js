@@ -12,6 +12,7 @@ export function visibleState(current,role,permissions) {
  delete state.workorderReceiptData;
  delete state.warehousePatchReceipts;
  delete state.timeCorrections;
+ delete state.timeAttributionHistory;
  if(!has('estimates.view'))delete state.estimates;
  delete state.trainingWorkspaces;
  delete state.mailQueue;

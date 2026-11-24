@@ -107,6 +107,7 @@ function ticketDetail(ticket) {
   if(ticket.kind==='prospect')return prospectDetail(ticket);
   const order = can('workorders.view') && data.workorders.find(record => record.id === ticket.workorderId);
   const reviewable = ticket.kind === 'review' && order?.closeout && !order.closeout.reviewedAt && !order.invoice;
+  const undoable=ticket.kind==='review'&&order?.closeout&&!order.invoice&&!order.billingHidden&&!(order.entries||[]).some(entry=>entry.payrollLocked);
   const buttons = [
     can('ticket.watch') && action('follow',ticket.following?'Unfollow ticket':'Follow ticket',ticket.id),
     can('ticket.watch') && action('mute',ticket.muted?'Unmute ticket':'Mute ticket',ticket.id),
@@ -124,7 +125,7 @@ function ticketDetail(ticket) {
     ${order ? `<p>Work order · ${pick(order.id,order.title,'data-wo')}</p>` : ''}
     <div class="actions">${buttons}
     ${reviewable && can('workorder.review') ? action('review','Mark reviewed',ticket.id) : ''}
-    ${reviewable && can('workorder.return') ? action('return','Request corrections',ticket.id) : ''}
+    ${undoable && can('workorder.return') ? action('undo-closeout','Undo Closeout',ticket.id) : ''}
     ${order?.closeout?.reviewedAt && can('invoice.group') ? `<button class="secondary small" data-ticket-invoice="${esc(order.id)}">Prepare invoice</button>` : ''}
     </div></section>
     ${can('ticket.attachment')?`<section class="panel"><h2>Attachments</h2>${ticket.attachments.length ? ticket.attachments.map(file =>
@@ -301,8 +302,14 @@ document.addEventListener('click', event => {
     });
   if (ticketAction === 'review' && can('workorder.review')) return modal('Mark reviewed','<p>Confirm that the work order entries and approvals were reviewed.</p>',
     ()=>send('workorder.review',{workorderId:ticket.workorderId}));
-  if (ticketAction === 'return' && can('workorder.return')) return modal('Request corrections',
-    f('reason','Corrections needed',{required:true,textarea:true}),fields=>send('workorder.return',{workorderId:ticket.workorderId,...fields}));
+  if (ticketAction==='undo-closeout'&&can('workorder.return')) {
+    const order=data.workorders.find(row=>row.id===ticket.workorderId);
+    if(!order?.closeout)return;
+    return modal('Undo Closeout',
+      '<p>Return the work order to Released so the crew can continue. Existing time, notes, materials and receipts stay in place. The prior submission stays in history.</p>'+
+      f('reason','What still needs to be done?',{required:true,textarea:true}),
+      fields=>send('workorder.undoCloseout',{workorderId:order.id,closeoutAt:order.closeout.at,reviewedAt:order.closeout.reviewedAt||null,...fields}));
+  }
   if (ticketAction === 'delete' && ticket.kind==='manual' && can('ticket.delete')) {
     modal('Delete ticket','<div class="delete-warning"><strong>You could get fired if you delete this, be sure you are confident in your decision</strong><p>'+esc(ticket.title)+'</p></div>'+
       f('reason','Reason for deletion',{required:true,textarea:true}),fields=>send('ticket.delete',{id:ticket.id,revision:ticket.revision,confirmed:true,...fields}));

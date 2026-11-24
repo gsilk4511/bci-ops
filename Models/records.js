@@ -162,6 +162,12 @@ export function handleRecordAction(state,action,data,actor){
     const order=item.record;
     for(const move of item.dependencies?.stock||[])stockMovement(state,order,null,move,-move.quantity,'workorder-restore',actor);
     (state.tickets??=[]).push(...(item.dependencies?.tickets||[]));
+    const archived=(state.payrollOther||[]).filter(entry=>entry.deletedWorkorderId===order.id&&entry.employeeAttribution);
+    for(const entry of order.entries||[]){
+      const copies=archived.filter(row=>row.id===entry.id);
+      if(copies.length>1)throw Error('Conflicting archived time attribution for '+entry.id);
+      if(copies.length===1){entry.employeeAttribution=structuredClone(copies[0].employeeAttribution);entry.revision=randomUUID();}
+    }
     state.payrollOther=(state.payrollOther||[]).filter(entry=>entry.deletedWorkorderId!==order.id);
    }
   }

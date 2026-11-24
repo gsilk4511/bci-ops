@@ -1,3 +1,4 @@
+import {attributedEmail} from './time-attribution.js';
 import {vehiclesAction} from './vehicles.js';
 import {checkWorkReceipt,saveWorkReceipt,stockMovement,editWorkEntry,mayEditWorkEntry,logEntryChange} from './work-entry.js';
 import {staffName} from './staff.js';
@@ -156,7 +157,12 @@ const addWorkEntry = (state, wo, data, actor, previous=null) => {
   const startTime=String(data.startTime||'').trim(),endTime=String(data.endTime||'').trim();
   const timed=Boolean(startTime||endTime);
   if(timed&&type==='material')throw Error('Materials use quantities');
-  const quantity=timed?pos((timeMinutes(endTime)-timeMinutes(startTime))/60,'Elapsed time'):pos(data.quantity,'Quantity');
+  const serviceChanged=previous&&type!=='material'&&previous.catalogId!==cat.id;
+  if(serviceChanged&&!/^(hr|hour|hours|h)$/i.test(cat.unit))throw Error('Choose an hourly service');
+  const preserveTime=serviceChanged&&date===previous.date&&startTime===(previous.startTime||'')&&endTime===(previous.endTime||'')&&
+    (timed||Number(data.quantity)===previous.quantity);
+  const quantity=preserveTime?pos(previous.quantity,'Recorded time'):
+    timed?pos((timeMinutes(endTime)-timeMinutes(startTime))/60,'Elapsed time'):pos(data.quantity,'Quantity');
   if(previous?.catalogId!==cat.id||quantity>previous.quantity)activeMaterial(cat);
   const project=state.projects.find(p=>p.id===wo.projectId);
   const client=state.customers.find(c=>c.id===project?.customerId);
@@ -174,7 +180,7 @@ const addWorkEntry = (state, wo, data, actor, previous=null) => {
   const entry = {id:id('entry'), at:now(), date, startTime:startTime||null, endTime:endTime||null, type, catalogId:cat.id, name:cat.name, quantity, unit:cat.unit, rate, cost,
     changeId, tech:previous?.tech??staffName(state,actor.email),employeeEmail:previous?previous.employeeEmail:employeeKey(actor.email),createdBy:previous?.createdBy??actor.email,description};
   if(sharedTravel)entry.sharedTravel=true;
-  if(type!=='material')checkTimeEntry(state,entry,previous?.id);
+  if(type!=='material')checkTimeEntry(state,previous?.employeeAttribution?{...entry,employeeEmail:attributedEmail(previous)}:entry,previous?.id);
   if(previous){
     if(type==='material'){entry.stockLocation=previous.stockLocation;entry.stockMovementId=previous.stockMovementId;}
     if(previous.clockStartedAt)entry.clockStartedAt=previous.clockStartedAt;
@@ -669,6 +675,7 @@ export function applyAction(state, action, data={}, actor={email:'system'}) {
       else state.users.push({email,role,profileId,active:data.active!==false});
       event(state,action,email,`role=${role}, active=${active}, profile=${profileId||'built-in'}`);state.events[0].actor=actor.email;state.events[0].changes={before,after:{role,profileId,active}};result={email,role};break;
     }
+    case 'workorder.undoCloseout': return requestCorrections(state,woFor(state,data.workorderId),data.reason,actor,data);
     case 'workorder.return': return requestCorrections(state,woFor(state,data.workorderId),data.reason,actor);
     case 'workorder.review': {
       const wo=woFor(state,data.workorderId);

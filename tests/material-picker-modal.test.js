@@ -17,7 +17,7 @@ const element=()=>({
  dispatchEvent(event){event.target=this;this.events[event.type]?.forEach(fn=>fn(event));if(event.bubbles&&this.form)this.form.dispatchFrom(event);},
  async fire(type,target=this){const event={type,target,preventDefault(){this.prevented=true;}};for(const fn of this.events[type]||[])await fn(event);return event;},
 });
-test('Log Materials shortcuts use the real selected part, preserve change-order scope, and submit the original SKU with its quantity',async()=>{
+test('Log Materials grid shows ten selections, keeps selection across filters, and validates the work scope on submit',async()=>{
  if(!vm.SourceTextModule)return;
  const form=element(),dialog=element(),modalContent=element(),placeholder=element(),nodes=new Map();
  const controlNames=['catalogId','partSearchText','partCategoryFilter','partTypeFilter','partBrandFilter','quantity','location','changeId','date'];
@@ -25,7 +25,7 @@ test('Log Materials shortcuts use the real selected part, preserve change-order 
  Object.assign(form.elements.quantity,{validity:{valid:true},value:'2'});
  Object.assign(form.elements.location,{value:'BCI Warehouse'});
  form.elements.date.value='2026-11-20';
- for(const id of ['#materialPreview','#materialMatches','#materialQuickChoices','#materialMore','#materialStock','.bci-material-shortcuts','.form-error','button[type=submit]'])nodes.set(id,element());
+ for(const id of ['#materialPreview','#materialMatches','#materialRows','#materialPrevious','#materialNext','#materialStock','.bci-material-shortcuts','.form-error','button[type=submit]'])nodes.set(id,element());
  form.querySelector=selector=>nodes.get(selector)||null;
  form.dispatchFrom=event=>{for(const fn of form.events[event.type]||[])fn(event);};
  const selectors=new Map([['#actionForm',form],['#modal',dialog],['#modalContent',modalContent]]);
@@ -74,26 +74,42 @@ test('Log Materials shortcuts use the real selected part, preserve change-order 
  app.namespace.openWorkEntry(order,true);
  assert.match(modalContent.innerHTML,/Quick material filters/);
  assert.match(modalContent.innerHTML,/\+ Add Receipt/);
- assert.equal(form.elements.catalogId.options.length,51);
+ const rows=nodes.get('#materialRows');
+ const shown=()=>[...rows.innerHTML.matchAll(/data-material-choice="([^"]+)"/g)].map(match=>match[1]);
+ assert.doesNotMatch(modalContent.innerHTML,/materialQuickChoices|Select part<|<select[^>]*name="catalogId"/);
+ assert.match(modalContent.innerHTML,/<input type="hidden" name="catalogId">/);
+ assert.equal(shown().length,10);
  assert.equal(form.elements.catalogId.value,'');
- const more=nodes.get('#materialMore');
- assert.equal(more.hidden,false);
- await more.fire('click');
- assert.equal(form.elements.catalogId.options.length,64);
- assert.equal(form.elements.catalogId.focused,true);
+ await form.fire('submit');
+ assert.match(nodes.get('.form-error').textContent,/Select a part/);
+ assert.equal(calls.some(call=>call.action==='entry.add'),false);
+ const page1=shown();
+ const next=nodes.get('#materialNext'),prev=nodes.get('#materialPrevious');
+ assert.equal(prev.disabled,true);assert.equal(next.disabled,false);
+ await next.fire('click');
+ assert.equal(shown().length,10);
+ assert.ok(shown().every(id=>!page1.includes(id)));
+ assert.match(nodes.get('#materialMatches').textContent,/Showing 11–20/);
+ await prev.fire('click');assert.deepEqual(shown(),page1);
  const search=form.elements.partSearchText;
  search.value='PACK-25';
  await search.fire('input');
- assert.equal(form.elements.catalogId.options.length,2);
- assert.match(form.elements.catalogId.options[1].label,/Unit: box.*Pack qty: 25/);
+ assert.deepEqual(shown(),[pack.id]);
+ assert.match(rows.innerHTML,/Unit: box.*Pack qty: 25/);
  const enter={type:'keydown',key:'Enter',preventDefault(){this.prevented=true;}};
  search.dispatchEvent(enter);assert.equal(enter.prevented,true);
- // Tap the scoped suggestion for the exact box SKU; the native select drives all writes.
- const choose=async id=>nodes.get('#materialQuickChoices').fire('click',{closest(){return {dataset:{materialChoice:id}};}});
+ // Tap the exact box SKU row.
+ const choose=async id=>rows.fire('click',{closest(){return {dataset:{materialChoice:id}};}});
  await choose(pack.id);
  assert.equal(form.elements.catalogId.value,pack.id);
  assert.match(nodes.get('#materialPreview').innerHTML,/Pack qty: 25/);
  assert.equal(form.elements.quantity.attrs['aria-describedby'],'materialUnitHint');
+ search.value='X-24';await search.fire('input');
+ assert.equal(form.elements.catalogId.value,pack.id);
+ assert.match(nodes.get('#materialMatches').textContent,/selected part is outside/);
+ search.value='';await search.fire('input');
+ await next.fire('click');
+ assert.equal(form.elements.catalogId.value,pack.id);
  for(const fn of [...timers.values()])fn();
  timers.clear();
  await new Promise(resolve=>setImmediate(resolve));
@@ -105,10 +121,10 @@ test('Log Materials shortcuts use the real selected part, preserve change-order 
  form.elements.changeId.dispatchEvent({type:'change',bubbles:true});
  assert.equal(form.elements.catalogId.value,'');
  search.value='';await search.fire('input');
- assert.deepEqual(form.elements.catalogId.options.map(item=>item.value),['',piece.id]);
+ assert.deepEqual(shown(),[piece.id]);
  await choose(piece.id);
  assert.equal(form.elements.catalogId.value,piece.id);
- assert.match(nodes.get('#materialPreview').innerHTML,/\/api\/catalog-photo\/[a-f0-9]{64}\.jpg/);
+ assert.match(nodes.get('#materialPreview').innerHTML,/Selected: Cat6 Jack/);
  form.elements.changeId.value='';
  form.elements.changeId.dispatchEvent({type:'change',bubbles:true});
  search.value='PACK-25';await search.fire('input');

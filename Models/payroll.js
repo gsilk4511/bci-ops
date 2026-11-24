@@ -1,3 +1,4 @@
+import {attributedEmail,attributedName} from './time-attribution.js';
 import {createHash,randomUUID} from 'node:crypto';
 
 export const employeeKey = name => String(name||'').trim().replace(/\s+/g,' ').toLowerCase();
@@ -14,9 +15,9 @@ export function timeMinutes(value){
 }
 export function payrollEntries(state){
   return state.workorders.flatMap(w=>w.entries.filter(e=>['labor','travel'].includes(e.type)).map(e=>({
-    id:e.id,tech:e.tech,employeeEmail:e.employeeEmail,date:e.date,type:e.type,startTime:e.startTime,endTime:e.endTime,quantity:e.quantity,unit:e.unit,
+    id:e.id,tech:attributedName(e),employeeEmail:attributedEmail(e)||undefined,date:e.date,type:e.type,startTime:e.startTime,endTime:e.endTime,quantity:e.quantity,unit:e.unit,
     description:e.description,job:w.title,projectNumber:state.projects.find(p=>p.id===w.projectId)?.number||''
-  }))).concat(state.payrollOther||[]);
+  }))).concat((state.payrollOther||[]).map(e=>({...e,employeeAttribution:undefined,tech:attributedName(e),employeeEmail:attributedEmail(e)||undefined})));
 }
 export function checkTimeEntry(state,entry,excludeId){
   if((state.payrollRuns||[]).some(run=>entry.date>=run.start&&entry.date<=run.end))throw Error('This pay period has already been approved. Ask payroll to handle the correction.');

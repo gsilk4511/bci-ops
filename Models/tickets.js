@@ -203,8 +203,14 @@ export function ticketAction(state, action, data, actor) {
   return {id:ticket.id};
 }
 
-export function requestCorrections(state, order, reason, actor) {
-  if (!order.closeout || order.closeout.reviewedAt || order.invoice) throw Error('Work order must be awaiting review');
+export function requestCorrections(state, order, reason, actor, undo=null) {
+  if(order.invoice||(state.projectInvoices||[]).some(invoice=>invoice.orders?.some(row=>row.id===order.id||row.workorderId===order.id)))
+    throw Error('An invoice already contains this work order; use the invoice correction process');
+  if (!order.closeout || (!undo&&order.closeout.reviewedAt)) throw Error('Work order must have a current eligible closeout');
+  if((order.entries||[]).some(entry=>['labor','travel'].includes(entry.type)&&(state.payrollRuns||[]).some(run=>entry.date>=run.start&&entry.date<=run.end)))
+    throw Error('This work order contains time in approved payroll; use the office correction process');
+  if(undo&&(undo.closeoutAt!==order.closeout.at||(undo.reviewedAt||null)!==(order.closeout.reviewedAt||null)))
+    throw Error('The closeout changed. Refresh the ticket and review it again');
   const note = text(reason, 'correction request', 2000);
   let ticket = (state.tickets || []).find(record => record.kind === 'review' && record.workorderId === order.id);
   if (!ticket) {
@@ -217,7 +223,7 @@ export function requestCorrections(state, order, reason, actor) {
   order.status = 'released';
   order.correctionRequest = {note, by:actor.email, at:timestamp()};
   ticket.status = 'In progress';
-  addActivity(ticket, actor, 'Corrections requested: ' + note, 'internal');
+  addActivity(ticket, actor, (undo?'Closeout undone; returned to Released: ':'Corrections requested: ') + note, 'internal');
   return {id:order.id};
 }
 

@@ -1,4 +1,4 @@
-# Update existing BCI Operations staging to 0.9.6
+# Update existing BCI Operations staging to 0.9.9
 
 ## Greg: use the existing staging stack
 
@@ -10,7 +10,7 @@
    `mariadb.env`, MariaDB database name, named volume, bridge, and service
    hostname `db`. Do not replace these with bundled examples.
 4. Confirm the app build context points to the updated source. In the active
-   Compose file, change the app image tag to `bci-operations:0.9.6`. Do not
+   Compose file, change the app image tag to `bci-operations:0.9.9`. Do not
    change the database service. Use the actual app service name if different.
 
 From the deployment directory:
@@ -21,7 +21,7 @@ docker compose -f compose.bci-operations-fixed.yml up -d --build --no-deps --for
 docker compose -f compose.bci-operations-fixed.yml exec -T bci-operations node -e "fetch('http://127.0.0.1:3100/api/health').then(r=>r.json()).then(console.log)"
 ```
 
-Recreate by itself does not build a new image. Verify `0.9.6` in the health
+Recreate by itself does not build a new image. Verify `0.9.9` in the health
 response and beside the BCI logo. For the default-off install no SQL migration, reimport or reseed is needed. To test optional User Security separately, follow USER_SECURITY.md.
 If you roll back, restore the previous source, restore its former image tag
 and rebuild only the app. Keep the database and its volume in place.
@@ -66,7 +66,7 @@ Installing the update does not change Leslie’s account or permissions.
 - Verify the three charts and private bonus estimate. Missing wage history
   or unavailable invoice evidence must not produce a fabricated bonus.
 
-## Verify 0.9.6 before promoting
+## Verify 0.9.8 before promoting
 
 1. On a synthetic completed/reviewed/invoiced work order, use Edit notes in Original field journal. Print Work Order should display the changed note; the issued invoice should remain unchanged.
 2. Record normal travel for the driver and shared travel for another signed-in employee. Both hours should appear in the journal and payroll review; only normal travel appears as a charge on the invoice.
@@ -81,6 +81,41 @@ Installing the update does not change Leslie’s account or permissions.
 
 ## Optional BCI Sign-In staging pilot
 
-This package ships with the 0.9.6 sign-in feature and SMTP off. Do not activate
+This package still ships with the separate BCI sign-in feature and SMTP off. Do not activate
 for live users or remove Cloudflare. See APP_SIGNIN.md for the pilot,
 account-retention checks, recovery and rollback.
+
+## Employee time reconciliation
+
+No new SQL migration or account rewrite. Follow TIME_ATTRIBUTION.md for the
+preview, exact selection, open-payroll verification and rollback safeguards.
+
+## Correct a work-order service (0.9.8)
+On an editable work order, select **Edit Work Order**, then **Edit** beside
+the employee’s labor or travel row in the Original field journal. Select the
+correct **Service type**, then save. For example, switch Cable Technician to
+Conduit Helper if that hourly service has been configured in Services/Pricing.
+Hours, date, employee, and timestamps stay the same if left unchanged; the
+app recalculates the rate and total using the configured pricing. Submitted
+orders return for review. Verify a normal order and any signed change-order
+example in isolated staging before deploying. Do not edit issued invoices
+or time in approved payroll; those are still locked. No new SQL migration.
+
+## Undo a closeout from its review ticket (0.9.8)
+Open the submitted work-order ticket in **Tickets**, then select **Undo
+Closeout** and enter what remains to be done. Eligible submitted or reviewed,
+uninvoiced work orders return to **Released**. The current completion clears;
+the original closeout, reason, time, notes, materials, receipts and stock
+history remain. After the crew finishes, resubmit from the work order and
+verify the same ticket returns to **Ready for review**. Find already reviewed
+tickets in the completed-ticket view. This action is not available for orders
+linked to an invoice or containing time in approved payroll.
+
+## Log Materials grid (0.9.9)
+From a released work order, open **Log Materials** on a phone. Confirm that
+the first page shows up to ten directly selectable parts and no part dropdown
+or recommendation cards. Search by name/SKU, use category/type/brand filters,
+and use Next/Previous 10. The selected item and units remain visible below the
+grid while browsing. Switching approved work scope clears an out-of-scope
+selection. Verify quantity, stock projection, existing receipt flow, and the
+exact selected item in the resulting field journal. No new SQL migration.

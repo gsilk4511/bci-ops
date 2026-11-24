@@ -1,3 +1,4 @@
+import {attributedEmail} from './time-attribution.js';
 import {randomUUID} from 'node:crypto';
 import {checkTimeEntry, employeeKey} from './payroll.js';
 import {staffName} from './staff.js';
@@ -6,7 +7,7 @@ import {reconcileStock} from './stock-demand.js';
 
 const at=()=>new Date().toISOString();
 const timeTypes=new Set(['labor','travel']);
-const own=(entry, actor)=>Boolean(actor?.email)&&Boolean(entry.employeeEmail||String(entry.tech||'').includes('@'))&&employeeKey(entry.employeeEmail||entry.tech)===employeeKey(actor.email);
+const own=(entry, actor)=>Boolean(actor?.email)&&Boolean(attributedEmail(entry)||String(entry.tech||'').includes('@'))&&employeeKey(attributedEmail(entry)||entry.tech)===employeeKey(actor.email);
 export const mayEditWorkEntry=(entry,actor)=>actor?.role==='admin'||actor?.permissions?.includes('entry.manage')||own(entry,actor);
 const round=n=>Math.round((n+Number.EPSILON)*100)/100;
 export function stockMovement(state,order,entry,stock,quantity,type,actor){
@@ -48,7 +49,7 @@ export function editWorkEntry(state,order,action,data,actor,buildEntry){
  const source=changesStock?stockSource(state,order,before):null;
  if(newEntry){
   // Keep the original entry's identity and author, even when an administrator edits it.
-  Object.assign(newEntry,{id:before.id,at:before.at,tech:before.tech,employeeEmail:before.employeeEmail,
+  Object.assign(newEntry,{id:before.id,at:before.at,tech:before.tech,employeeEmail:before.employeeEmail,employeeAttribution:before.employeeAttribution,
    createdBy:before.createdBy,revision:randomUUID(),updatedAt:at(),updatedBy:actor.email});
   if(samePart)Object.assign(newEntry,{rate:before.rate,cost:before.cost});
   if(before.type==='material')newEntry.stockLocation=newEntry.stockLocation||source?.location||before.stockLocation;

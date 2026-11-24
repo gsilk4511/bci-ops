@@ -1,3 +1,4 @@
+import {planAttribution,applyAttribution} from '../Models/time-attribution.js';
 import {signInConfig,isAppSignIn,canUseEmail,bootSignIn,appAuthView,performAppSignIn,invalidateEmailDelivery} from '../UserSecurity/signin.js';
 import {createEmailChannel} from '../UserSecurity/email-channel.js';
 import {securityConfig,requiredReady,verifyStoredEncryptionKey,securityView,inviteAccount,performEnrollment} from '../UserSecurity/enrollment.js';
@@ -128,6 +129,7 @@ async function update(action, data, actor) {
     authorizeRecordAction(s,principal,action,data);
     if(['project.create','project.contact'].includes(action)&&data.newContact)authorizePermission('contact.create',role,permissions);
     if(action==='project.create'&&data.serviceCategory)authorizePermission('pricing.project',role,permissions);
+    if(action==='timeAttribution.apply')return applyAttribution(s,data,principal);
     if(action==='warehouse.purgeApply')return applyWarehousePurge(s,manufacturerImportManifest,principal,data);
     s.users ||= [];
     let result;
@@ -464,6 +466,7 @@ const server=http.createServer(async(req,res)=>{
         authorizeRecordAction(current,principal,body.action,body.data);
       }
       catch(error){return response(res,403,{error:error.message});}
+      if(body.action==='timeAttribution.preview')return response(res,200,{ok:true,result:planAttribution(current,body.data,principal).plan});
       if(body.action==='warehouse.purgePreview')return response(res,200,{ok:true,result:previewWarehousePurge(current,manufacturerImportManifest)});
       if(body.action==='warehouse.patchPreview')return response(res,200,{ok:true,result:previewWarehousePatch(current,body.data)});
       if(body.action==='inventory.receiptRead')return response(res,200,{ok:true,result:readWarehouseReceipt(current,scoped,principal,body.data)});

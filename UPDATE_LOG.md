@@ -1,3 +1,18 @@
+# 0.9.9 — Log Materials part grid
+
+- Replaces the four quick-pick cards and native part dropdown with a detailed ten-row, filterable results grid. Direct taps choose parts; selected SKU stays visible when paging or filtering.
+
+# 0.9.8 — Edit work-order service types
+
+- Service type is editable on existing eligible own/admin-managed labor and travel entries. Existing edit permissions and locks apply.
+- Review tickets add Undo Closeout. Eligible orders return to Released; the reason and previous closeout remain in history.
+- Changes use applicable service pricing; approved payroll and issued invoices are not rewritten.
+
+# 0.9.7 — Employee time reconciliation
+
+- Admin-only preview and correction for time recorded under duplicate labels. No records are reconciled automatically on update.
+- Does not merge logins or permissions, rewrite approved payroll/invoices, or change billed rates. See docs/TIME_ATTRIBUTION.md.
+
 # 0.9.6 — BCI Operations sign-in staging
 
 - Optional pilot for BCI passphrase plus authenticator or eligible approved email verification after Cloudflare. Existing users retain their accounts.

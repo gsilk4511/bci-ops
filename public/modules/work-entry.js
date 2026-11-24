@@ -46,10 +46,17 @@ export function workEntryControls(order,entry,active=entryEditing(order)){
 }
 function editEntry(order,entry){
  const scoped=order.changes?.find(change=>change.id===entry.changeId);
- const canPickOther=entry.type==='material'&&!scoped;
- const available=data.catalog.filter(item=>item.type==='material'&&(item.warehouseArchived!==true||item.id===entry.catalogId)&&(!item.needsPricing||order.effectivePricing?.id||item.id===entry.catalogId));
+ const part=entry.type==='material';
+ const available=data.catalog.filter(item=>item.type===entry.type&&(
+  item.id===entry.catalogId||(
+   (!part||item.warehouseArchived!==true)&&(!item.needsPricing||order.effectivePricing?.id||scoped?.lines?.some(line=>line.catalogId===item.id))&&
+   (part||/^(hr|hour|hours|h)$/i.test(item.unit))&&(!entry.changeId||scoped?.lines?.some(line=>line.catalogId===item.id))
+  )));
  if(!available.some(item=>item.id===entry.catalogId))available.unshift({id:entry.catalogId,name:entry.name});
- const values=canPickOther?f('catalogId','Part',{select:available.map(item=>[item.id,item.name]),required:true,value:entry.catalogId}):'';
+ available.sort((a,b)=>a.name.localeCompare(b.name,undefined,{numeric:true,sensitivity:'base'}));
+ const values=part&&entry.changeId?'':f('catalogId',part?'Part':'Service type',{
+  select:available.map(item=>[item.id,item.name]),required:true,value:entry.catalogId
+ });
  const timed=entry.startTime&&entry.endTime;
  const quantity=timed?'<div class="grid2">'+f('startTime','Start',{type:'time',required:true,value:entry.startTime})+
   f('endTime','End',{type:'time',required:true,value:entry.endTime})+'</div>':
@@ -58,7 +65,7 @@ function editEntry(order,entry){
   (entry.type==='travel'?'<label class="shared-travel-choice"><input type="checkbox" name="sharedTravel" value="yes" '+(entry.sharedTravel?'checked':'')+'> Shared travel (record my time, no client charge)</label>':'')+
   f('description',entry.type==='material'?'Notes':'What did you work on?',{textarea:true,required:entry.type!=='material',value:entry.journalNote??entry.description}),
   patch=>send('entry.update',{...patch,sharedTravel:entry.type==='travel'?patch.sharedTravel==='yes':undefined,workorderId:order.id,entryId:entry.id,revision:entry.revision||''}),
-  '<p>Changes affect work-order totals. A submitted work order will be reviewed again.</p>');
+  '<p>Changing the service uses its applicable rate and keeps the recorded hours unless you edit them. Changes affect work-order totals. A submitted work order will be reviewed again.</p>');
 }
 function removeEntry(order,entry){
  modal('Remove work-order entry',f('reason','Why is this entry wrong?',{required:true,textarea:true}),

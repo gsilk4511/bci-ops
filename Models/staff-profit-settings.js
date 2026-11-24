@@ -1,3 +1,4 @@
+import {attributedEmail} from './time-attribution.js';
 import {validDate} from './payroll.js';
 import {internalOrder} from './project-workflow.js';
 
@@ -74,7 +75,7 @@ export function contributionScopeLimited(state,scoped,email,year){
    order.invoice.void||order.invoice.voidedAt||visible.has(order.id)&&!visible.get(order.id).billingHidden)return false;
   const date=recordedDate(order.invoice.sentAt);
   if(date&&Number.isFinite(+date)&&(date>new Date()||contributionYear(date)!==year))return false;
-  const match=(order.entries||[]).some(entry=>entry.type==='labor'&&typeof entry.employeeEmail==='string'&&entry.employeeEmail.trim().toLowerCase()===email);
+  const match=(order.entries||[]).some(entry=>entry.type==='labor'&&attributedEmail(entry)===email);
   return match;
  });
 }

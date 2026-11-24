@@ -1,3 +1,4 @@
+import {materialGridPage,validMaterialSelection} from './modules/material-grid.js';
 import {servicesPage} from './modules/services.js';
 import {changelogPage,wireChangelog} from './modules/changelog.js';
 import {assignmentLink} from './modules/record-assignments.js';
@@ -417,7 +418,7 @@ function payrollDetail(entries){
 function showPayrollReview(result){
  const box=$('#payrollReview');
  if(!box)return;
- box.innerHTML=`<h3>Employee totals</h3>${result.issues.length?`<div class="notice">${result.issues.map(esc).join('<br>')}</div>`:''}
+ box.innerHTML=`<h3>Employee totals</h3>${me?.role==='admin'?'<p>See the same employee under multiple labels? Reconcile their time and run this review again before approving.</p><button type="button" class="secondary" data-time-attribution>Reconcile employee time</button>':''}${result.issues.length?`<div class="notice">${result.issues.map(esc).join('<br>')}</div>`:''}
   <form id="payrollApprove">${table(['Employee','Work','Travel','Shop','Worked','PTO','Sick','Holiday','Confirm OT hours'],result.rows.map((row,i)=>
   `<tr><td>${esc(row.employee)}</td>${['work','travel','shop','worked','pto','sick','holiday'].map(k=>`<td>${hoursLabel(row[k])}</td>`).join('')}
   <td><input aria-label="Overtime for ${esc(row.employee)}" name="ot${i}" type="number" required min="0" max="${row.worked}" step="0.01" placeholder="0.00"></td></tr>`))}
@@ -643,7 +644,7 @@ async function send(action,payload){
   const result=await practiceRequest(action,payload);
   await reload();show('Saved in practice');return result;
  }
- const r=await fetch('/api/action',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,data:payload})});const j=await r.json();if(!r.ok||!j.ok){if(r.status===401||r.status===403)await refreshAccess();throw Error(j.error||'Could not save');}try{await reload();show('Saved');}catch{show('Saved. Refresh the page to see the update.',true);}return j.result;}
+ const r=await fetch('/api/action',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,data:payload})});const j=await r.json();if(!r.ok||!j.ok){if(r.status===401||r.status===403)await refreshAccess();throw Error(j.error||'Could not save');}if(action==='timeAttribution.apply')payrollDraft=null;try{await reload();show('Saved');}catch{show('Saved. Refresh the page to see the update.',true);}return j.result;}
 const f=(name,label,opts={})=>`<div class="field"><label for="f_${name}">${esc(label)}</label>${opts.select?`<select id="f_${name}" name="${name}" ${opts.hint?`aria-describedby="hint_${name}"`:''} ${opts.required?'required':''}>${opts.select.map(([val,txt])=>`<option value="${esc(val)}" ${val===opts.value?'selected':''}>${esc(txt)}</option>`).join('')}</select>`:opts.textarea?`<textarea id="f_${name}" name="${name}" ${opts.hint?`aria-describedby="hint_${name}"`:''} ${opts.required?'required':''} placeholder="${esc(opts.placeholder||'')}">${esc(opts.value||'')}</textarea>`:`<input id="f_${name}" name="${name}" ${opts.hint?`aria-describedby="hint_${name}"`:''} type="${opts.type||'text'}" ${opts.required?'required':''} ${opts.min!=null?`min="${opts.min}"`:''} ${opts.step?`step="${opts.step}"`:''} value="${esc(opts.value||'')}" placeholder="${esc(opts.placeholder||'')}">`}${opts.hint?`<small class="inlinehint" id="hint_${name}">${esc(opts.hint)}</small>`:''}</div>`;
 const choose=arr=>arr.map(x=>[x.id,x.name]);
 function modal(title,contents,action,pre=''){
@@ -698,7 +699,7 @@ function openWorkEntry(w,material){
  const approved=w.changes.filter(change=>change.status==='approved');
  const changeField=approved.length?f('changeId','Approved scope',{select:[['','Original scope'],...approved.map(change=>[change.id,change.description])]}):'';
  const shared=f('date','Work date',{type:'date',value:today(),required:true})+changeField;
- const item=f('catalogId',material?'Part':'Labor or travel rate',{required:true,select:[['','Select']]});
+ const item=material?'<input type="hidden" name="catalogId">':f('catalogId','Labor or travel rate',{required:true,select:[['','Select']]});
  const materialFilters='<div class="bci-material-picker">'+f('partSearchText','Search parts',{type:'search',placeholder:'Name, brand, color, part # or SKU'})+
   '<div class="bci-material-shortcuts" role="group" aria-label="Quick material filters">'+materialShortcuts.map(([key,label])=>
    `<button class="secondary small" type="button" data-material-filter="${key}" aria-pressed="${key==='all'}">${esc(label)}</button>`).join('')+'</div>'+
@@ -707,10 +708,10 @@ function openWorkEntry(w,material){
   f('partTypeFilter','Type',{select:[['','All types']]})+
   f('partBrandFilter','Brand',{select:[['','All brands']]})+
   '</div></details><p class="muted tiny" id="materialMatches" role="status"></p>'+
-  '<div id="materialQuickChoices" class="bci-material-quick-choices" role="group" aria-label="Top matching parts"></div></div>';
+  '<div class="bci-material-grid" role="region" aria-label="Matching parts"><div class="bci-material-grid-head" aria-hidden="true"><span>Part / item number</span><span>Category / unit</span><span>Availability</span></div><ul id="materialRows" aria-label="Matching parts"></ul></div>'+
+  '<div class="bci-material-pager"><button type="button" class="secondary small" id="materialPrevious">Previous 10</button><button type="button" class="secondary small" id="materialNext">Next 10</button></div></div>';
  const fields=material?materialFilters+item+
-  '<button type="button" class="secondary small" id="materialMore" hidden>Show more matches</button>'+
-  '<div class="bci-photo-line bci-part-match" id="materialPreview"></div>'+f('quantity','Quantity used',{type:'number',min:0.01,step:'any',required:true})+
+  '<div class="bci-material-selected" id="materialPreview" role="status">No part selected.</div>'+f('quantity','Quantity used',{type:'number',min:0.01,step:'any',required:true})+
   '<input type="hidden" name="location" value="'+esc(warehouseName)+'"><p class="muted tiny">Stock source: '+esc(warehouseName)+'</p><p id="materialStock" role="status"></p>'+shared+
   (!practiceMode&&can('receipt.add')?'<button type="button" class="secondary" id="addEntryReceipt">+ Add Receipt</button><div id="entryReceiptFields" hidden>'+receiptPicker()+'</div>':''):
   f('type','Time type',{select:[['labor','Work'],['travel','Travel']]})+item+
@@ -727,6 +728,7 @@ function openWorkEntry(w,material){
   clearTimeout(timer);
   await queue;
   const {receiptPhoto,partSearchText,partCategoryFilter,partTypeFilter,partBrandFilter,...entryValues}=values;
+  if(material&&!entryValues.catalogId)throw Error('Select a part from the results first.');
   if(material&&needsPartPricing(data.catalog.find(item=>item.id===entryValues.catalogId),entryValues.changeId))throw Error('Pricing needed: set a price or use a priced profile or approved change before logging this part.');
   const receipt=material?await receiptPayload(receiptPhoto,submissionId):null;
   await send('entry.add',{...entryValues,sharedTravel:!material&&values.type==='travel'&&values.sharedTravel==='yes',receipt,draftId,submissionId,type:material?'material':values.type,workorderId:w.id});
@@ -735,16 +737,14 @@ function openWorkEntry(w,material){
  const form=$('#actionForm');
  const {catalogId,partCategoryFilter,partTypeFilter,partBrandFilter,partSearchText}=form.elements;
  const preview=form.querySelector('#materialPreview');
- const matches=form.querySelector('#materialMatches'),quickChoices=form.querySelector('#materialQuickChoices'),more=form.querySelector('#materialMore');
+ const matches=form.querySelector('#materialMatches'),rowsBox=form.querySelector('#materialRows');
+ const nextPage=form.querySelector('#materialNext'),prevPage=form.querySelector('#materialPrevious');
  const catalogById=material?new Map(data.catalog.filter(item=>item.type==='material').map(item=>[item.id,item])):null;
  const signals=material?materialSignals(data.workorders,data.inventory,{orderId:w.id,email:me?.email,warehouseName}):null;
  const filters=material?new Set([partCategoryFilter,partTypeFilter,partBrandFilter,partSearchText]):null;
- const pageSize=50;
- let shortcut='all', limit=pageSize;
+ let shortcut='all', page=0;
  const identityLabel=item=>materialHasIdentity(item)?'':'Legacy / identity unverified';
  const pricingHelp='Pricing needed before this part can be logged. Ask the office to set pricing for this SKU or choose a record already priced for this scope.';
- const selectionLabel=item=>[item.name,partMeta(item)||item.sku,identityLabel(item),partColor(item),materialUnitLabel(item),
-  needsPartPricing(item,form.elements.changeId?.value)?'Pricing needed':''].filter(Boolean).join(' · ');
  const relevantSignal=item=>{
   const known=signals?.get(item.id);
   return [known?.onOrder?'Used on this order':known?.mine?'Recently used by you':known?.latest?'Recently used':'',
@@ -754,16 +754,16 @@ function openWorkEntry(w,material){
   if(!preview)return;
   const item=catalogById.get(catalogId.value);
   const blocked=needsPartPricing(item,form.elements.changeId?.value);
-  preview.innerHTML=item?photoThumbnail(item)+'<div><b>'+esc(item.name)+'</b><div class="muted tiny">'+
-   esc([partMeta(item)||item.sku,partCategory(item)].filter(Boolean).join(' · '))+'</div><div id="materialUnitHint">'+
-   esc(materialUnitLabel(item))+'</div><div class="tiny"><b>Color / Finish:</b> '+esc(partColor(item)||'Not specified')+
-   '</div>'+(identityLabel(item)?'<div class="warn tiny">'+identityLabel(item)+'</div>':'')+
-   (relevantSignal(item)?'<div class="tiny">'+esc(relevantSignal(item))+'</div>':'')+
-   (blocked?'<div class="warn tiny">'+pricingHelp+'</div>':'')+'</div>':'';
+  preview.innerHTML=item?
+   '<strong>Selected: '+esc(item.name)+'</strong><span id="materialUnitHint">'+esc([partMeta(item)||item.sku,materialUnitLabel(item)].filter(Boolean).join(' · '))+'</span>'+
+   (blocked?'<span class="warn tiny">'+pricingHelp+'</span>':''):'No part selected.';
   if(item)form.elements.quantity.setAttribute('aria-describedby','materialUnitHint');
   else form.elements.quantity.removeAttribute('aria-describedby');
-  for(const button of quickChoices.querySelectorAll('button[data-material-choice]'))
-   button.setAttribute('aria-pressed',String(button.dataset.materialChoice===item?.id));
+  for(const button of rowsBox.querySelectorAll('button[data-material-choice]')){
+   const selected=button.dataset.materialChoice===item?.id;
+   button.setAttribute('aria-pressed',String(selected));
+   button.querySelector('[data-selection-marker]').textContent=selected?'Selected':'Select';
+  }
  }
  function fillFacet(select,items,label){
   const prior=select.value;
@@ -784,28 +784,27 @@ function openWorkEntry(w,material){
    fillFacet(partBrandFilter,materialFacets(choices,{category,type:facetType}).brands,'All brands');
    const rankFilters={query:partSearchText.value,category,type:facetType,brand:partBrandFilter.value,shortcut};
    const result=rankMaterials(choices,signals,rankFilters,item=>!needsPartPricing(item,change?.id));
-   const shown=result.slice(0,limit);
-   const selected=choices.find(item=>item.id===previous);
-   const inResults=Boolean(selected&&result.some(item=>item.id===selected.id));
-   const extra=Boolean(selected&&!shown.some(item=>item.id===selected.id));
-   const suffix=extra&&!inResults?' (selected; outside filters)':'';
-   catalogId.replaceChildren(new Option('Select part',''),
-    ...(extra?[new Option(selectionLabel(selected)+suffix,selected.id)]:[]),
-    ...shown.map(item=>new Option(selectionLabel(item),item.id)));
+   const grid=materialGridPage(result,page);
+   page=grid.page;
+   const selected=validMaterialSelection(choices,previous);
    catalogId.value=selected?.id||'';
-   matches.textContent=result.length?
-    `${result.length} matching ${result.length===1?'part':'parts'}${shown.length<result.length?'; showing '+shown.length:''}.${change?' Approved change parts only.':''}`:
-    shortcut==='recent'?'No matching parts used in the last 90 days. Try All Parts.':
-    shortcut==='inStock'?'No matching parts on hand at BCI Warehouse. Try All Parts.':'No matching parts. Try All Parts or change the filters.';
-   if(result.length&&result.every(item=>needsPartPricing(item,change?.id)))matches.textContent+=' '+pricingHelp;
-   const top=shown.slice(0,4);
-   quickChoices.innerHTML=top.map(item=>{
-    const label=[materialBrand(item),item.catalogInfo?.mpn||item.sku,identityLabel(item),partColor(item),materialUnitLabel(item),
-      relevantSignal(item),needsPartPricing(item,change?.id)?'Pricing needed':''].filter(Boolean).join(' · ');
-    return `<button class="secondary small" type="button" data-material-choice="${esc(item.id)}" aria-pressed="${item.id===selected?.id}"><b>${esc(item.name)}</b><span>${esc(label)}</span></button>`;
+   const outside=selected&&!result.some(item=>item.id===selected.id);
+   matches.textContent=grid.total?
+    `Showing ${grid.start}–${grid.end} of ${grid.total} parts.${change?' Approved change parts only.':''}`:
+    shortcut==='recent'?'No matching recently used parts. Try All Parts.':
+    shortcut==='inStock'?'No matching parts on hand. Try All Parts.':'No matching parts. Change the filters.';
+   if(outside)matches.textContent+=' Your selected part is outside these filters.';
+   if(previous&&!selected)matches.textContent+=' Selection cleared because it is not available in this work scope.';
+   rowsBox.innerHTML=grid.rows.map(item=>{
+    const details=[materialBrand(item),item.catalogInfo?.mpn||item.sku,partColor(item),identityLabel(item)].filter(Boolean).join(' · ');
+    const available=[relevantSignal(item),needsPartPricing(item,change?.id)?'Pricing needed':''].filter(Boolean).join(' · ');
+    return `<li><button type="button" class="secondary bci-material-row" data-material-choice="${esc(item.id)}" aria-pressed="${item.id===selected?.id}">
+     <span class="bci-material-row-name"><b>${esc(item.name)}</b><small>${esc(details)}</small></span>
+     <span class="bci-material-row-unit">${esc([partCategory(item),materialUnitLabel(item)].filter(Boolean).join(' · '))}</span>
+     <span class="bci-material-row-stock"><small>${esc(available)}</small><span data-selection-marker>${item.id===selected?.id?'Selected':'Select'}</span></span>
+    </button></li>`;
    }).join('');
-   more.hidden=shown.length>=result.length;
-   if(!more.hidden)more.textContent='Show '+Math.min(pageSize,result.length-shown.length)+' more matches';
+   prevPage.disabled=page===0;nextPage.disabled=page+1>=grid.pages;
    for(const button of form.querySelectorAll('[data-material-filter]'))button.setAttribute('aria-pressed',String(button.dataset.materialFilter===shortcut));
    refreshPreview();return;
   }
@@ -813,7 +812,7 @@ function openWorkEntry(w,material){
   catalogId.value=choices.some(item=>item.id===previous)?previous:
    choices.some(item=>item.id===me.clockDefault?.catalogId)?me.clockDefault.catalogId:choices.length===1?choices[0].id:'';
  }
- const filterChanged=()=>{limit=pageSize;refreshItems();};
+ const filterChanged=()=>{page=0;refreshItems();};
  const showSharedTravel=()=>{if(material)return;const enabled=form.elements.type.value==='travel';form.querySelector('#sharedTravelChoice').hidden=!enabled;form.elements.sharedTravel.disabled=!enabled;if(!enabled)form.elements.sharedTravel.checked=false;};
  form.elements.type?.addEventListener('change',()=>{showSharedTravel();refreshItems();});
  showSharedTravel();
@@ -831,14 +830,15 @@ function openWorkEntry(w,material){
    else{partCategoryFilter.value='';partTypeFilter.value='';partBrandFilter.value='';}
    filterChanged();
   });
-  quickChoices.addEventListener('click',event=>{
+  rowsBox.addEventListener('click',event=>{
    const button=event.target.closest('button[data-material-choice]');
    if(!button)return;
-   // The native picker is the sole source of the submitted Catalog ID.
+   // The selected result is the sole source of the submitted Catalog ID.
    catalogId.value=button.dataset.materialChoice;
    catalogId.dispatchEvent(new Event('change',{bubbles:true}));
   });
-  more.addEventListener('click',()=>{limit+=pageSize;refreshItems();catalogId.focus();});
+  nextPage.addEventListener('click',()=>{page++;refreshItems();});
+  prevPage.addEventListener('click',()=>{page--;refreshItems();});
  }
  refreshItems();
  if(!material)return;
@@ -861,7 +861,7 @@ function openWorkEntry(w,material){
   timer=setTimeout(()=>{if(!form.dataset.saving)sync();},300);
  };
  form.addEventListener('input',event=>{if(!filters.has(event.target))scheduleDraft();});
- // Programmatic button selections and native select changes both refresh stock.
+ // Direct grid selections and approved-scope changes refresh projected stock.
  form.addEventListener('change',event=>{if(event.target===catalogId||event.target===form.elements.changeId)scheduleDraft();});
  const heartbeat=setInterval(()=>{if(!form.dataset.saving)sync();},180000);
  const observer=new MutationObserver(()=>{

@@ -513,3 +513,28 @@ button.danger{background:#a72323;border:2px solid #8a1818;border-radius:8px;colo
 
 .bci-vehicle-header { height:auto; padding:0; justify-content:flex-start; color:inherit; border:0; background:transparent; }
 .shared-travel-choice input[type="checkbox"], #actionForm input[name="removePhoto"] { width:auto; min-height:0; margin-inline-end:6px; }
+
+/* Log Materials: one tappable result per row, no native part dropdown. */
+.bci-material-grid{min-width:0}
+.bci-material-grid ul{list-style:none;padding:0;margin:.25rem 0}
+.bci-material-grid li+li{margin-top:.28rem}
+.bci-material-grid-head,.bci-material-row{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr) minmax(0,.9fr);gap:.55rem;align-items:center}
+.bci-material-grid-head{padding:0 .65rem .3rem;font-size:.75rem;font-weight:700}
+.bci-material-row{width:100%;min-height:48px;text-align:left;white-space:normal;overflow-wrap:anywhere;padding:.52rem .65rem}
+.bci-material-row span{min-width:0}
+.bci-material-row small{display:block;font-weight:400}
+.bci-material-row[aria-pressed=true]{box-shadow:inset 0 0 0 2px currentColor}
+.bci-material-row-stock{display:flex;gap:.22rem;flex-direction:column;font-size:.8rem}
+.bci-material-row-stock [data-selection-marker]{font-weight:700}
+.bci-material-row-stock small:empty,.bci-material-row-name small:empty{display:none}
+.bci-material-pager{display:flex;justify-content:space-between;gap:.5rem;margin:.4rem 0 .7rem}
+.bci-material-pager button{min-height:44px}
+.bci-material-selected{min-height:2rem;padding:.45rem .55rem;margin:.4rem 0;overflow-wrap:anywhere}
+.bci-material-selected span{display:block;font-size:.84rem}
+@media(max-width:560px){
+ .bci-material-grid-head{display:none}
+ .bci-material-row{grid-template-columns:minmax(0,1fr) auto;align-items:start;gap:.15rem .55rem}
+ .bci-material-row-name{grid-column:1;grid-row:1;min-width:0}
+ .bci-material-row-unit{grid-column:1;grid-row:2;font-size:.79rem}
+ .bci-material-row-stock{grid-column:2;grid-row:1 / span 2;max-width:7rem;text-align:right;align-self:center}
+}

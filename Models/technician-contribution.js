@@ -1,3 +1,4 @@
+import {attributedEmail} from './time-attribution.js';
 import {internalOrder} from './project-workflow.js';
 
 const emailKey=value=>typeof value==='string'?value.trim().toLowerCase():'';
@@ -95,7 +96,7 @@ export function technicianContribution(state,identity,options){
   // A material or travel entry alone is not participation; never match on display name.
   if(!email||order.billingHidden||internalOrder(state,order)||!finalized(order.invoice,withCosts))continue;
   const entries=Array.isArray(order.entries)?order.entries:[];
-  if(!entries.some(entry=>entry.type==='labor'&&trustedEmail(entry.employeeEmail)===email))continue;
+  if(!entries.some(entry=>entry.type==='labor'&&trustedEmail(attributedEmail(entry))===email))continue;
   const group=order.invoice.groupId;
   const orderTime=withCosts?recordedTime(order.invoice.sentAt):null;
   if(withCosts&&Number.isFinite(orderTime)&&!inYear(orderTime))continue;
@@ -152,7 +153,7 @@ export function technicianContribution(state,identity,options){
    const attached=current.map.get(line.id);
    const corroborated=attached&&attached.type===line.type&&attached.quantity===line.quantity&&attached.rate===line.rate&&
     attached.unit===line.unit&&attached.catalogId===line.catalogId&&attached.date===line.date&&!current.duplicates.has(line.id);
-   const key=corroborated?trustedEmail(attached.employeeEmail):'';
+   const key=corroborated?trustedEmail(attributedEmail(attached)):'';
    if(!key)unlinked=true;
    hours.set(key,(hours.get(key)||0)+line.quantity);
    if(withCosts&&key===email){

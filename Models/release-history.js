@@ -3,6 +3,15 @@
 const section = (title, ...items) => ({title, items});
 const release = (version, title, summary, ...sections) => ({version, title, summary, sections});
 export const releases = [
+ release('0.9.9','Log Materials part grid','Find and tap the right part on a phone without a parts dropdown.',
+  section('Work order materials','One filterable results list shows ten parts per page. Direct selection, item details and selection readback replace the recommendation cards and part dropdown. Stock, approvals, quantities and receipts follow the existing workflow.')),
+ release('0.9.8','Correct work-order service types','Select the right labor or travel service on an editable time entry.',
+  section('Field journal','Edit Work Order and select Service type on the employee’s entry. Repricing uses applicable catalog/profile or signed change-order rates. Recorded hours remain unchanged unless explicitly edited.'),
+  section('Review tickets','Undo Closeout returns eligible submitted work orders to Released with a required reason. Time, materials, receipts, and prior closeout history stay intact.'),
+  section('History','Issued invoices and approved payroll remain locked. Previously submitted edits go through the existing review flow.')),
+ release('0.9.7','Employee time reconciliation','Reconnect old time entries to the correct existing Team login without merging accounts.',
+  section('Admin workflow','Preview an exact old name or email, review every matched time row, and explicitly apply to an active destination. Changes are audited.'),
+  section('Payroll and history','Group corrected rows under one employee in the next Payroll Review and My Time. Original invoice, closeout and approved payroll snapshots remain unchanged.')),
  release('0.9.6','BCI Operations sign-in staging','Add a BCI password and verification step after Cloudflare without replacing current users.',
   section('Account continuity','Active users remain connected to their existing profiles, grants, work and payroll. A prior authenticator carries forward; new enrollment offers authenticator and restricted optional email verification.'),
   section('Rollout','Both BCI sign-in and email are off by default. Separate pilot controls and two protected-administrator recovery drills gate first enforcement. Cloudflare remains connected.')),

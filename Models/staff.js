@@ -1,3 +1,4 @@
+import {attributedEmail} from './time-attribution.js';
 import {createHmac,randomBytes,randomUUID} from 'node:crypto';
 import {addOtherTime, validDate} from './payroll.js';
 import {businessManagerView} from './business-manager.js';
@@ -116,8 +117,8 @@ export function staffTechnicianIcons(state,actor,orders){
  const icons=new Map((state.staffProfiles||[]).filter(profile=>active.has(staffKey(profile.email)))
   .map(profile=>[staffKey(profile.email),normalizedStyle(profile.style).icon]));
  return orders.map(order=>({...order,entries:(order.entries||[]).map(entry=>{
-  const match=typeof entry.employeeEmail==='string'&&icons.get(staffKey(entry.employeeEmail));
-  return match&&['labor','travel','material'].includes(entry.type)?{...entry,technicianIcon:match}:entry;
+  const match=icons.get(attributedEmail(entry));
+  return {...entry,...(entry.employeeAttribution?{employeeEmail:attributedEmail(entry),tech:entry.employeeAttribution.name,employeeAttribution:undefined}:{}),...(match&&['labor','travel','material'].includes(entry.type)?{technicianIcon:match}:{})};
  })}));
 }
 function publicProfile(state,email){
@@ -148,7 +149,7 @@ function staffTarget(state,actor,input) {
 export function staffView(state,actor,visibleOrderIds,visibleProjectIds,metricsState,year=contributionYear()) {
  const email=staffKey(actor?.email);
  if (!email || !has(actor,'staff.view')) return undefined;
- const own = entry => staffKey(entry.employeeEmail || entry.tech) === email;
+ const own = entry => (attributedEmail(entry)||staffKey(entry.tech)) === email;
  const ordersWorked=new Set(),projectsWorked=new Set(),projects=new Map();
  const time=(state.workorders||[]).flatMap(order=>{
   const project=(state.projects||[]).find(p=>p.id===order.projectId);
@@ -169,10 +170,10 @@ export function staffView(state,actor,visibleOrderIds,visibleProjectIds,metricsS
    note:e.description
   }));
  });
- for(const entry of state.payrollOther||[])if(entry.deletedWorkorderId&&own(entry)){
-  ordersWorked.add(entry.deletedWorkorderId);
+ for(const entry of state.payrollOther||[])if((entry.deletedWorkorderId||entry.employeeAttribution&&entry.type==='shop')&&own(entry)){
+  if(entry.deletedWorkorderId)ordersWorked.add(entry.deletedWorkorderId);
   time.push({id:entry.id,date:entry.date,quantity:entry.quantity,type:entry.type==='travel'?'travel':entry.internalTask?'internal':'work',
-   status:'Archived — payroll review',workorderId:null,workorder:has(actor,'workorders.view')&&!visibleOrderIds?entry.job:'Archived work order',note:entry.description});
+   status:entry.deletedWorkorderId?'Archived — payroll review':'Other payroll time',workorderId:null,workorder:has(actor,'workorders.view')&&!visibleOrderIds?entry.job:'Archived work order',note:entry.description});
  }
  const admin=actor.role==='admin'&&has(actor,'staff.manage');
  const records=state.staffLeave||[];

@@ -1,3 +1,4 @@
+import './time-attribution.js';
 // Owns the team presentation.
 // Shared state is imported as live bindings from the application shell.
 // Write actions still pass through the shared permission-checked API.
@@ -23,7 +24,7 @@ export function teamPage(){
  return head('Admin permissions','Access control','Manage teammates and save reusable permission profiles.', '<div class="gap"><button class="secondary" data-open="import">Import clients &amp; projects</button><button class="primary" data-open="user">+ Teammate</button></div>')+
  `<section class="panel"><h2>Cloudflare Access sync</h2><p>${esc(syncText)}</p>
   ${sync?.enabled?'<button class="secondary" data-open="access-sync">Sync / retry</button>':''}</section>
- <section class="panel"><h2>Teammates</h2>${table(['Email','Access level','Status',''],users)}</section>
+ <section class="panel"><h2>Teammates</h2><button type="button" class="secondary" data-time-attribution>Reconcile employee time</button>${table(['Email','Access level','Status',''],users)}</section>
  <section class="panel"><div class="flex"><h2>Saved access levels</h2><button class="primary" data-open="profile">+ Profile</button></div>
  ${table(['Profile','Access summary','Active users',''],saved)}</section>
  ${data.mailIntake?`<section class="panel"><h2>Microsoft 365 intake</h2>
