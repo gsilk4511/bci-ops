@@ -1,3 +1,9 @@
+# 0.9.4 — Pricing tables and profile editing
+
+- Billing clients start collapsed. Clients, base labor (including travel), and base parts tables have independent search, sort, and pagination.
+- New and Edit Pricing Profile use the same split grids. Off-page edits and selections are kept in the draft; the same preview/save flow applies.
+- No data migration, pricing-model change, or permission change.
+
 # BCI Operations 0.9.3
 
 - Work-order PDFs reflect current journal descriptions after submission, review or invoicing. Existing issued invoice and closeout snapshots remain unchanged.

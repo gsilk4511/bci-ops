@@ -3,6 +3,9 @@
 const section = (title, ...items) => ({title, items});
 const release = (version, title, summary, ...sections) => ({version, title, summary, sections});
 export const releases = [
+ release('0.9.4','Pricing tables and profile editing','Find billing clients, labor and parts without one long list.',
+  section('Pricing','Billing clients start collapsed. Clients, base labor and travel rates, and base parts rates each have independent search, sorting and page size.'),
+  section('Profiles','New and Edit share the split grids. Draft rules and bulk selections stay in place when switching pages; preview and approval behavior is unchanged.')),
  release('0.9.3','Work-order corrections, shared travel and vehicle profiles','Keep field-journal printouts current and manage company vehicles separately.',
   section('Work orders','Correct current journal notes without changing the issued invoice or original closeout. Work-order printing displays the latest description.','Shared travel keeps the employee’s recorded hours while preventing an additional client charge.'),
   section('Vehicles and navigation','Authorized staff can manage company vehicles, service schedules, inspections and repair histories in the separate Vehicles tab.','Phone tabs show their full labels in a horizontally scrollable row.')),

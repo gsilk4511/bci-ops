@@ -22,7 +22,7 @@ import {materialBrand,materialFacets,materialHasIdentity,materialShortcuts,mater
 import { moneyPage } from './modules/money.js';
 import { reports } from './modules/reports.js';
 import { payrollPage } from './modules/payroll.js';
-import { catalogPage } from './modules/pricing.js';
+import { catalogPage, wirePricingPage } from './modules/pricing.js';
 import { teamPage } from './modules/team.js';
 import { accessDescriptors, effectiveModuleAccess, profileEditorValues, modeLabels, scopeLabels, scopedAreas, areaLabel } from './modules/access-matrix.js';
 import { testingPage } from './modules/database-testing.js';
@@ -515,6 +515,7 @@ function render(){
   if(permission&&!can(permission))button.remove();
  }
  wireRecords();
+ if(view==='catalog'&&allowed)wirePricingPage($('#app'));
  if(view==='trash'&&me?.role==='admin')wireTrash();
  if(view==='changelog'&&allowed)wireChangelog($('#app').querySelector('[data-changelog]'));
  if(view==='testing'&&allowed){if(!me?.rawDatabaseTesting)databaseMode='records';showDatabase();}

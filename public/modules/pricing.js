@@ -2,14 +2,30 @@
 // Shared state is imported as live bindings from the application shell.
 // Write actions still pass through the shared permission-checked API.
 import { can, catalog, data, esc, fmt, head, table, modal, f, send, show } from '../app.js';
+import { mountPricingGrid, pricingGridControls } from './pricing-grid.js';
 
 const activeItems=()=>data.catalog.filter(item=>item.type!=='material'||item.warehouseArchived!==true);
 const addCatalogItem=()=>can('pricing.view')&&can('catalog.create')?'<button class="primary" data-open="catalog">+ Add item</button>':'';
+const sortByName=[['name','Name A–Z'],['-name','Name Z–A']];
+const itemSort=[...sortByName,['sku','SKU'],['group','Group'],['price','Base rate low to high'],['-price','Base rate high to low']];
+const itemKey=item=>({...item,search:[item.name,item.sku,item.group,item.type,item.manufacturer,item.brand,item.catalogInfo?.brand,item.catalogInfo?.mpn].filter(Boolean).join(' ').toLowerCase()});
+const rateKinds=[['labor','Labor and travel'],['parts','Parts']];
+const inKind=(item,kind)=>kind==='parts'?item.type==='material':item.type!=='material';
+const grid=(headers,options={})=>pricingGridControls(options)+table(headers,[]);
+function tableRow(html){
+ const node=document.createElement('tbody');
+ node.innerHTML=html;
+ return node.firstElementChild;
+}
 function baseRates({showHeader = true} = {}) {
  const controls = `${can('pricing.client')?'<button class="secondary" data-open="client-markup">Client parts markup</button>':''}${can('pricing.project')?'<button class="secondary" data-open="project-rate">Project rate category</button>':''}`;
  const header = showHeader ? head('Pricing','Pricing control','Set service rates and billing-client parts pricing. Open work updates when you save.',`<div class="gap">${addCatalogItem()}${controls}</div>`)
   : controls ? `<div class="gap">${controls}</div>` : '';
- return header + `<section class="panel">${table(['Group','Item / SKU','Type','Base','Change order','Cost',''],activeItems().map(x=>`<tr><td>${esc(x.group)}</td><td><b>${esc(x.name)}</b><div class="tiny muted">${esc(x.sku)}</div></td><td>${esc(x.type)}${x.needsPricing?'<div class="warn tiny">Needs pricing</div>':''}</td><td>${fmt(x.price)}</td><td>${fmt(x.changePrice)}</td><td>${can('finance.view')?fmt(x.cost):'—'}</td><td>${can('catalog.update')?`<button class="secondary small" data-edit-catalog="${esc(x.id)}">Edit rates</button>`:''}${x.type==='material'&&can('pricing.part')?` <button class="secondary small" data-part-pricing="${esc(x.id)}">Client price</button>`:''}</td></tr>`))}</section>`;
+ return header + rateKinds.map(([kind,title])=>`<section class="panel" data-base-grid="${kind}"><h3>${title}</h3>`+
+   grid(['Group','Item / SKU','Type','Base','Change order',...(can('finance.view')?['Cost']:[]),''],{sorts:itemSort})+'</section>').join('');
+}
+function baseRateRow(x){
+ return tableRow(`<tr><td>${esc(x.group)}</td><td><b>${esc(x.name)}</b><div class="tiny muted">${esc(x.sku)}</div></td><td>${esc(x.type)}${x.needsPricing?'<div class="warn tiny">Needs pricing</div>':''}</td><td>${fmt(x.price)}</td><td>${fmt(x.changePrice)}</td>${can('finance.view')?'<td>'+fmt(x.cost)+'</td>':''}<td>${can('catalog.update')?`<button class="secondary small" data-edit-catalog="${esc(x.id)}">Edit rates</button>`:''}${x.type==='material'&&can('pricing.part')?` <button class="secondary small" data-part-pricing="${esc(x.id)}">Client price</button>`:''}</td></tr>`);
 }
 
 const profileAccess = () => can('pricing.profile.save');
@@ -24,22 +40,37 @@ export function catalogPage() {
   if (!overview) return baseRates();
   const profiles = activeProfiles();
   const profileName = id => profiles.find(profile => profile.id === id)?.name || 'Existing rates';
-  const clientRows = overview.clients.map(client => `<tr>
-    <td>${esc(client.name)}</td><td>${esc(profileName(client.profileId || overview.companyProfileId))}</td>
-    <td>${client.projectOverrides}</td>${can('finance.view') ? '<td>' + fmt(client.paid) + '</td>' : ''}
-    <td>${assignAccess() ? `<button class="secondary small" data-assign-price="client" data-target="${esc(client.id)}">Default profile</button> <button class="secondary small" data-assign-price="client-options" data-target="${esc(client.id)}">Available profiles</button>` : ''}</td></tr>`);
   return head('Pricing', 'Rates and profiles', 'Assign prices to clients, projects, and work orders.',
     `<div class="gap">${addCatalogItem()}${profileAccess() ? '<button class="primary" data-price-profile="">New profile</button>' : ''}</div>`) +
-    '<section class="panel"><h2>Billing clients</h2>' +
-    table(['Client', 'Effective profile', 'Project overrides', ...(can('finance.view') ? ['Confirmed payments'] : []), ''], clientRows) +
-    '</section><section class="panel"><h2>Pricing profiles</h2><p>Company default · ' + esc(profileName(overview.companyProfileId)) + '</p>' +
+    '<section class="panel"><h2>Pricing profiles</h2><p>Company default · ' + esc(profileName(overview.companyProfileId)) + '</p>' +
     (assignAccess() ? '<button class="secondary" data-assign-price="company">Set company default</button>' : '') +
     table(['Profile', 'Parts markup', 'Item rules', ''], profiles.map(profile => `<tr><td>${esc(profile.name)}</td><td>${profile.markup}%</td>
       <td>${Object.keys(profile.rules).length}</td><td>${profileAccess() ? `
       <button class="secondary small" data-price-profile="${esc(profile.id)}">Edit</button>
       <button class="secondary small" data-price-copy="${esc(profile.id)}">Duplicate</button>` : ''}${archiveAccess()?`
       <button class="secondary small" data-price-archive="${esc(profile.id)}">Archive</button>`:''}</td></tr>`)) +
-    '</section><details class="panel"><summary>Base catalog rates and existing pricing rules</summary>' + baseRates({showHeader:false}) + '</details>';
+    '</section><details class="panel" data-billing-grid><summary>Billing clients ('+overview.clients.length+')</summary>' +
+    grid(['Client','Effective profile','Project overrides',...(can('finance.view')?['Confirmed payments']:[]),''],{sorts:[...sortByName,['profile','Effective profile'],['-projectOverrides','Most project overrides']],searchLabel:'Find clients'}) +
+    '</details><details class="panel"><summary>Base catalog rates and existing pricing rules</summary>' + baseRates({showHeader:false}) + '</details>';
+}
+
+export function wirePricingPage(root){
+ const current=activeItems().map(itemKey);
+ for(const container of root.querySelectorAll('[data-base-grid]')){
+   mountPricingGrid(container,current.filter(item=>inKind(item,container.dataset.baseGrid)),baseRateRow);
+ }
+ const clients=root.querySelector('[data-billing-grid]');
+ if(!clients)return;
+ const overview=data.pricingOverview;
+ const names=new Map(activeProfiles().map(p=>[p.id,p.name]));
+ const records=overview.clients.map(item=>{
+   const profile=names.get(item.profileId||overview.companyProfileId)||'Existing rates';
+   return {...item,profile,search:(item.name+' '+profile).toLowerCase()};
+ });
+ mountPricingGrid(clients,records,client=>tableRow(`<tr>
+    <td>${esc(client.name)}</td><td>${esc(client.profile)}</td>
+    <td>${client.projectOverrides}</td>${can('finance.view') ? '<td>' + fmt(client.paid) + '</td>' : ''}
+    <td>${assignAccess() ? `<button class="secondary small" data-assign-price="client" data-target="${esc(client.id)}">Default profile</button> <button class="secondary small" data-assign-price="client-options" data-target="${esc(client.id)}">Available profiles</button>` : ''}</td></tr>`));
 }
 
 // Both assignments and profile edits use the same server preview before Save.
@@ -55,7 +86,8 @@ function pricingDialog(title, fields, proposal, intro = '') {
   const result = form.querySelector('[data-price-preview]');
   const save = form.querySelector('button[type=submit]');
   save.disabled = true;
-  form.addEventListener('input', () => {
+  form.addEventListener('input', event => {
+    if(event.target?.matches?.('[data-grid-query],[data-grid-sort],[data-grid-size],[data-bulk-select],[name=bulkMode],[name=bulkValue],[name=preserveFixed]'))return;
     preview = undefined;
     save.disabled = true;
     result.replaceChildren();
@@ -66,7 +98,7 @@ function pricingDialog(title, fields, proposal, intro = '') {
     button.disabled = true;
     preview = undefined;
     try {
-      if (!form.reportValidity()) return;
+      if (!form.reportValidity() || (form.validatePricingDraft&&!form.validatePricingDraft())) return;
       const current = proposal(form);
       const input = JSON.stringify(current);
       const response = await fetch('/api/action', {
@@ -94,7 +126,7 @@ function pricingDialog(title, fields, proposal, intro = '') {
 }
 
 function profileEditor(profile, duplicate) {
-  const items = activeItems();
+  const items = activeItems().map(itemKey);
   const inventory = new Map(data.pricingOverview.items.map(item => [item.id, item]));
   const rules = profile?.rules || {};
   const preservedArchivedRules=Object.fromEntries(data.catalog.filter(item=>item.type==='material'&&item.warehouseArchived===true&&Object.hasOwn(rules,item.id)).map(item=>[item.id,rules[item.id]]));
@@ -107,14 +139,14 @@ function profileEditor(profile, duplicate) {
   const rows = items.map((item, index) => {
     const rule = rules[item.id] || {};
     const receipt = inventory.get(item.id);
-    return `<tr data-price-row="${index}" data-item-type="${esc(item.type)}" data-search="${esc([item.name, item.sku, item.group, item.type, item.manufacturer].join(' ').toLowerCase())}">
+    return tableRow(`<tr data-price-row="${index}">
       ${bulkAccess() ? `<td><input type="checkbox" aria-label="Select ${esc(item.name)}" data-bulk-select></td>` : ''}
       <td>${esc(item.name)}<div class="tiny muted">${esc([item.type, item.unit, item.sku, item.manufacturer].filter(Boolean).join(' · '))}</div>
       ${item.type === 'material' && !receipt?.received ? '<div class="warn tiny">No purchase receipt</div>' : ''}</td>
       ${can('finance.view') ? '<td>' + rateLabel(receipt?.cost) + (receipt?.date ? '<br>' + esc(receipt.date) : '') + '</td>' : ''}
       <td>${input('fixed' + index, 'Fixed rate for ' + item.name, rule.fixed)}</td>
-      <td>${item.type === 'material' ? input('markup' + index, 'Markup for ' + item.name, rule.markup) : '—'}</td>
-      <td>${input('change' + index, 'Change-order rate for ' + item.name, rule.change)}</td></tr>`;
+      ${item.type === 'material' ? '<td>'+input('markup' + index, 'Markup for ' + item.name, rule.markup)+'</td>' : ''}
+      <td>${input('change' + index, 'Change-order rate for ' + item.name, rule.change)}</td></tr>`);
   });
   const form = pricingDialog(profile && !duplicate ? 'Edit pricing profile' : 'New pricing profile',
     f('name', 'Profile name', { required: true, value: duplicate ? profile.name + ' copy' : profile?.name }) +
@@ -122,36 +154,43 @@ function profileEditor(profile, duplicate) {
     f('markup', 'Default parts markup %', { type: 'number', required: true, min: 0, step: '0.01', value: String(profile?.markup ?? 25) }) +
     '<p>Enter either a fixed rate or a markup for each part. Blank part rates use the default markup. Blank service rates use the base rate.</p>' +
     (uses.length && !duplicate ? '<details><summary>Current assignments (' + uses.length + ')</summary><p>' + uses.map(esc).join('<br>') + '</p></details>' : '') +
-    '<div class="filters"><label>Find items<input type="search" data-price-search placeholder="Name, SKU, group or manufacturer"></label>' +
-    '<label>Item type<select data-price-type><option value="">All types</option><option value="material">Parts</option><option value="labor">Labor</option><option value="travel">Travel</option></select></label></div>' +
     (bulkAccess() ? '<div class="actions"><button type="button" class="secondary" data-select-prices>Select visible</button><button type="button" class="secondary" data-clear-prices>Clear selection</button></div>' +
     '<div class="filters"><label>Bulk change<select name="bulkMode"><option value="markup">Set parts markup %</option><option value="scale">Adjust standard rate %</option><option value="change">Set change-order rate</option><option value="round">Round standard rate to increment</option></select></label>' +
     '<label>Value<input name="bulkValue" type="number" step="0.01"></label><label class="signature-terms"><input type="checkbox" name="preserveFixed" checked> Preserve fixed standard rates</label>' +
     '<button type="button" class="secondary" data-apply-bulk>Apply to selected</button></div><p data-bulk-feedback aria-live="polite"></p>' : '') +
-    table([...(bulkAccess() ? ['Select'] : []), 'Item', ...(can('finance.view') ? ['Last received cost'] : []), 'Fixed rate', 'Markup %', 'Change-order rate'], rows),
+    rateKinds.map(([kind,title])=>`<section class="panel" data-rule-grid="${kind}"><h3>${title}</h3>` + grid([...(bulkAccess() ? ['Select'] : []), 'Item', ...(can('finance.view') ? ['Last received cost'] : []), 'Fixed rate', ...(kind==='parts'?['Markup %']:[]), 'Change-order rate'],{sorts:itemSort})+'</section>').join(''),
     form => {
       const values = new FormData(form);
       const result = Object.fromEntries(items.flatMap((item, index) => {
         const rule = Object.fromEntries(['fixed', 'markup', 'change'].flatMap(key => {
-          const value = values.get(key + index);
+          const value = rows[index].querySelector('[name=' + key + index + ']')?.value;
           return value == null || value === '' ? [] : [[key, value]];
         }));
         return Object.keys(rule).length ? [[item.id, rule]] : [];
       }));
       return { kind: 'save', id: duplicate || values.has('saveCopy') ? undefined : profile?.id, name: values.get('name'), markup: values.get('markup'), rules: {...preservedArchivedRules,...result}, bulk };
     });
-  const itemRows = [...form.querySelectorAll('[data-price-row]')];
-  const selection = row => row.querySelector('[data-bulk-select]');
-  const search = form.querySelector('[data-price-search]');
-  const type = form.querySelector('[data-price-type]');
-  const filterRows = () => {
-    const query = search.value.trim().toLowerCase();
-    for (const row of itemRows) row.hidden = !row.dataset.search.includes(query) || (type.value && type.value !== row.dataset.itemType);
+  const itemRows=rows;
+  const selection=row=>row.querySelector('[data-bulk-select]');
+  const position=new Map(items.map((item,index)=>[item,index]));
+  const mounted=new Map([...form.querySelectorAll('[data-rule-grid]')].map(container=>{
+    const kind=container.dataset.ruleGrid;
+    return [kind,mountPricingGrid(container,items.filter(item=>inKind(item,kind)),item=>rows[position.get(item)])];
+  }));
+  form.validatePricingDraft=()=>{
+    for(const [index,row] of rows.entries()){
+      for(const field of row.querySelectorAll('input[type=number]')){
+        if(field.validity.valid)continue;
+        const item=items[index];
+        mounted.get(item.type==='material'?'parts':'labor').reveal(item);
+        field.reportValidity();
+        return false;
+      }
+    }
+    return true;
   };
-  search.addEventListener('input', filterRows);
-  type.addEventListener('change', filterRows);
   if (!bulkAccess()) return;
-  form.querySelector('[data-select-prices]').onclick = () => itemRows.filter(row => !row.hidden).forEach(row => { selection(row).checked = true; });
+  form.querySelector('[data-select-prices]').onclick = () => itemRows.filter(row => form.contains(row)).forEach(row => { selection(row).checked = true; });
   form.querySelector('[data-clear-prices]').onclick = () => itemRows.forEach(row => { selection(row).checked = false; });
   form.querySelector('[data-apply-bulk]').onclick = () => {
     const value = form.elements.bulkValue.valueAsNumber;
@@ -165,9 +204,9 @@ function profileEditor(profile, duplicate) {
     for (const row of itemRows.filter(row => selection(row).checked)) {
       const index = Number(row.dataset.priceRow);
       const item = items[index];
-      const fixed = form.elements['fixed' + index];
-      const markup = form.elements['markup' + index];
-      if (mode === 'change') form.elements['change' + index].value = value.toFixed(2);
+      const fixed = row.querySelector('[name=fixed' + index + ']');
+      const markup = row.querySelector('[name=markup' + index + ']');
+      if (mode === 'change') row.querySelector('[name=change' + index + ']').value = value.toFixed(2);
       else {
         if (fixed.value !== '' && form.elements.preserveFixed.checked) continue;
         if (mode === 'markup') {
