@@ -1,6 +1,6 @@
 # BCI Operations — Secure staging source
 
-The React-free, mobile-responsive BCI Operations prototype has been extended into an **authenticated staging application** suitable for Greg's controlled gcccluster1/Cloudflare staging trial. It is **not a completed production accounting, payroll, or contractual e-signature platform**. For the catalog and photo release, start with **`docs/CATALOG_AND_PHOTOS.txt`** and leave the active Compose in place. For broader staging instructions, use **`UPDATE_LOG.md`** and **`docs/UPDATE_EXISTING_STAGING.md`**. The Unraid guide is legacy.
+The React-free, mobile-responsive BCI Operations prototype has been extended into an **authenticated staging application** suitable for Greg's controlled gcccluster1/Cloudflare staging trial. It is **not a completed production accounting, payroll, or contractual e-signature platform**. Start with **`docs/UPDATE_EXISTING_STAGING.md`** and leave the active Compose and database in place. See **`UPDATE_LOG.md`**, **`docs/TEAM_ACCESS.md`**, and **`docs/TECHNICIAN-CONTRIBUTION-0106.md`** for this release. The older Unraid and catalog photo guides are historical.
 
 ## Included and working in application logic
 - Cloudflare Access JWT verification against signed team keys, issuer, audience, and expiry. Fail closed unless configured; the email must be on an additional BCI allowlist.
@@ -14,7 +14,7 @@ The React-free, mobile-responsive BCI Operations prototype has been extended int
 - The gcccluster1 app and MariaDB share the private Compose network. Keep the existing compose, port, volume and Cloudflare Access settings.
 
 ## Not yet built or certified
-Native server PDF generator, barcode scanning, offline change/field entry queue, customer-facing self-service approvals, proper job dispatch scheduling, direct QuickBooks integration (intentionally excluded), full financial accounting, automatic card statement imports, overtime payroll calculations, normalized accounting schema, high-concurrency load tests, audit immutability/storage policies, verified signer identity and legal review. The UI shows detailed field journals and a type/date labor summary; the crew-overlap algorithm is unit-tested but a polished customer crew-billing display is pending.
+Native server PDF generator, barcode scanning, offline change/field entry queue, customer-facing self-service approvals, live Microsoft 365 calendar synchronization, direct QuickBooks integration (intentionally excluded), full financial accounting, automatic card statement imports, overtime payroll calculations, normalized accounting schema, high-concurrency load tests, audit immutability/storage policies, verified signer identity and legal review. The UI shows detailed field journals and a type/date labor summary; the crew-overlap algorithm is unit-tested but a polished customer crew-billing display is pending.
 
 ## Developer-only local run
 If using local mode, **never set NODE_ENV=production** and bind the host to loopback. Local mode simulates an admin for development only:

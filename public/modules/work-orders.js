@@ -1,4 +1,5 @@
 import {workOrderTechnicianIcons} from './work-order-technician-icon.js';
+import {recordTools, recordManager, managingRecords} from './records.js';
 // Owns the work orders presentation. Shared state comes from the application shell.
 import { can, bill, billingName, customer, data, empty, esc, fmt, head, labelFor, project, status, table } from '../app.js';
 
@@ -38,9 +39,12 @@ function mobileRow(w) {
 }
 
 export function workorders() {
+  const actions=recordTools(true)+(can('workorder.create')?'<button class="primary" data-open="workorder">+ New Work Order</button>':'');
+  const title=head('Work orders', 'Operations', 'Scope approval comes before job entries. Every entry stays linked to the work order.', actions?`<div class="gap workorders-list-actions">${actions}</div>`:'');
+  if(managingRecords())return title+recordManager();
   const orders = data.workorders;
   const desktop = table(['Job', 'Customer / project', 'State', 'Entries', 'Estimated bill'], orders.map(w => `<tr><td>${titleButton(w)}${workOrderTechnicianIcons(w.entries,esc)}<div class="muted tiny">${esc((w.description || '').slice(0, 80))}</div></td><td>${esc(labelFor(w))}</td><td>${status(w.status)}</td><td>${w.entries.length}</td><td>${fmt(bill(w).total)}</td></tr>`));
   const mobile = orders.length ? `<ul class="wo-mobile-list" aria-label="Work orders">${orders.map(mobileRow).join('')}</ul>` : empty('No records found');
-  return head('Work orders', 'Operations', 'Scope approval comes before job entries. Every entry stays linked to the work order.', can('workorder.create')?'<button class="primary" data-open="workorder">+ New Work Order</button>':'')
+  return title
     + `<section class="panel"><div class="wo-desktop">${desktop}</div><div class="wo-mobile">${mobile}</div></section>`;
 }

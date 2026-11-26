@@ -3,6 +3,13 @@
 const section = (title, ...items) => ({title, items});
 const release = (version, title, summary, ...sections) => ({version, title, summary, sections});
 export const releases = [
+ release('0.10.6','Scheduling, Team permissions, and time entry','Plan your crew, review access, and log on behalf of your team.',
+  section('Calendar','All-business overview and dedicated scheduling views. Schedule from a project or work order, export booked days, and prepare separate Outlook client invitations.'),
+  section('Work Orders','Time, Travel, and Parts in Original Field Journal; All entries or My entries; a single Actions menu; authorized delegated time entry with audit attribution.'),
+  section('Team','Permission prerequisite handling, owner-only permission testing, and Team Directory profile drilldown.'),
+  section('My Time','Payroll-based employment cost and after-reserve labor profit; separate live and invoiced-and-payroll-paid views.'),
+  section('Interface','Tactile button states. Catalog photo assets are no longer bundled; existing records and operational uploads are retained.')),
+
  release('0.10.5','Wide screens and profile weather','Use the extra desktop space for records and show the Barre forecast beside My Time & Profile.',
   section('Layout','Wide browser windows use available space. Phones retain their existing navigation and layouts; weather is collapsed by default.'),
   section('Weather','National Weather Service hourly outlook and active alerts for Barre, VT. No device location or customer data is sent.')),

@@ -101,19 +101,26 @@ function packageLength(row){
  return ['FT','FEET','FOOT'].includes(units)&&Number.isSafeInteger(Number(row.length))&&Number(row.length)>0?Number(row.length):null;
 }
 
-export function planCatalogPack(state,pack,availablePhotos){
+export function planCatalogPack(state,pack,availablePhotos,{omitUnavailablePhotos=false}={}){
  const {items,fits}=normalizePack(pack);
  const input=indexBy(items,r=>partKey(r.brand,r.mpn));
  const indexed=indexBy(state.catalog,existingIdentity), sku=indexBy(state.catalog,item=>key(item.sku));
  const fitByPart=indexBy(fits,f=>f.brand&&f.mpn?partKey(f.brand,f.mpn):'');
  const assignedFits=new Set(), conflicts=[], pending=[], updates=[], unchanged=[], touched=[];
  const reservedSku=new Set(sku.keys());
+ let omittedPhotoCount=0;
  for(const [part,rows] of input){
-  const [row]=rows, matches=indexed.get(part)||[];
+  let [row]=rows;
+  const matches=indexed.get(part)||[];
   const conflict=reason=>conflicts.push({brand:row.brand,mpn:row.mpn,reason,count:rows.length});
   if(rows.length!==1){conflict('Duplicate manufacturer and part number in this pack');continue;}
   const normalizedMpn=key(row.mpn);
-  if(availablePhotos&&row.photoId&&!availablePhotos.has(row.photoId)){conflict('The verified photo is not present in this release');continue;}
+  if(availablePhotos&&row.photoId&&!availablePhotos.has(row.photoId)){
+   if(!omitUnavailablePhotos){conflict('The verified photo is not present in this release');continue;}
+   const {photoId,photoStatus,photoEvidencePage,originalPhotoUrl,...partDetails}=row;
+   row=partDetails;
+   omittedPhotoCount++;
+  }
   if(matches.length>1){conflict('Multiple existing items have this manufacturer and part number');continue;}
   if(matches.length===1&&matches[0].type!=='material'){conflict('Existing exact identity is not a material item');continue;}
   if(!matches.length&&(sku.get(normalizedMpn)||[]).some(item=>!existingIdentity(item))){conflict('Legacy item uses this SKU without verified manufacturer identity; review it before import');continue;}
@@ -142,13 +149,13 @@ export function planCatalogPack(state,pack,availablePhotos){
  const summary={fingerprint:hash([items,fits,touched,pending,updates,unchanged,conflicts,otherFits]),
   total:items.length,new:pending.length,matched:updates.length+unchanged.length,updated:updates.length,unchanged:unchanged.length,
   skipped:conflicts.reduce((n,c)=>n+c.count,0),
-  conflicts,examples:pending.slice(0,8).map(row=>row.name),photoCount:items.filter(row=>row.photoId).length,fitReferenceCount:fits.length};
+  conflicts,examples:pending.slice(0,8).map(row=>row.name),photoCount:items.filter(row=>row.photoId).length-omittedPhotoCount,omittedPhotoCount,fitReferenceCount:fits.length};
  return {summary,pending,updates,otherFits};
 }
 
-export function importCatalogPack(state,data,actor,availablePhotos){
+export function importCatalogPack(state,data,actor,availablePhotos,options){
  if(actor?.role!=='admin')throw Error('Admin access required');
- const plan=planCatalogPack(state,data.pack,availablePhotos);
+ const plan=planCatalogPack(state,data.pack,availablePhotos,options);
  if(typeof data.fingerprint!=='string'||data.fingerprint!==plan.summary.fingerprint)throw Error('Catalog or pack changed. Preview the import again');
  if(plan.summary.conflicts.length&&data.skipConflicts!==true)throw Error('Resolve or explicitly skip catalog pack conflicts before applying; no items were changed');
  for(const row of plan.pending)state.catalog.push({...row,id:'mfr_'+randomUUID(),createdAt:new Date().toISOString(),createdBy:actor.email});

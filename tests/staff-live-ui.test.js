@@ -16,7 +16,7 @@ test('My Time shows the five-week grid and refreshes the current session without
  const doc={hidden:false,addEventListener(type,callback){callbacks[type]=callback;},querySelector(){return lookup;}};
  const context=vm.createContext({document:doc,setInterval(handler,period){timers.push([handler,period]);},
   async fetch(endpoint,options){assert.equal(endpoint,'/api/staff-summary');assert.equal(options.cache,'no-store');fetchCount++;return response;}});
- const app={can:()=>true,data,esc:x=>String(x??''),f:()=>'',head:()=>'',modal:()=>{},practiceMode:false,render(){},send(){},table:(columns,rows)=>columns.join('|')+rows.join(''),today:()=>''};
+ const app={can:()=>true,data,esc:x=>String(x??''),f:()=>'',head:()=>'',me:{email:'owner@example.test',role:'admin'},modal:()=>{},practiceMode:false,render(){},send(){},show(){},table:(columns,rows)=>columns.join('|')+rows.join(''),today:()=>''};
  const exports={
   '../app.js':app,
   './staff-profile.js':{profileCard:()=>'',directoryProfile:()=>'',personalProfileFields:()=>'',personalProfilePayload:()=>'',bindProfileEditor:()=>''},
@@ -79,12 +79,13 @@ test('live profile panels inherit workspace theme and contribution shows both ba
  const live=render(data);
  assert.match(live,/aria-pressed="true">Accrual · logged work/);
  assert.match(live,/\$33\.69/);
- assert.match(live,/\$288\.75/);
+ assert.match(live,/sets aside an estimated 30%/);
+ assert.doesNotMatch(live,/Labor profit before tax reserve|\$288\.75/);
  assert.match(live,/Labor profit after tax reserve/);
  assert.doesNotMatch(live,/Private estimate/);
  const cash=render(data,[],'cash');
- assert.match(cash,/aria-pressed="true">Cash · invoiced work/);
- assert.match(cash,/paid or unpaid/);
- assert.match(cash,/No qualifying invoiced work yet/);
+ assert.match(cash,/aria-pressed="true">Cash · invoiced and payroll paid/);
+ assert.match(cash,/locked payroll is marked paid/);
+ assert.match(cash,/No invoiced work with confirmed paid payroll yet/);
  assert.doesNotMatch(cash,/\$33\.69/);
 });

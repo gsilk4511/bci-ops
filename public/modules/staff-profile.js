@@ -19,20 +19,22 @@ function profileIdentity(profile,name,previewPhoto=''){
  const photo=previewPhoto||safePhotoUrl(profile.avatarUrl);
  return `<div class="bci-profile-ring"><div class="bci-staff-avatar">${photo?`<img src="${esc(photo)}" alt="" width="72" height="72" decoding="async">`:`<span aria-hidden="true">${esc(initials(name))}</span>`}</div></div>`;
 }
-export function profileCard(profile,{preview=false,previewPhoto=''}={}){
+export function profileCard(profile,{preview=false,previewPhoto='',directoryId=''}={}){
  const name=profile.displayName||profile.name||'Team member';
  const links=(Array.isArray(profile.socialLinks)?profile.socialLinks:[]).slice(0,maxSocialLinks)
   .map(link=>[safeProfileLink(link?.url),String(link?.label||'Social profile')]).filter(([url])=>url);
- return profileTheme(profile.style,`<div class="bci-profile-identity">${profileIdentity(profile,name,previewPhoto)}
+ const identity=profileIdentity(profile,name,previewPhoto);
+ const avatar=directoryId?`<button type="button" class="secondary bci-directory-open" data-staff-action="directory-open" data-staff-id="${esc(directoryId)}" aria-label="Open full profile: ${esc(name)}">${identity}</button>`:identity;
+ return profileTheme(profile.style,`<div class="bci-profile-identity">${avatar}
   <div><h3>${esc(name)}</h3>${profileIcon(profile.style)}</div></div>
   <div class="bci-profile-about"><h4>About</h4><p class="bci-staff-bio">${esc(profile.bio||'No introduction added yet.')}</p>
   ${links.length?`<ul class="bci-staff-social" aria-label="Social links">${links.map(([url,label])=>`<li>${preview?esc(label):`<a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(label)}</a>`}</li>`).join('')}</ul>`:''}</div>`,preview?'preview':'');
 }
-export function directoryProfile(peer){
+export function directoryProfile(peer,open=false){
  const shared={displayName:peer.displayName,bio:peer.bio,avatarUrl:peer.avatarUrl,socialLinks:peer.socialLinks,style:peer.style};
- return `<details class="bci-profile-disclosure"><summary>
+ return `<details class="bci-profile-disclosure" data-directory-id="${esc(peer.id)}"${open?' open':''}><summary>
   ${profileIcon(shared.style,false)}<span>${esc(shared.displayName||'Team member')}</span><span class="bci-profile-open-label" aria-hidden="true">View profile</span>
-  </summary>${profileCard(shared)}</details>`;
+  </summary>${profileCard(shared,{directoryId:peer.id})}</details>`;
 }
 export function personalProfileFields(row){
  const links=Array.isArray(row.socialLinks)?row.socialLinks:[];

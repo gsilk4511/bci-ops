@@ -54,3 +54,35 @@ history. Its open session must fail further reads and writes; the admin's histor
 must stay intact. If BCI sign-in is enabled, reauthorize the same test email and
 verify old BCI credentials/sessions do not sign it back in. Check the separate
 Cloudflare sync status and leave production accounts untouched during staging.
+
+## Permission prerequisites
+
+When you edit a custom access profile, enabling an area checks its required
+read permissions and lists the dependency in the form. New scoped prerequisite
+areas default to **Own records**, not all records. If you mean to allow a wider
+scope, choose it explicitly. To remove a prerequisite, confirm the list of
+options that will also be removed. Grants that require editing, deleting, or
+access to payroll still require a separate selection. Existing profiles do not
+gain permissions automatically: this applies when an administrator edits and
+saves a profile.
+
+## Owner permission testing
+
+Randy can use **Test Permissions** beside **Sign out**, choose a built-in
+role or saved access profile, and use **Return to My View** when finished.
+On the hosted app the verified identity defaults to Randy's exact address
+`rbevins@bcielite.tech` and must have administrator access. If Randy signs in
+through a different verified owner address, Greg can set
+`BCI_PERMISSION_TEST_OWNER_EMAIL` to that one address in the deployment
+environment. This setting does not grant administrator access. The existing
+`PUBLIC_ORIGIN` should be the exact hosted app origin, including the scheme,
+so start and return requests can be validated.
+
+The preview cookie applies to the browser session, so other tabs in that
+browser cannot use live APIs while Test Mode is active. Preview sessions are
+temporary (up to one hour) and only contain fictional data. Functionality that
+would change live access, use real credentials, contact external services, or
+inspect raw deployment data is disabled. Normal authorized in-app changes
+apply only to the synthetic test data. No employee login or payroll record is
+created. Return to your normal view before leaving the test tab open or
+signing out.

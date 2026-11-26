@@ -28,13 +28,25 @@ test('the shipped app handles counts, field receipts and warehouse receipts with
   const address=output.match(/127\.0\.0\.1:\d+/)?.[0];
   assert.ok(address,output);
   const get=path=>fetch('http://'+address+path);
-  const act=(action,data)=>fetch('http://'+address+'/api/action',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({action,data})});
+  const act=(action,data)=>fetch('http://'+address+(action.startsWith('catalog.pack')?'/api/catalog-pack':'/api/action'),{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({action,data})});
   const health=await (await get('/api/health')).json();
-  assert.equal(health.release,'0.10.5');
-  assert.match(await (await get('/')).text(),/id="appRelease">v0\.10\.5<\/span>/);
+  assert.equal(health.release,'0.10.6');
+  assert.match(await (await get('/')).text(),/id="appRelease">v0\.10\.6<\/span>/);
   for(const path of ['/security','/security.html','/security.js','/security.css','/signin.js','/modules/agent-api.js','/api/security/session','/api/security/agent-credentials','/api/agent/v1/status']){
    assert.equal((await get(path)).status,404,path+' must stay disabled by default');
   }
+  const photoId='a'.repeat(64);
+  const fixturePack={format:'bci-catalog-pack-v1',items:[{brand:'Fixture',mpn:'PHOTO-FREE',name:'Photo-free wall plate',system:'Copper',partType:'Faceplate',photoId,photoStatus:'Exact'}],fitReferences:[]};
+  const photoMissing=await get('/api/catalog-photo/'+photoId+'.jpg');
+  assert.equal(photoMissing.status,404);
+  const previewResponse=await act('catalog.packPreview',{pack:fixturePack});
+  assert.equal(previewResponse.status,200,await previewResponse.clone().text());
+  const photoFree=(await previewResponse.json()).result;
+  assert.equal(photoFree.omittedPhotoCount,1);
+  assert.equal(photoFree.new,1);
+  const imported=await act('catalog.packImport',{pack:fixturePack,fingerprint:photoFree.fingerprint});
+  assert.equal(imported.status,200,await imported.clone().text());
+  assert.ok((await (await get('/api/state')).json()).catalog.some(item=>item.name==='Photo-free wall plate'&&!item.catalogInfo.photoId));
   const personalLayout=[{id:'projects',x:0,y:0,w:6,h:3},{id:'review',x:6,y:0,w:6,h:3}];
   const layoutSave=await act('dashboard.layout',{cards:personalLayout});
   assert.equal(layoutSave.status,200,await layoutSave.clone().text());

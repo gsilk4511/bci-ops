@@ -39,6 +39,12 @@ function wageDate(value){
 }
 export function contributionWageHistory(profile){
  const rows=Array.isArray(profile?.hourlyWages)?profile.hourlyWages:[];
+ // Transitional input: only an explicit legacy hourly dollar rate, never a pay tier,
+ // annual salary, or ambiguous free-text number. Dated wages take precedence.
+ if(!rows.length){
+  const match=/^\s*\$(\d{1,5}(?:\.\d{1,2})?)\s*(?:\/\s*(?:hr|hour)|(?:an?|per)\s+hour)\s*$/i.exec(profile?.payScale||'');
+  if(match&&Number(match[1])<=wageMax/100)return [{effectiveDate:'2000-01-01',hourlyCents:Math.round(Number(match[1])*100)}];
+ }
  return rows.flatMap(row=>{
   try{
    const effectiveDate=wageDate(row?.effectiveDate);
@@ -60,7 +66,7 @@ export function changedWageHistory(profile,data){
  if(!['string','number'].includes(typeof supplied)||!/^\d{1,5}(?:\.\d{1,2})?$/.test(String(supplied).trim())||Number(supplied)>wageMax/100)
   throw Error('Enter a verified hourly wage from $0 to $10,000, with up to two decimal places');
  const hourlyCents=Math.round(Number(supplied)*100);
- return [...contributionWageHistory(profile).filter(row=>row.effectiveDate!==effectiveDate),{effectiveDate,hourlyCents}]
+ return [...contributionWageHistory({...profile,payScale:''}).filter(row=>row.effectiveDate!==effectiveDate),{effectiveDate,hourlyCents}]
   .sort((a,b)=>b.effectiveDate.localeCompare(a.effectiveDate));
 }
 function recordedDate(value){

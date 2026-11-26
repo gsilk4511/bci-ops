@@ -1,3 +1,6 @@
+import {permissionPreviewSessions,previewEmail,isPreviewOwner} from '../UserSecurity/permission-preview.js';
+import {permissionPreviewFixture} from '../Models/permission-preview-fixture.js';
+import {calendarView} from '../Models/calendar.js';
 import {createProfileWeather} from './profile-weather.js';
 import {dashboardLayout} from '../Models/dashboard-layouts.js';
 import {planAttribution,applyAttribution} from '../Models/time-attribution.js';
@@ -17,7 +20,7 @@ import {readWorkReceipt} from '../Models/work-entry.js';
 import {readWarehouseReceipt,warehouseFieldPurchases} from '../Models/warehouse-receipts.js';
 import {previewWorkorderRemoval} from '../Models/records.js';
 import {validatedContributionYear} from '../Models/staff-profit-settings.js';
-import {staffAvatar,staffMetrics,staffTechnicianIcons,staffView} from '../Models/staff.js';
+import {staffAvatar,staffDirectoryDetail,staffMetrics,staffTechnicianIcons,staffView} from '../Models/staff.js';
 import {reconcileStock} from '../Models/stock-demand.js';
 import {estimateRates} from '../Models/estimates.js';
 import {trainingState,trainingAction} from '../Models/training.js';
@@ -30,7 +33,7 @@ import { planCatalogImport, catalogImportSummary } from '../Models/lib.js';
 import { createAccessSync } from '../Models/access-sync.js';
 import { payrollPreview } from '../Models/payroll.js';
 import { runCustomerImport } from '../Models/customer-import.js';
-import { permissionGroups, modulePermissions, permissionMatrix, effectiveAccess, effectivePermissions, authorizePermission } from '../Models/permissions.js';
+import { permissionGroups, modulePermissions, permissionMatrix, permissionDependencies, effectiveAccess, effectivePermissions, authorizePermission } from '../Models/permissions.js';
 import {createHash} from 'node:crypto';
 import http from 'node:http';
 import fs from 'node:fs/promises';
@@ -53,6 +56,7 @@ const catalogPhotoNames=await fs.readdir(catalogPhotoRoot,{withFileTypes:true}).
  throw error;
 });
 const catalogPhotoIds=new Set(catalogPhotoNames.filter(file=>file.isFile()&&file.name.endsWith('.jpg')&&catalogPhotoHash.test(file.name.slice(0,-4))).map(file=>file.name.slice(0,-4)));
+const catalogPackPhotoPolicy={omitUnavailablePhotos:true};
 const catalogPackAction=action=>['catalog.packPreview','catalog.packImport'].includes(action);
 const catalogPackLimit=8*1024*1024;
 const publicOrigin=process.env.PUBLIC_ORIGIN;
@@ -101,8 +105,9 @@ const agentAudience=process.env.BCI_AGENT_ACCESS_AUD;
 const agentCommonName=process.env.BCI_AGENT_ACCESS_COMMON_NAME;
 if(security.agentEnabled&&(!agentAudience||agentAudience===process.env.CF_ACCESS_AUD||!agentCommonName))
  throw Error('Agent API needs its own verified Access audience and service identity');
-async function securityBody(req){
- if(req.headers.origin!==publicOrigin||req.headers['sec-fetch-site']==='cross-site')throw Error('Untrusted request origin');
+async function securityBody(req,{allowLocalOrigin=false}={}){
+ const origin=publicOrigin||allowLocalOrigin&&process.env.APP_AUTH_MODE==='local'&&/^(127\.0\.0\.1|localhost|\[::1\]):[0-9]+$/.test(req.headers.host||'')&&'http://'+req.headers.host;
+ if(req.headers.origin!==origin||req.headers['sec-fetch-site']==='cross-site')throw Error('Untrusted request origin');
  if(String(req.headers['content-type']||'').split(';')[0].trim().toLowerCase()!=='application/json')throw Error('JSON required');
  let size=0;const chunks=[];
  for await(const chunk of req){size+=chunk.length;if(size>8192)throw Error('Request too large');chunks.push(chunk);}
@@ -138,7 +143,7 @@ async function update(action, data, actor) {
     let result;
     if(action==='record.assign')result=assignRecord(s,principal,data);
     else if(action==='warehouse.patchApply')result=applyWarehousePatch(s,data,principal);
-    else if(action==='catalog.packImport')result=importCatalogPack(s,data,principal,catalogPhotoIds);
+    else if(action==='catalog.packImport')result=importCatalogPack(s,data,principal,catalogPhotoIds,catalogPackPhotoPolicy);
     else if(action==='customers.import')result=runCustomerImport(s,data);
     else if(action==='mail.assign')result=assignMail(s,data,principal);
     else if(action.startsWith('notification.'))result=notificationAction(s,action,data,principal);
@@ -260,6 +265,12 @@ const databaseTablePermissions = {
 };
 function response(res,status,value){res.writeHead(status,{'content-type':'application/json; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff','referrer-policy':'no-referrer','x-frame-options':'DENY','content-security-policy':"frame-ancestors 'none'"});res.end(JSON.stringify(value,(_key,item)=>typeof item==='bigint'?item.toString():item));}
 const profileWeather=createProfileWeather();
+const permissionPreview=permissionPreviewSessions(permissionPreviewFixture);
+const previewApis=new Set(['/api/state','/api/me','/api/action','/api/testing/database','/api/staff-summary','/api/changelog','/api/training/state','/api/training/action']);
+const previewAsset=(pathname)=>['/api/staff-directory/','/api/staff-avatar/','/api/vehicle-photo/','/api/vehicle-document/'].some(prefix=>pathname.startsWith(prefix));
+const previewExcluded=new Set(['mail.sync','mail.assign','notification.test','notification.subscribe','notification.unsubscribe','access.sync',
+ 'users.set','users.remove','profiles.save','warehouse.purgePreview','warehouse.purgeApply','warehouse.patchPreview','warehouse.patchApply']);
+
 const server=http.createServer(async(req,res)=>{
   try {
     const url=new URL(req.url,'http://local');
@@ -281,7 +292,16 @@ const server=http.createServer(async(req,res)=>{
     let user;
     try{user=await identity(req);}catch(e){return response(res,401,{error:e.message});}
     const photoRoute=url.pathname.startsWith('/api/catalog-photo/');
-    const current=await (photoRoute?loadPhotoAccess():load());const role=roleFor(current,user);
+    let current=await (photoRoute?loadPhotoAccess():load()),role=roleFor(current,user);
+    const owner=isPreviewOwner(user,role);
+    const permissionTestPath=url.pathname==='/api/permission-test';
+    const previewPage=url.pathname==='/permission-preview';
+    const {present:previewPresent,session:preview}=permissionPreview.inspect(user,req.headers.cookie);
+    const previewRequest=req.headers['x-bci-permission-preview']==='1';
+    if((permissionTestPath||previewPage||previewPresent||previewRequest)&&!owner)return response(res,403,{error:'Owner access required'});
+    if(previewPresent&&url.pathname.startsWith('/api/security/'))return response(res,403,{error:'Return to My View to manage security'});
+    if(previewPresent&&url.pathname==='/security'){res.writeHead(303,{location:'/permission-preview','cache-control':'no-store'});return res.end();}
+    if((previewPresent||previewRequest)&&url.pathname==='/api/signout')return response(res,403,{error:'Return to My View before signing out'});
     if(!role)return response(res,403,{error:'Email is not authorized for BCI Operations. Ask Greg to add this user.'});
     if(url.pathname==='/api/signout'){
       if(req.method!=='POST')return response(res,405,{error:'Method not allowed'});
@@ -294,7 +314,7 @@ const server=http.createServer(async(req,res)=>{
       return response(res,200,{redirect:user.issuer?'/cdn-cgi/access/logout':'/signed-out'});
     }
     if(securityStore){
-      const securityAsset=['/security','/security.js','/security.css','/signin.js','/modules/agent-api.js'].includes(url.pathname);
+      const securityAsset=['/security','/security.js','/security.css','/signin.js','/modules/agent-api.js','/tactile-buttons.css','/modules/tactile-buttons.js'].includes(url.pathname);
       const appLogin=isAppSignIn(signIn,user);
       const emailAllowed=appLogin&&canUseEmail(signIn,role,effectivePermissions(current,user,role));
       let auth={};
@@ -346,11 +366,44 @@ const server=http.createServer(async(req,res)=>{
         }));
       }
       if(!securityAsset&&(!auth.allowed||(appLogin&&!appGateReady))){
-        if(url.pathname==='/'&&req.method==='GET'){res.writeHead(303,{location:'/security','cache-control':'no-store'});return res.end();}
+        if((url.pathname==='/'||previewPage)&&req.method==='GET'){if(previewPage&&owner)res.setHeader('set-cookie',permissionPreview.end(user,req.headers.cookie));res.writeHead(303,{location:'/security','cache-control':'no-store'});return res.end();}
         return response(res,403,{error:'Complete authenticator verification first'});
       }
     }else if(['/security','/security.js','/security.css','/signin.js','/modules/agent-api.js'].includes(url.pathname)||url.pathname.startsWith('/api/security/')){
       return response(res,404,{error:'Not found'});
+    }
+    if(permissionTestPath){
+      if(req.method==='GET'){
+        if(previewPresent||previewRequest)return response(res,409,{error:'Return to My View before choosing another test.'});
+        return response(res,200,{profiles:(current.permissionProfiles||[]).map(({id,name})=>({id,name}))});
+      }
+      if(req.method!=='POST')return response(res,405,{error:'Method not allowed'});
+      if(req.headers['sec-fetch-site']==='cross-site'||(publicOrigin&&req.headers.origin!==publicOrigin))return response(res,403,{error:'Untrusted request origin'});
+      const body=await securityBody(req,{allowLocalOrigin:true});
+      if(body.operation==='exit'&&previewRequest){
+        res.setHeader('set-cookie',permissionPreview.end(user,req.headers.cookie));
+        return response(res,200,{location:'/'});
+      }
+      if(body.operation!=='start'||previewRequest||previewPresent)return response(res,400,{error:'Invalid permission test operation'});
+      const preset=['tech','office','admin','hidden'].includes(body.id)?body.id:null;
+      const profile=preset?null:(current.permissionProfiles||[]).find(profile=>profile.id===body.id);
+      if(!preset&&!profile)return response(res,400,{error:'Choose a valid permission level'});
+      const role=['office','admin'].includes(preset)?preset:'tech';
+      const selected=profile?{...structuredClone(profile),id:'preview-profile',name:'Selected Test Profile'}:
+        preset==='hidden'?{id:'preview-hidden-profile',schemaVersion:4,permissions:[]}:null;
+      res.setHeader('set-cookie',permissionPreview.start(user,req.headers.cookie,role,selected));
+      return response(res,200,{location:'/permission-preview'});
+    }
+    if(previewPresent&&!previewPage&&['/','/index.html'].includes(url.pathname)&&req.method==='GET'){
+      res.writeHead(303,{location:'/permission-preview','cache-control':'no-store'});return res.end();
+    }
+    if(!previewPage&&(previewPresent||previewRequest)&&url.pathname.startsWith('/api/')){
+      if(!preview?.active)return response(res,409,{error:'Permission preview expired. Return to My View.'});
+      if(!previewRequest&&!(req.method==='GET'&&previewAsset(url.pathname)))return response(res,409,{error:'Open the active Test Permissions tab first.'});
+      if(!previewApis.has(url.pathname)&&!previewAsset(url.pathname))return response(res,403,{error:'This integration is unavailable in Test Permissions.'});
+      current=preview.state;
+      user={email:previewEmail};
+      role=preview.role;
     }
     if(url.pathname==='/api/changelog'){
       if(role!=='admin')return response(res,403,{error:'Admin access required'});
@@ -415,7 +468,7 @@ const server=http.createServer(async(req,res)=>{
     }
     const principal=recordPrincipal(current,user,role,permissions,recordScopes);
     const scoped=scopeState(current,principal);
-    const rawDatabaseTesting = Boolean(pool && testingOwner && role==='admin' && user.email.toLowerCase()===testingOwner);
+    const rawDatabaseTesting = Boolean(!preview && pool && testingOwner && role==='admin' && user.email.toLowerCase()===testingOwner);
     if(req.method==='GET'&&url.pathname==='/api/testing/database'){
       const raw=url.searchParams.get('mode')==='raw';
       if(raw?!rawDatabaseTesting:!permissions.includes('database.view'))return response(res,403,{error:'Database Testing access required.'});
@@ -446,7 +499,7 @@ const server=http.createServer(async(req,res)=>{
         return response(res,500,{error:'Could not read the application database.'});
       }
     }
-    if(req.method==='GET'&&url.pathname==='/api/me')return response(res,200,{email:user.email,role,accessRevision:current.meta?.accessRevision||0,...access});
+    if(req.method==='GET'&&url.pathname==='/api/me')return response(res,200,{email:user.email,role,accessRevision:current.meta?.accessRevision||0,...access,permissionTestAvailable:owner&&!preview,permissionTestMode:Boolean(preview)});
     if(req.method==='GET'&&url.pathname==='/api/training/state'){
       if(!permissions.includes('training.view'))return response(res,403,{error:'Training permission required'});
       const practice=trainingState(current,{email:user.email,role,permissions});
@@ -457,6 +510,12 @@ const server=http.createServer(async(req,res)=>{
       if(req.method!=='GET')return response(res,405,{error:'Method not allowed'});
       if(!permissions.includes('staff.view'))return response(res,403,{error:'Staff access required'});
       return response(res,200,await profileWeather());
+    }
+    if(url.pathname.startsWith('/api/staff-directory/')){
+      if(req.method!=='GET')return response(res,405,{error:'Method not allowed'});
+      if(!permissions.includes('staff.view'))return response(res,403,{error:'Staff access required'});
+      const result=staffDirectoryDetail(current,principal,url.pathname.split('/').at(-1),scoped);
+      return response(res,result?200:404,result||{error:'Staff profile unavailable'});
     }
     if(url.pathname==='/api/staff-summary'){
       if(req.method!=='GET')return response(res,405,{error:'Method not allowed'});
@@ -472,15 +531,17 @@ const server=http.createServer(async(req,res)=>{
       const exposed=visibleState(scoped,role,permissions);
       if(permissions.includes('invoice.group'))exposed.workorders=exposed.workorders.map(order=>({...order,crewSummary:crewSummary(order.entries)}));
       exposed.workorders=staffTechnicianIcons(current,principal,exposed.workorders);
-      return response(res,200,{...exposed,warehouseFieldPurchases:warehouseFieldPurchases(current,scoped,principal),teamAccess:role==='admin'?Object.fromEntries([...new Set([user.email,...(current.users||[]).map(member=>member.email),...(process.env.BCI_ADMIN_EMAILS||'').split(',').map(email=>email.trim().toLowerCase()).filter(Boolean)])].map(email=>{
+      const fleet=vehiclesView(current,principal);
+      exposed.calendar=calendarView(current,scoped,principal,fleet);
+      return response(res,200,{...exposed,warehouseFieldPurchases:warehouseFieldPurchases(current,scoped,principal),teamAccess:role==='admin'?Object.fromEntries([...new Set([user.email,...(current.users||[]).map(member=>member.email),...(preview?[]:(process.env.BCI_ADMIN_EMAILS||'').split(',').map(email=>email.trim().toLowerCase()).filter(Boolean))])].map(email=>{
           const account={email};
-          const effectiveRole=roleFor(current,account);
+          const effectiveRole=preview&&email===previewEmail?role:roleFor(current,account);
           return [email,{protectedAdmin:(process.env.BCI_ADMIN_EMAILS||'').split(',').some(value=>value.trim().toLowerCase()===email.toLowerCase())||process.env.APP_AUTH_MODE==='local'&&email==='local-admin@example.invalid',role:effectiveRole,...effectiveAccess(current,account,effectiveRole)}];
-        })):undefined,training:permissions.includes('training.view')?{started:(current.trainingWorkspaces||[]).some(item=>item.email===user.email)}:undefined,notifications:permissions.includes('notification.view')?notificationView(scoped,principal,push):undefined,
+        })):undefined,training:permissions.includes('training.view')?{started:(current.trainingWorkspaces||[]).some(item=>item.email===user.email)}:undefined,notifications:permissions.includes('notification.view')?notificationView(scoped,principal,preview?{}:push):undefined,
         mailIntake:permissions.includes('mail.intake')&&permissions.includes('tickets.view')?{
-          enabled:mailbox.enabled,address:mailbox.mailbox,lastSuccess:current.mailSync?.identity===mailbox.identity?current.mailSync.lastSuccess:undefined,error:mailError,
+          enabled:!preview&&mailbox.enabled,address:preview?undefined:mailbox.mailbox,lastSuccess:!preview&&current.mailSync?.identity===mailbox.identity?current.mailSync.lastSuccess:undefined,error:preview?'':mailError,
           messages:(current.mailQueue||[]).map(({attachments,...message})=>({...message,attachmentCount:attachments.length}))
-        }:undefined,ticketOverview:permissions.includes('tickets.view')?ticketOverview(scoped,principal):undefined,pricingOverview:permissions.includes('pricing.view')?pricingOverview(scoped,permissions):undefined,accessSync:role==='admin'?accessSync.status():undefined,permissionGroups:role==='admin'?permissionGroups:undefined,modulePermissions:role==='admin'?modulePermissions:undefined,permissionMatrix:role==='admin'?permissionMatrix:undefined,stats:finance?moneyStats(scoped):null,dashboardLayout:dashboardLayout(current,principal),moneyOrders:permissions.includes('money.view')&&permissions.includes('finance.view')?moneyWorkOrderRows(scoped):undefined,vehicles:vehiclesView(current,principal),staff:staffView(current,principal,new Set(scoped.workorders.map(w=>w.id)),new Set(scoped.projects.map(project=>project.id)),scoped,selectedContributionYear),storage:dbProvider,me:{email:user.email,role,accessRevision:current.meta?.accessRevision||0,clock:permissions.includes('workorders.view')?(current.activeClocks||[]).find(c=>c.email===user.email&&scoped.workorders.some(w=>w.id===c.workorderId)):undefined,clockDefault:permissions.includes('workorders.view')?(current.clockDefaults||[]).find(c=>c.email===user.email):undefined,databaseTesting:permissions.includes('database.view'),rawDatabaseTesting,...access}});
+        }:undefined,ticketOverview:permissions.includes('tickets.view')?ticketOverview(scoped,principal):undefined,pricingOverview:permissions.includes('pricing.view')?pricingOverview(scoped,permissions):undefined,accessSync:role==='admin'&&!preview?accessSync.status():undefined,permissionGroups:role==='admin'?permissionGroups:undefined,modulePermissions:role==='admin'?modulePermissions:undefined,permissionMatrix:role==='admin'?permissionMatrix:undefined,permissionDependencies:role==='admin'?permissionDependencies:undefined,stats:finance?moneyStats(scoped):null,dashboardLayout:dashboardLayout(current,principal),moneyOrders:permissions.includes('money.view')&&permissions.includes('finance.view')?moneyWorkOrderRows(scoped):undefined,vehicles:fleet,staff:staffView(current,principal,new Set(scoped.workorders.map(w=>w.id)),new Set(scoped.projects.map(project=>project.id)),scoped,selectedContributionYear),storage:preview?'test':dbProvider,me:{email:user.email,role,permissionTestAvailable:owner&&!preview,permissionTestMode:Boolean(preview),accessRevision:current.meta?.accessRevision||0,clock:permissions.includes('workorders.view')?(current.activeClocks||[]).find(c=>c.email===user.email&&scoped.workorders.some(w=>w.id===c.workorderId)):undefined,clockDefault:permissions.includes('workorders.view')?(current.clockDefaults||[]).find(c=>c.email===user.email):undefined,databaseTesting:permissions.includes('database.view'),rawDatabaseTesting,...access}});
     }
     if(req.method==='POST'&&(packRoute||['/api/action','/api/training/action'].includes(url.pathname))){
       if(req.headers['sec-fetch-site']==='cross-site'||(publicOrigin&&req.headers.origin!==publicOrigin))return response(res,403,{error:'Untrusted request origin'});
@@ -498,16 +559,18 @@ const server=http.createServer(async(req,res)=>{
       let body;try{body=JSON.parse(raw);}catch{return response(res,400,{error:'Invalid JSON request'});}
       if(!body||typeof body.action!=='string'||!body.data||typeof body.data!=='object'||Array.isArray(body.data))throw new Error('Invalid action');
       if(packRoute!==catalogPackAction(body.action))return response(res,400,{error:'Use the matching catalog-pack endpoint'});
+      if(preview&&previewExcluded.has(body.action))return response(res,403,{error:'This operation is unavailable in Test Permissions.'});
       if(url.pathname==='/api/training/action'){
         if(!permissions.includes('training.view'))return response(res,403,{error:'Training permission required'});
-        const result=await enqueue(()=>writeState(state=>{
-          const currentRole=roleFor(state,user);
+        const runTraining=state=>{
+          const currentRole=preview?role:roleFor(state,user);
           const grants=currentRole?effectivePermissions(state,user,currentRole):[];
           const trainingResult=trainingAction(state,body.action,body.data,{email:user.email,role:currentRole,permissions:grants});
           // Return only fields that callers need. Practice data reads use the same
           // field filters as other application state responses.
           return JSON.parse(JSON.stringify(trainingResult,(key,value)=>!grants.includes('finance.view')&&['cost','unitCost'].includes(key)?undefined:value));
-        }));
+        };
+        const result=preview?await permissionPreview.mutate(preview,runTraining):await enqueue(()=>writeState(runTraining));
         return response(res,200,{ok:true,result});
       }
       try{
@@ -543,9 +606,25 @@ const server=http.createServer(async(req,res)=>{
       }
       if(body.action==='payroll.preview') return response(res,200,{ok:true,result:payrollPreview(scoped,body.data.start,body.data.end)});
       if(body.action==='customers.importPreview') return response(res,200,{ok:true,result:runCustomerImport(structuredClone(current),body.data)});
-      if(body.action==='catalog.packPreview')return response(res,200,{ok:true,result:planCatalogPack(current,body.data.pack,catalogPhotoIds).summary});
+      if(body.action==='catalog.packPreview')return response(res,200,{ok:true,result:planCatalogPack(current,body.data.pack,catalogPhotoIds,catalogPackPhotoPolicy).summary});
       if(body.action==='catalog.importPreview') return response(res,200,{ok:true,result:catalogImportSummary(planCatalogImport(current,body.data))});
-      const job=chain.then(async()=>{
+      const job=preview?permissionPreview.mutate(preview,next=>{
+        // All function inputs come from the preview copy, never the live database.
+        const ownAccess=effectiveAccess(next,user,role);
+        const actor=recordPrincipal(next,user,role,ownAccess.permissions,ownAccess.recordScopes);
+        authorizePermission(body.action,role,actor.permissions,body.data);
+        authorizeRecordAction(next,actor,body.action,body.data);
+        if(['project.create','project.contact'].includes(body.action)&&body.data.newContact)authorizePermission('contact.create',role,actor.permissions);
+        if(body.action==='project.create'&&body.data.serviceCategory)authorizePermission('pricing.project',role,actor.permissions);
+        const result=body.action==='record.assign'?assignRecord(next,actor,body.data):
+          body.action==='customers.import'?runCustomerImport(next,body.data):
+          body.action.startsWith('notification.')?notificationAction(next,body.action,body.data,actor):
+          applyAction(next,body.action,body.data,actor);
+        stampRecordOwner(body.action,body.data,next,result,actor);
+        if(body.action==='customers.import'&&result.conflicts.length)throw Error('Import blocked by conflicts. Run preview and resolve the listed matches.');
+        return result;
+      }):chain.then(async()=>{
+
         if(body.action==='access.sync'){
           const latest=await load();
           const latestRole=roleFor(latest,user);
@@ -558,10 +637,10 @@ const server=http.createServer(async(req,res)=>{
           catch{console.error('Could not load users for Cloudflare Access sync');}
         }
         return result;
-      });chain=job.catch(()=>{});
+      });if(!preview)chain=job.catch(()=>{});
       const result=await job;
-      const latest=await load();
-      const latestRole=roleFor(latest,user);
+      const latest=preview?preview.state:await load();
+      const latestRole=preview?role:roleFor(latest,user);
       if(!latestRole)return response(res,403,{error:'App access required'});
       const finalPermissions=effectivePermissions(latest,user,latestRole);
       const hidden=new Set();
@@ -572,12 +651,12 @@ const server=http.createServer(async(req,res)=>{
     }
     if(req.method!=='GET'&&req.method!=='HEAD')return response(res,405,{error:'Method not allowed'});
     if(url.pathname==='/security.html')return response(res,404,{error:'Not found'});
-    let rel=url.pathname==='/'?'index.html':url.pathname==='/security'?'security.html':decodeURIComponent(url.pathname.slice(1));
+    let rel=url.pathname==='/'||previewPage?'index.html':url.pathname==='/security'?'security.html':decodeURIComponent(url.pathname.slice(1));
     if(rel.includes('..')||rel.includes('\\')||rel.startsWith('.'))return response(res,403,{error:'Forbidden'});
     const file=path.resolve(publicRoot,rel);
     if(!file.startsWith(publicRoot+path.sep))return response(res,403,{error:'Forbidden'});
     let body;try{body=await fs.readFile(file);}catch(e){if(e.code==='ENOENT')return response(res,404,{error:'Not found'});throw e;}
-    if(rel==='index.html')body=body.toString('utf8').replace('{{BCI_RELEASE}}',release).replace('{{BCI_SECURITY_LINK}}',securityStore?'<a href="/security">User Security</a>':'');
+    if(rel==='index.html')body=body.toString('utf8').replace('{{BCI_RELEASE}}',release).replace('{{BCI_SECURITY_LINK}}',securityStore&&!previewPage?'<a href="/security">User Security</a>':'');
     res.writeHead(200,{'content-type':mime[path.extname(file)]||'application/octet-stream','cache-control':'no-store','x-content-type-options':'nosniff','referrer-policy':'no-referrer','x-frame-options':'DENY','content-security-policy':"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'"});
     return res.end(req.method==='HEAD'?undefined:body);
   }catch(e){

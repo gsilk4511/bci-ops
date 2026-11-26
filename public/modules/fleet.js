@@ -2,7 +2,7 @@ import {can,data,esc,f,modal,render,send,today} from '../app.js';
 import {receiptPayload} from './work-entry.js';
 import {fleetStyle,fleetStyleFields,fleetStyleVars,profileStyleOptions} from './fleet-style.js';
 
-const kinds={oil:'Oil change',registration:'Registration',inspection:'Inspection',rotation:'Tire rotation',cleaning:'Cab cleanup',service:'General service',repair:'Repair'};
+const kinds={insurance:'Insurance',oil:'Oil change',registration:'Registration',inspection:'Inspection',rotation:'Tire rotation',cleaning:'Cab cleanup',service:'General service',repair:'Repair'};
 const types=[['insurance','Insurance card'],['registration','Registration'],['inspection','Inspection'],['dmv','DMV / restricted'],['other','Other / restricted']];
 const colors=[['slate','Slate'],['blue','Blue'],['green','Green'],['amber','Amber'],['red','Red']];
 const colorNames=new Set(colors.map(([key])=>key));
@@ -64,6 +64,10 @@ function showFleetLocation(selector,y,vehicleId=''){
  if(typeof requestAnimationFrame==='function')requestAnimationFrame(restore);
  else if(typeof window!=='undefined')restore();
 }
+export function selectFleetVehicle(id){
+ if(!(data?.vehicles?.records||[]).some(row=>row.id===id))return false;
+ selectedVehicle=id;return true;
+}
 export function fleetPage(){
  const fleet=data?.vehicles;
  if(!fleet||!can('vehicles.view'))return '<section class="panel"><h1>Vehicles</h1><p>Fleet data is unavailable.</p></section>';
@@ -80,7 +84,7 @@ export function fleetPage(){
      ${entry.dueMileage==null?'':line('Next at odometer',miles(entry.dueMileage))}
      ${entry.intervalDays||entry.intervalMiles?line('Repeats',[entry.intervalDays&&`every ${entry.intervalDays} days`,entry.intervalMiles&&`every ${miles(entry.intervalMiles)}`].filter(Boolean).join(' or ')):''}
      ${line('Last completed',dateText(entry.lastCompletedDate))}${line('Assigned to',person(entry.assignedEmail||row.assignedEmail))}
-     ${visit?line('Booked',esc([visit.date,visit.time,visit.location].filter(Boolean).join(' · '))):''}</dl>
+     ${visit?line('Booked',esc([visit.date,visit.time&&[visit.time,visit.endTime].filter(Boolean).join('–'),visit.location].filter(Boolean).join(' · '))):''}</dl>
      ${badge(entry.status||'not-set',status[entry.status]||'Not scheduled')}
      ${visit&&visit.date>=fleet.today?badge('booked','Booked'):''}
      ${key==='cleaning'&&row.needsCleanup?badge('soon','Needs cleanup'):''}
@@ -220,7 +224,7 @@ document.addEventListener('click',event=>{
  }
  if(key==='book'&&Object.hasOwn(kinds,type)){
   modal('Book '+kinds[type].toLowerCase(),dateField('appointmentDate','Appointment date (blank to clear)',entry.appointment?.date)+
-   f('appointmentTime','Time',{type:'time',value:entry.appointment?.time})+f('location','Location',{value:entry.appointment?.location}),
+   f('appointmentTime','Start time',{type:'time',value:entry.appointment?.time})+f('appointmentEndTime','Finish time (optional)',{type:'time',value:entry.appointment?.endTime})+f('location','Location',{value:entry.appointment?.location}),
    values=>submit('bookService',{...values,type}),'<p>Updates Vehicles only. No calendar invite is sent.</p>');return;
  }
  if(key==='complete'&&Object.hasOwn(kinds,type)){

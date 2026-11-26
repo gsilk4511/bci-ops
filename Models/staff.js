@@ -131,12 +131,32 @@ function publicProfile(state,email){
 }
 function directoryEmails(state,actor){
  return [...new Set([staffKey(actor.email),...(state.users||[]).filter(row=>row.active!==false).map(row=>staffKey(row.email)),
- ...(process.env.BCI_ADMIN_EMAILS||'').split(',').map(staffKey)])].filter(Boolean);
+ ...(state.meta?.permissionPreview?[]:(process.env.BCI_ADMIN_EMAILS||'').split(',').map(staffKey))])].filter(Boolean);
 }
 export function staffAvatar(state,actor,id){
  if(!actor?.email||!has(actor,'staff.view')||!/^[0-9a-f]{64}$/.test(id||''))return null;
  const email=directoryEmails(state,actor).find(email=>profileId(email)===id);
  return email?avatarImage(profileAt(state,email)?.avatarBase64):null;
+}
+export function staffDirectoryDetail(state,actor,id,scoped){
+ if(!actor?.email||!has(actor,'staff.view')||!/^[0-9a-f]{64}$/.test(id||''))return null;
+ const email=directoryEmails(state,actor).find(email=>profileId(email)===id);
+ if(!email)return null;
+ const shared=publicProfile(state,email);
+ if((actor.role!=='admin'||!has(actor,'staff.manage'))&&staffKey(actor.email)!==email)return {profile:shared};
+ const orderIds=new Set((scoped.workorders||[]).map(row=>row.id)),projectIds=new Set((scoped.projects||[]).map(row=>row.id));
+ const subject={...actor,email,role:'profile-subject'};
+ const {profile,weeklyTime,time,projects,leave,overview,contribution}=staffView(state,subject,orderIds,projectIds,scoped);
+ const wage=profileAt(state,email);
+ return {profile,weeklyTime,time,projects,leave,overview,contribution,
+  hourlyWages:verifiedWageHistory(wage),profitShareByYear:profileProfitShare(wage)};
+}
+function delegatedTargets(state,actor){
+ if(actor.role!=='admin'||!['workorders.view','entry.add','staff.manage'].every(key=>has(actor,key)))return undefined;
+ const users=state.users||[];
+ return users.filter(row=>row.active!==false&&staffKey(row.email)!==staffKey(actor.email)&&['tech','office','admin'].includes(row.role)&&
+  users.filter(other=>staffKey(other.email)===staffKey(row.email)).length===1).map(row=>({email:staffKey(row.email),name:staffName(state,row.email)}))
+  .sort((a,b)=>a.name.localeCompare(b.name)||a.email.localeCompare(b.email));
 }
 function internalChoice(state) {
  const rows=(state.projects||[]).filter(project=>isInternalProject(state,project));
@@ -157,14 +177,14 @@ export function staffMetrics(state,actor,metricsState,year=contributionYear(),vi
   const visible=new Map((metricsState.workorders||[]).map(order=>[order.id,order]));
   const scopeIncomplete=(state.workorders||[]).some(order=>!order.billingHidden&&!internalOrder(state,order)&&
    (!visible.has(order.id)||visible.get(order.id).billingHidden)&&(order.entries||[]).some(row=>ownLiveLabor(row,email)&&possibleLiveDay(row.date,year,today)));
-  const options={year,now,profitShareBps:rateForYear(profile,year),wageHistory:contributionWageHistory(profile),scopeIncomplete};
+  const options={year,now,profitShareBps:rateForYear(profile,year),wageHistory:contributionWageHistory(profile),scopeIncomplete,payrollState:state};
   const named=new Map((state.projects||[]).filter(p=>has(actor,'projects.view')&&(!visibleProjectIds||visibleProjectIds.has(p.id))).map(p=>[p.id,p]));
   const scopedSummary=mode=>{
    const view=liveTechnicianContribution(metricsState,email,{...options,mode});
    view.projects=view.projects.map(row=>{
     const project=named.get(row.projectId);
     return {attributedCents:row.attributedCents,laborHours:row.laborHours,orderCount:row.orderCount,employmentCostCents:row.employmentCostCents,
-     netProfitCents:row.netProfitCents,afterTaxProfitCents:row.afterTaxProfitCents,projectId:project?.id??null,projectName:project?.name??'Project'};
+     netProfitCents:row.netProfitCents,afterTaxProfitCents:row.afterTaxProfitCents,projectId:project?.id??null,projectName:row.projectId==null?'Non-project payroll':project?.name??'Project'};
    });
    return view;
   };
@@ -206,7 +226,7 @@ export function staffView(state,actor,visibleOrderIds,visibleProjectIds,metricsS
  const {weeklyTime,contribution}=staffMetrics(state,actor,metricsState,year,visibleProjectIds);
  const records=state.staffLeave||[];
  const internalProject=has(actor,'staff.internal')&&has(actor,'workorder.create')&&has(actor,'workorders.view')?internalChoice(state):null;
- return {businessManager:businessManagerView(state,actor),weeklyTime,contribution,profile:{...safeProfile(state,email),...publicProfile(state,email)},directory:directoryEmails(state,actor).map(email=>publicProfile(state,email)).sort((a,b)=>a.displayName.localeCompare(b.displayName)),
+ return {entryTargets:delegatedTargets(state,actor),businessManager:businessManagerView(state,actor),weeklyTime,contribution,profile:{...safeProfile(state,email),...publicProfile(state,email)},directory:directoryEmails(state,actor).map(email=>publicProfile(state,email)).sort((a,b)=>a.displayName.localeCompare(b.displayName)),
   overview:{workorders:ordersWorked.size,projects:projectsWorked.size},projects:[...projects.values()].map(project=>({...project,hours:Math.round(project.hours*100)/100})),time,leave:records.filter(row=>row.email===email),
   ...(admin?{staffProfiles:[...new Set([email,...(state.users||[]).map(user=>staffKey(user.email))])].filter(Boolean).map(key=>({...safeProfile(state,key),profitShareByYear:profileProfitShare(profileAt(state,key)),hourlyWages:verifiedWageHistory(profileAt(state,key))})),
    requests:records.filter(row=>row.status==='Pending')}:{}),internalAvailable:Boolean(internalProject)};

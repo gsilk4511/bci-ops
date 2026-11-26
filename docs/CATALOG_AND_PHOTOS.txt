@@ -1,3 +1,8 @@
+CURRENT RELEASE: The documentation below describes an older package. As of
+0.10.6, `Server/CatalogPhotos` is no longer packaged or built. The importer can
+load otherwise eligible parts from older packs while skipping unavailable photo
+assets. Existing catalog, stock, and separate operational uploads are retained.
+
 BCI OPERATIONS 0.8.6-catalog.11 | Catalog and part photos
 ======================================================
 

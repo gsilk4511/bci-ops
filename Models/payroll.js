@@ -34,7 +34,7 @@ export function addOtherTime(state,data,actor){
     linkedEmail=employeeKey(data.employeeEmail);
     if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(linkedEmail)||linkedEmail.length>254)throw Error('Enter an active employee’s Team sign-in email');
     const matches=(state.users||[]).filter(row=>employeeKey(row.email)===linkedEmail);
-    const protectedAdmins=(process.env.BCI_ADMIN_EMAILS||'').split(',').map(employeeKey);
+    const protectedAdmins=state.meta?.permissionPreview?[]:(process.env.BCI_ADMIN_EMAILS||'').split(',').map(employeeKey);
     if(matches.length>1||matches.length===1&&matches[0].active===false||
       !matches.length&&linkedEmail!==employeeKey(actor.email)&&!protectedAdmins.includes(linkedEmail))throw Error('Enter an active employee’s Team sign-in email');
     const profile=(state.staffProfiles||[]).find(row=>employeeKey(row.email)===linkedEmail);
@@ -95,4 +95,17 @@ export function approvePayroll(state,data,actor){
   });
   const run={...preview,rows,payDate,id:randomUUID(),approvedAt:new Date().toISOString(),approvedBy:actor.email};
   (state.payrollRuns??=[]).push(run);return run;
+}
+
+// Records confirmation only; it does not run payroll, send payment or alter locked rows.
+export function markPayrollPaid(state,data,actor,now=new Date()){
+  if(!actor?.permissions?.includes('payroll.view')||!actor.permissions.includes('payroll.approve'))throw Error('Payroll approval access required');
+  const run=(state.payrollRuns||[]).find(row=>row.id===data.id);
+  if(!run?.approvedAt||!Array.isArray(run.entries))throw Error('Only an approved payroll period can be marked paid');
+  if(data.confirmation!=='paid')throw Error('Confirm payroll was already paid outside this app');
+  if(run.paidAt)return {id:run.id,paidAt:run.paidAt};
+  run.paidAt=now.toISOString();
+  run.paidBy=actor.email;
+  (state.events??=[]).unshift({id:randomUUID(),at:run.paidAt,action:'payroll.markPaid',reference:run.id,detail:'Confirmed by '+actor.email});
+  return {id:run.id,paidAt:run.paidAt};
 }

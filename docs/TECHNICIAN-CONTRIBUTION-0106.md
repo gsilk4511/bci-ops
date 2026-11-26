@@ -1,0 +1,10 @@
+# Technician Contribution and payroll payment confirmation
+
+- The employee's Work Order and other payroll rows supply payable hours. Customer labor alone earns revenue. Shop, travel and eligible paid time supply payroll costs, not revenue. Internal and non-project costs are not billed to customers. Employment cost is wages plus 25%.
+- Set effective-date wage history in My Time & Profile → Staff profiles. A legacy value explicitly written as “$31/hour” is usable as a fallback only if no dated wage record exists. Display labels, salaries and ambiguous numeric text are not interpreted as wages. Configure the existing staff workweek if Accrual could include overtime. When configured, Accrual estimates overtime on hours worked beyond 40 in that week; paid leave is not worked time. The legally approved payroll calculation and entries are unchanged. Cash uses approved overtime totals from the locked run.
+- For Cash, a scheduled pay date or approved payroll does not prove payment. Once payroll is actually paid elsewhere, use Payroll review → Approved pay periods → **Mark payroll paid**, confirm the checkbox, and save. It records the confirmation time and actor; it never sends payment or changes locked payroll. Billable work still needs a recorded invoice. Customer payment is not required. Historical approved runs will not be inferred to be paid automatically; confirm only runs supported by actual payment records.
+- Year-to-date labor profit less the 30% reserve on positive labor profit is used to show the estimated bonus. It is not a payment instruction or tax statement.
+
+# Staff profile and employer time entry
+
+Team Directory expands a profile card; selecting its avatar opens the full view. Coworkers see the shared profile only; an authorized employer can see wage and payroll details. Use **Log time for employee** on an approved open work order, choose the active Team account and enter timed or duration-based labor/travel. The employee owns the payroll entry; the employer remains the journal submitter. Normal order/payroll locks still apply.

@@ -13,10 +13,11 @@ function records(kind){
  if(kind==='contact')return data.customers.flatMap(c=>(c.contacts||[]).map(contact=>({...contact,customerId:c.id,clientName:c.business||c.name})));
  return data[arrays[kind]]||[];
 }
-export function recordTools(){
+export function recordTools(inline=false){
  const kind=kinds[view];
  if(!allowedFor(kind))return '';
- return '<div class="actions"><button class="secondary" id="manageRecords">'+(managing===view?'Return to overview':'Manage records')+'</button></div>';
+ const button='<button type="button" class="secondary" id="manageRecords">'+(managing===view?'Return to overview':inline?'Manage Records':'Manage records')+'</button>';
+ return inline?button:'<div class="actions">'+button+'</div>';
 }
 export function managingRecords(){return managing===view&&allowedFor(kinds[view]);}
 export function recordManager(){
@@ -117,7 +118,7 @@ function addCancel(){
 }
 export function wireRecords(){
  document.querySelector('#manageRecords')?.addEventListener('click',()=>{managing=managing===view?'':view;render();});
- if(!managingRecords())return;
+ if(!managingRecords()||!document.querySelector('#recordSearch'))return;
  showRows();
  document.querySelector('#recordSearch').addEventListener('input',showRows);
  document.querySelector('#recordKind')?.addEventListener('change',showRows);

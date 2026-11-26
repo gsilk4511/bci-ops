@@ -1,3 +1,4 @@
+import {calendarAction} from './calendar.js';
 import {saveDashboardLayout} from './dashboard-layouts.js';
 import {attributedEmail} from './time-attribution.js';
 import {completeAssignedCleanup,vehiclesAction} from './vehicles.js';
@@ -14,7 +15,7 @@ import { savePricing } from './pricing-profiles.js';
 import { handleRecordAction, handleContactEdit } from './records.js';
 import { createHash } from 'node:crypto';
 import { clientPricingChoices, serviceCategories, pricingNumber, partRule, orderRate, repriceOpenOrders } from './pricing.js';
-import { addOtherTime, approvePayroll, checkTimeEntry, validDate, timeMinutes, employeeKey } from './payroll.js';
+import { addOtherTime, approvePayroll, markPayrollPaid, checkTimeEntry, validDate, timeMinutes, employeeKey } from './payroll.js';
 import { normalizeProfileAccess } from './permissions.js';
 export const money = (n) => Math.round((Number(n) + Number.EPSILON) * 100) / 100;
 const now = () => new Date().toISOString();
@@ -178,7 +179,7 @@ export function crewSummary(entries) {
   }
   return result.sort((a,b)=>a.date.localeCompare(b.date)||a.crewSize-b.crewSize);
 }
-const addWorkEntry = (state, wo, data, actor, previous=null) => {
+const addWorkEntry = (state, wo, data, actor, previous=null, enteredFor=null) => {
   if (!approved(wo)) throw new Error('Work is not released until customer signoff');
   if (!previous&&(wo.closeout || wo.invoice)) throw new Error('Closed work order: entries cannot be added');
   const type = text(data.type, 'Entry type', 20);
@@ -187,6 +188,7 @@ const addWorkEntry = (state, wo, data, actor, previous=null) => {
   const date=validDate(data.date||now().slice(0,10));
   const startTime=String(data.startTime||'').trim(),endTime=String(data.endTime||'').trim();
   const timed=Boolean(startTime||endTime);
+  if(enteredFor&&(type==='material'||! /^(hr|hour|hours|h)$/i.test(cat.unit)||!timed&&Number(data.quantity)>24))throw Error('Choose an hourly labor or travel service and no more than 24 hours');
   if(timed&&type==='material')throw Error('Materials use quantities');
   const serviceChanged=previous&&type!=='material'&&previous.catalogId!==cat.id;
   if(serviceChanged&&!/^(hr|hour|hours|h)$/i.test(cat.unit))throw Error('Choose an hourly service');
@@ -209,7 +211,7 @@ const addWorkEntry = (state, wo, data, actor, previous=null) => {
   if(rate==null)throw Error('Set a fixed price or record a purchase cost before billing this part');
   const description=type==='material'?text(data.description||'Materials used','Description',1000):text(data.description,'Work notes',1000);
   const entry = {id:id('entry'), at:now(), date, startTime:startTime||null, endTime:endTime||null, type, catalogId:cat.id, name:cat.name, quantity, unit:cat.unit, rate, cost,
-    changeId, tech:previous?.tech??staffName(state,actor.email),employeeEmail:previous?previous.employeeEmail:employeeKey(actor.email),createdBy:previous?.createdBy??actor.email,description};
+    changeId, tech:previous?.tech??staffName(state,enteredFor??actor.email),employeeEmail:previous?previous.employeeEmail:employeeKey(enteredFor??actor.email),createdBy:previous?.createdBy??actor.email,description};
   if(sharedTravel)entry.sharedTravel=true;
   if(type!=='material')checkTimeEntry(state,previous?.employeeAttribution?{...entry,employeeEmail:attributedEmail(previous)}:entry,previous?.id);
   if(previous){
@@ -225,7 +227,8 @@ const addWorkEntry = (state, wo, data, actor, previous=null) => {
     entry.stockMovementId=stockMovement(state,wo,entry,{catalogId:cat.id,location},-quantity,'issue',actor);
     if(checked)saveWorkReceipt(state,wo,{...data.receipt,entryId:entry.id},actor,{...checked,entryId:entry.id});
   }
-  event(state, 'entry.add', wo.id, `${type}: ${quantity} ${cat.unit} — ${entry.tech}`);
+  if(enteredFor)event(state,'entry.addForEmployee',wo.id,`${entry.id}: ${type}, ${quantity} ${cat.unit}, ${enteredFor}, entered by ${actor.email}`);
+  else event(state, 'entry.add', wo.id, `${type}: ${quantity} ${cat.unit} — ${entry.tech}`);
   return entry;
 };
 
@@ -311,6 +314,7 @@ export function applyAction(state, action, data={}, actor={email:'system'}) {
   if(action==='pricing.profile.save')return savePricing(state,data,actor);
   if(action.startsWith('ticket.'))return ticketAction(state,action,data,actor);
   if(action.startsWith('estimate.'))return estimateAction(state,action,data,actor,fields=>applyAction(state,'project.create',fields,actor),fields=>applyAction(state,'workorder.create',fields,actor));
+  if(['project.schedule','workorder.schedule','calendar.appointment'].includes(action))return calendarAction(state,action,data,actor);
   if(action==='dashboard.layout')return saveDashboardLayout(state,actor,data);
   if(action==='vehicles.cleanup')return completeAssignedCleanup(state,data,actor);
   if(action==='vehicles.manage')return vehiclesAction(state,data,actor);
@@ -445,6 +449,22 @@ export function applyAction(state, action, data={}, actor={email:'system'}) {
     case 'entry.materialDraft': {
       result=updateMaterialDraft(state,data,actor);break;
     }
+    case 'entry.addForEmployee': {
+      if(actor.role!=='admin'||!['workorders.view','entry.add','staff.manage'].every(key=>actor.permissions?.includes(key)))throw Error('Employer work-order entry access required');
+      const email=employeeKey(data.employeeEmail);
+      const targets=(state.users||[]).filter(row=>employeeKey(row.email)===email);
+      if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)||email===employeeKey(actor.email)||targets.length!==1||targets[0].active===false||!['tech','office','admin'].includes(targets[0].role))throw Error('Choose a different active employee');
+      if(!['labor','travel'].includes(data.type)||data.receipt||data.crew)throw Error('Log labor or travel for one employee');
+      const wo=woFor(state,data.workorderId);
+      if((state.projectInvoices||[]).some(invoice=>invoice.orders?.some(row=>row.id===wo.id||row.workorderId===wo.id)))throw Error('An invoice already contains this order. Use an invoice adjustment instead.');
+      if(typeof data.submissionId!=='string'||!/^[0-9a-f-]{36}$/i.test(data.submissionId))throw Error('Reload the form before submitting time');
+      const existing=wo.entries.find(entry=>entry.submissionId===data.submissionId&&entry.createdBy===actor.email);
+      if(existing){if(existing.employeeEmail!==email)throw Error('This form was already submitted for another employee');return existing;}
+      if((state.activeClocks||[]).some(clock=>employeeKey(clock.email)===email&&(!clock.workDate||clock.workDate===data.date)))throw Error('The employee has a running clock for this date. Clock out before adding time.');
+      result=addWorkEntry(state,wo,data,actor,null,email);
+      result.submissionId=data.submissionId;
+      break;
+    }
     case 'entry.add': {
       const wo=woFor(state,data.workorderId);
       if(data.crew)throw Error('Each employee must record their own time.');
@@ -496,6 +516,7 @@ export function applyAction(state, action, data={}, actor={email:'system'}) {
     }
     case 'payroll.other': result=addOtherTime(state,data,actor);break;
     case 'payroll.approve': result=approvePayroll(state,data,actor);break;
+    case 'payroll.markPaid': result=markPayrollPaid(state,data,actor);break;
     case 'workorder.close': {
       const wo=woFor(state,data.workorderId);
       if(wo.closeout){result=wo.closeout;break;}
@@ -678,7 +699,7 @@ export function applyAction(state, action, data={}, actor={email:'system'}) {
       const profiles=state.permissionProfiles ??= [];
       const existing=data.id ? find(profiles,data.id,'Permission profile') : null;
       if(profiles.some(profile=>profile.id!==existing?.id&&profile.name.toLowerCase()===name.toLowerCase())) throw new Error('A profile already uses that name');
-      const next=normalizeProfileAccess(data);
+      const next=normalizeProfileAccess(data,{repairReadPrerequisites:true});
       const before=existing?structuredClone(existing):null;
       const profile=existing||{id:id('profile')};
       Object.assign(profile,{name,...next});

@@ -1,4 +1,4 @@
-# Update existing BCI Operations staging to 0.10.5
+# Update existing BCI Operations staging to 0.10.6
 
 ## Greg: use the existing staging stack
 
@@ -10,8 +10,11 @@
    `mariadb.env`, MariaDB database name, named volume, bridge, and service
    hostname `db`. Do not replace these with bundled examples.
 4. Confirm the app build context points to the updated source. In the active
-   Compose file, change the app image tag to `bci-operations:0.10.5`. Do not
+   Compose file, change the app image tag to `bci-operations:0.10.6`. Do not
    change the database service. Use the actual app service name if different.
+   This release excludes bundled catalog photos. Its .dockerignore also excludes
+   any old Server/CatalogPhotos directory left from a previous extraction. This
+   does not affect receipts, staff or vehicle photos, or saved catalog rows.
 
 From the deployment directory:
 
@@ -21,10 +24,54 @@ docker compose -f compose.bci-operations-fixed.yml up -d --build --no-deps --for
 docker compose -f compose.bci-operations-fixed.yml exec -T bci-operations node -e "fetch('http://127.0.0.1:3100/api/health').then(r=>r.json()).then(console.log)"
 ```
 
-Recreate by itself does not build a new image. Verify `0.10.5` in the health
-response and beside the BCI logo. For the default-off install no SQL migration, reimport or reseed is needed. To test optional User Security separately, follow USER_SECURITY.md.
+Recreate by itself does not build a new image. Verify `0.10.6` in the health
+response and beside the BCI logo. Do not import or reseed the app database for this update. To test optional User Security separately, follow USER_SECURITY.md.
 If you roll back, restore the previous source, restore its former image tag
 and rebuild only the app. Keep the database and its volume in place.
+
+## Randy: accept 0.10.6 on staging
+
+- Calendar: with example data, open Overview and navigate 1 day, 3 days, 5 days,
+  1 month and 3 months. Test the crew, vehicle and activity filters. A booked
+  vehicle appointment blocks its actual time; an upcoming renewal is a reminder.
+- Schedule: set a project window without booking any labor. Schedule one order
+  for Tuesday and Thursday, not Wednesday, with a named crew and different hours.
+  Verify that Combined draws two inset blocks and your technician can open the
+  order from My Schedule. Try overlapping the same technician on a second order.
+  Switching to the detail page and back must keep the calendar context.
+- Outlook: import the exported schedule to a disposable calendar. Test an
+  edited booking separately; calendar files do not synchronize updates. In a
+  test Outlook account, open the prepared client invite from a single visit,
+  add the recipient as an attendee in Outlook, check local date/time, location
+  and client notes, and verify it is
+  an actual meeting with RSVP before using it with a client. No auto-send.
+- Work orders: compare Time, Travel and Parts. Switch All entries and My entries
+  after an office edit. Check Print, Edit and pricing actions under Actions and
+  the existing confirmation/permissions for Delete. Manage Records belongs on
+  the work-order list, not the individual record. Repeat on a phone.
+- Team: with a temporary role, enable an option with prerequisites, read the
+  explanation, and check what happens when removing a prerequisite. Verify
+  restricted routes also fail when opened directly. As Randy, use Test
+  Permissions beside Sign out, then Return to My View from the narrowest role.
+  Do not validate test-mode isolation using real employee or customer writes.
+- Profiles: expand a staff card in Team Directory and open its photo. A regular
+  coworker must not see private pay, leave, or contribution fields. On a sample
+  order log time for another employee; their payroll and workload get the time
+  and the audit shows the real submitter. Confirm existing locks are still in
+  force and a retry does not post double time.
+- Contribution: compare newly logged time in Accrual to invoiced time with
+  actually paid, locked payroll in Cash. Confirm actual external payroll in
+  **Payroll review → Approved pay periods → Mark payroll paid**. This is a
+  confirmation only, not a disbursement. Paid holiday should contribute to cost,
+  not revenue. For 34 hours worked + 8 holiday at $31 straight pay, confirm
+  wages of $1,302 and employment cost of $1,627.50; with $100,000 labor revenue
+  for the period, estimated labor profit after reserve is $68,860.75.
+- Verify tactile press and visible keyboard focus on desktop and phone, and
+  reduced-motion behavior. Verify Search, Log Materials, a legacy catalog pack,
+  and existing operational receipt uploads without bundled catalog photos.
+
+The remaining sections document acceptance of earlier releases, not changes
+to the current release or a requirement to repeat old migrations.
 
 ## Randy: test technician contribution and bonus projection
 

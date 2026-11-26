@@ -1,3 +1,6 @@
+import './modules/tactile-buttons.js';
+import {permissionPrerequisitePlan,dependentPermissionRemovals} from './modules/permission-prerequisites.js';
+import {testPermissionsView} from './modules/permission-preview.js';
 import {materialGridPage,validMaterialSelection} from './modules/material-grid.js';
 import {servicesPage} from './modules/services.js';
 import {changelogPage,wireChangelog} from './modules/changelog.js';
@@ -6,7 +9,8 @@ import {canEditJournalNote,receiptPicker,receiptPayload} from './modules/work-en
 import {clientPortal,readyForProgress} from './modules/project-billing.js';
 import {wireProfileWeather} from './modules/profile-weather.js';
 import {staffPage} from './modules/staff.js';
-import {fleetPage} from './modules/fleet.js';
+import {calendarPage,calendarBackButton,restoreCalendarScroll,clearCalendar} from './modules/calendar.js';
+import {fleetPage,selectFleetVehicle} from './modules/fleet.js';
 import {workOrderDocument} from './modules/work-order-document.js';
 import {invoicesPage} from './modules/invoices.js';
 import {estimatesPage} from './modules/estimates.js';
@@ -29,11 +33,20 @@ import { teamPage } from './modules/team.js';
 import { accessDescriptors, effectiveModuleAccess, profileEditorValues, modeLabels, scopeLabels, scopedAreas, areaLabel } from './modules/access-matrix.js';
 import { testingPage } from './modules/database-testing.js';
 import { detail } from './modules/work-order-detail.js';
+import {wireFieldJournal} from './modules/field-journal.js';
+import {wireWorkorderActions} from './modules/work-order-actions.js';
 import { projectDetail } from './modules/project-detail.js';
 import { invoiceDocument } from './modules/invoice-document.js';
 
 const $=s=>document.querySelector(s);
 const themeToggle=$('#themeToggle');
+const isTestDocument=testPermissionsView();
+if(isTestDocument){
+ const button=$('#testPermissions'),banner=$('#permissionTestBanner');
+ if(button){button.hidden=false;button.textContent='Return to My View';}
+ if(banner){banner.hidden=false;banner.textContent='Test Mode · Nothing here changes the live app.';}
+ if($('#signOut'))$('#signOut').hidden=true;
+}
 const systemTheme=matchMedia('(prefers-color-scheme: dark)');
 let themeChoice;
 try{themeChoice=localStorage.getItem('bci-theme');}catch{}
@@ -60,7 +73,7 @@ const today=()=>{
  return [now.getFullYear(),pad(now.getMonth()+1),pad(now.getDate())].join('-');
 };
 const roundMoney=value=>Math.round((value+Number.EPSILON)*100)/100;
-const navItems=[['dashboard','◫','Dashboard'],['training','▷','Training'],['customers','♙','Customers'],['projects','▦','Projects'],['estimates','≡','Estimates'],['invoices','▤','Invoices'],['workorders','▤','Work Orders'],['tickets','◇','Tickets'],['notifications','◉','Notifications'],['inventory','▣','Warehouse'],['money','◈','Money'],['reports','▥','Reports'],['payroll','▤','Payroll'],['staff','◷','My Time & Profile'],['services','≡','Services'],['catalog','▦','Pricing'],['team','♧','Team'],['fleet','▰','Vehicles'],['testing','▦','Database Testing'],['changelog','▤','Changelog'],['trash','▤','Trash']];
+const navItems=[['dashboard','◫','Dashboard'],['calendar','▦','Calendar'],['training','▷','Training'],['customers','♙','Customers'],['projects','▦','Projects'],['estimates','≡','Estimates'],['invoices','▤','Invoices'],['workorders','▤','Work Orders'],['tickets','◇','Tickets'],['notifications','◉','Notifications'],['inventory','▣','Warehouse'],['money','◈','Money'],['reports','▥','Reports'],['payroll','▤','Payroll'],['staff','◷','My Time & Profile'],['services','≡','Services'],['catalog','▦','Pricing'],['team','♧','Team'],['fleet','▰','Vehicles'],['testing','▦','Database Testing'],['changelog','▤','Changelog'],['trash','▤','Trash']];
 let data=null,me=null,view='dashboard',selectedWO=null,reportType='purchases',reportStart='',reportEnd='',moneyCustomer='all',moneyStatus='all';
 const customer=id=>data.customers.find(c=>c.id===id),project=id=>data.projects.find(p=>p.id===id),catalog=id=>data.catalog.find(c=>c.id===id),wo=id=>data.workorders.find(w=>w.id===id);
 let selectedClientPortal=null;
@@ -72,7 +85,7 @@ const empty=(s)=>`<div class="empty">${esc(s)}</div>`;
 function bill(w){const buckets={labor:0,material:0,travel:0,cost:0};for(const e of w.entries){buckets[e.type]+=roundMoney(e.rate*e.quantity);buckets.cost+=roundMoney((e.cost||0)*e.quantity);}buckets.total=w.internalTask&&!w.invoice?0:roundMoney(buckets.labor+buckets.material+buckets.travel-(w.invoice?.depositCredit||0));buckets.profit=roundMoney(buckets.total-buckets.cost);return buckets;}
 const can=key=>me?.permissions?.includes(key);
 const viewPermissions={fleet:'vehicles.view',staff:'staff.view',estimates:'estimates.view',training:'training.view',notifications:'notification.view',tickets:'tickets.view',dashboard:'dashboard.view',customers:'customers.view',projects:'projects.view',workorders:'workorders.view',inventory:'inventory.view',money:'money.view',reports:'reports.view',payroll:'payroll.view',services:'pricing.view',catalog:'pricing.view',team:'team.view',testing:'database.view'};
-const visibleView=id=>id==='invoices'?!practiceMode&&can('invoices.view')&&can('finance.view')&&can('workorders.view'):practiceMode&&!['training','customers','projects','workorders'].includes(id)?false:id==='trash'?me?.role==='admin':['team','changelog'].includes(id)?me?.role==='admin':can(viewPermissions[id]);
+const visibleView=id=>id==='invoices'?!practiceMode&&can('invoices.view')&&can('finance.view')&&can('workorders.view'):practiceMode&&!['training','customers','projects','workorders'].includes(id)?false:id==='calendar'?['projects.view','workorders.view','staff.view','vehicles.view','dashboard.view'].some(can):id==='trash'?me?.role==='admin':['team','changelog'].includes(id)?me?.role==='admin':can(viewPermissions[id]);
 
 const formPermissions={customer:'customer.create',contact:'contact.create',project:'project.create','new-project':'project.create','project-contact':'project.contact','clock-setup':'clock.in',
  workorder:'workorder.create',approve:'workorder.approve',change:'change.create','log-time':'entry.add','log-materials':'entry.add','client-markup':'pricing.client','project-rate':'pricing.project','other-time':'payroll.other','project-invoice':'invoice.group',
@@ -80,7 +93,7 @@ const formPermissions={customer:'customer.create',contact:'contact.create',proje
  close:'workorder.close',review:'workorder.review','warehouse-receive':'inventory.receive',
  'warehouse-item':'catalog.create',service:'catalog.create',invoice:'invoice.record',payment:'invoice.pay',catalog:'catalog.create',reserve:'settings.reserve'};
 function nav(){
- const groups=[['Field work',['dashboard','workorders',...(!can('dashboard.view')?['tickets']:[]),'projects','customers','inventory','notifications','staff']],
+ const groups=[['Field work',['dashboard','calendar','workorders',...(!can('dashboard.view')?['tickets']:[]),'projects','customers','inventory','notifications','staff']],
   ['Office',['estimates','invoices','services','catalog','money','reports','payroll']],['Admin',['training','team','fleet','testing','changelog','trash']]];
  const rail=$('#nav'), priorScroll=rail.scrollLeft;
  rail.setAttribute('aria-label','Workspace navigation');
@@ -234,7 +247,7 @@ function openCatalogImport(){
    const conflicts=pack?r.conflicts:[];
    result.innerHTML=pack?`
     <p><b>${r.total.toLocaleString()} parts</b> · ${r.new.toLocaleString()} new · ${r.updated.toLocaleString()} existing parts to add details to · ${r.unchanged.toLocaleString()} unchanged</p>
-    <p>${r.photoCount.toLocaleString()} parts have photos in this file · ${r.fitReferenceCount.toLocaleString()} documented fit references</p>
+    <p>${r.photoCount.toLocaleString()} catalog photos available · ${r.omittedPhotoCount ? r.omittedPhotoCount.toLocaleString()+' photo references skipped (parts still eligible) · ' : ''}${r.fitReferenceCount.toLocaleString()} documented fit references</p>
     <p>Stock counts, existing prices, and work-order history stay unchanged. New items need pricing review before billing.</p>
     ${conflicts.length?`<details class="panel"><summary>${conflicts.length} conflicts (not imported)</summary><ul>
        ${conflicts.map(c=>`<li><b>${esc(c.brand)} ${esc(c.mpn)}</b>: ${esc(c.reason)}</li>`).join('')}</ul></details>`:''}
@@ -306,6 +319,8 @@ function openCustomerImport(){
 function profileForm(profile){
  const selected=new Set(profile?.permissions||[]);
  const descriptors=accessDescriptors(data.permissionMatrix,data.modulePermissions);
+ const dependencies=data.permissionDependencies||{};
+ const isReadPrerequisite=key=>key==='finance.view'||key!=='payroll.view'&&descriptors.some(d=>!d.adminOnly&&d.view===key);
  const catalog=Object.assign({},...Object.values(data.permissionGroups||{}));
  const covered=new Set(descriptors.flatMap(d=>[d.view,...d.write,...d.delete,...d.actions,...d.read]));
  const rows=descriptors.map(d=>{
@@ -336,22 +351,38 @@ function profileForm(profile){
  modal(profile?'Edit permission profile':'New permission profile',
   f('name','Profile name',{required:true,value:profile?.name})+
   '<div class="permission-matrix tablewrap"><table><thead><tr><th scope="col">Area</th><th scope="col">Access</th><th scope="col">Record scope</th><th scope="col">Delete access</th></tr></thead><tbody>'+rows.join('')+'</tbody></table></div>'+
-  '<details class="permission-group" open><summary>Allowed actions within each area</summary><p>Switching an area to Read &amp; write checks its regular create and edit actions. Check specialized actions individually. Read only disables mutations, including delete. Shared read grants, such as financial detail, stay in sync wherever they appear.</p>'+advanced+'</details>'+
+  '<p id="permissionPrerequisites" aria-live="polite"></p><details class="permission-group" open><summary>Allowed actions within each area</summary><p>Switching an area to Read &amp; write checks its regular create and edit actions. Check specialized actions individually. Read only disables mutations, including delete. Shared read grants, such as financial detail, stay in sync wherever they appear.</p>'+advanced+'</details>'+
   (retained.length?'<p>Existing legacy grants preserved: '+esc(retained.map(key=>catalog[key]||key).join(', '))+'.</p>':''),
   values=>{
-   const controls=Object.fromEntries([...form.querySelectorAll('[data-permission-area]')].map(row=>{
-    const area=row.dataset.permissionArea;
-    return [area,{mode:row.querySelector('[data-access-mode]').value,scope:row.querySelector('[data-record-scope]')?.value,
-     permissions:grants.get(area).filter(input=>input.checked&&!input.disabled).map(input=>input.value)}];
-   }));
-   return send('profiles.save',{id:profile?.id,name:values.name,...profileEditorValues(descriptors,controls,retained)});
+   const valuesForSave=editorValues();
+   const plan=permissionPrerequisitePlan(valuesForSave.permissions,dependencies,{allow:isReadPrerequisite});
+   if(plan.blocked.size)throw Error('Select the required permission: '+[...plan.blocked.keys()].map(labelForGrant).join(', '));
+   return send('profiles.save',{id:profile?.id,name:values.name,...valuesForSave});
   },
   '<p>These settings apply to assigned users. Hidden areas return no protected records. Read only opens permitted records without changing them. Delete and specialized actions are granted separately. Built-in administrators retain administrator access.</p>');
  const form=$('#actionForm');
  const allGrants=[...form.querySelectorAll('[data-area-grant]')];
  const grants=new Map(descriptors.map(d=>[d.area,allGrants.filter(input=>input.dataset.areaGrant===d.area)]));
- function checkGrant(input,value){for(const linked of allGrants)if(linked.value===input.value)linked.checked=value;}
- for(const input of allGrants)input.addEventListener('change',()=>checkGrant(input,input.checked));
+ const matrixRows=[...form.querySelectorAll('[data-permission-area]')];
+ const labelForGrant=key=>catalog[key]||areaLabel(descriptors.find(d=>d.view===key)?.area||key);
+ const rowFor=key=>matrixRows.find(row=>descriptors.some(d=>d.area===row.dataset.permissionArea&&d.view===key));
+ const checkKey=(key,value)=>{for(const linked of allGrants)if(linked.value===key)linked.checked=value;};
+ function editorValues(){
+  const controls=Object.fromEntries(matrixRows.map(row=>{
+   const area=row.dataset.permissionArea;
+   return [area,{mode:row.querySelector('[data-access-mode]').value,scope:row.querySelector('[data-record-scope]')?.value,
+    permissions:grants.get(area).filter(input=>input.checked&&!input.disabled).map(input=>input.value)}];
+  }));
+  return profileEditorValues(descriptors,controls,retained);
+ }
+ function snapshot(){
+  return {values:editorValues(),nodes:[...form.querySelectorAll('[data-access-mode],[data-record-scope],[data-area-grant]')]
+   .map(node=>[node,node.type==='checkbox'?node.checked:node.value])};
+ }
+ function restore(previous){
+  for(const [node,value] of previous.nodes){if(node.type==='checkbox')node.checked=value;else node.value=value;}
+  for(const row of matrixRows)sync(row);
+ }
  function sync(row,preselect=false){
   const area=row.dataset.permissionArea,mode=row.querySelector('[data-access-mode]').value;
   const scope=row.querySelector('[data-record-scope]');
@@ -359,17 +390,92 @@ function profileForm(profile){
   for(const input of grants.get(area)){
    const kind=input.dataset.grantKind;
    input.disabled=mode==='hidden'||mode==='read'&&kind!=='read';
-   if(preselect&&mode==='write'&&kind==='ordinary')checkGrant(input,true);
+   if(preselect&&mode==='write'&&kind==='ordinary')checkKey(input.value,true);
   }
  }
- for(const row of form.querySelectorAll('[data-permission-area]')){
-  sync(row);row.querySelector('[data-access-mode]').addEventListener('change',()=>sync(row,true));
+ function showRequirements(){
+  const active=editorValues().permissions;
+  const plan=permissionPrerequisitePlan(active,dependencies,{allow:isReadPrerequisite});
+  const notice=form.querySelector('#permissionPrerequisites');
+  const list=key=>[...(plan.reasons.get(key)||[])].map(labelForGrant).join(', ');
+  const linked=[...plan.reasons.keys()].filter(key=>active.includes(key)).map(key=>labelForGrant(key)+' required by '+list(key));
+  const blocked=[...plan.blocked.keys()].map(key=>'Explicitly select '+labelForGrant(key)+' for '+list(key));
+  notice.textContent=[...linked,...blocked].join('. ');
+  notice.hidden=!notice.textContent;
  }
+ for(const row of matrixRows)sync(row);
+ let last=snapshot();
+ function change(source){
+  if(source.matches('[data-area-grant]'))checkKey(source.value,source.checked);
+  const row=source.closest('[data-permission-area]');
+  if(row)sync(row,source.matches('[data-access-mode]'));
+  let current=editorValues();
+  const removed=last.values.permissions.filter(key=>!current.permissions.includes(key));
+  if(removed.length){
+   const removedWithDependents=dependentPermissionRemovals(last.values.permissions,removed,dependencies);
+   const affected=[...removedWithDependents].filter(key=>!removed.includes(key)&&current.permissions.includes(key));
+   if(affected.length&&!window.confirm('Removing this prerequisite will also remove: '+affected.map(labelForGrant).join(', ')+'. Continue?')){
+    restore(last);return;
+   }
+   for(const key of affected){
+    checkKey(key,false);
+    const dependent=rowFor(key);
+    if(dependent){
+     dependent.querySelector('[data-access-mode]').value='hidden';sync(dependent);
+    }
+   }
+   current=editorValues();
+  }
+  const plan=permissionPrerequisitePlan(current.permissions,dependencies,{allow:isReadPrerequisite});
+  for(const key of plan.added){
+   checkKey(key,true);
+   const required=rowFor(key);
+   if(required&&required.querySelector('[data-access-mode]').value==='hidden'){
+    required.querySelector('[data-access-mode]').value='read';
+    const scope=required.querySelector('[data-record-scope]');if(scope)scope.value='own';
+    sync(required);
+   }
+  }
+  showRequirements();last=snapshot();
+ }
+ showRequirements();
+ form.addEventListener('change',event=>{
+  if(event.target.matches('[data-access-mode],[data-record-scope],[data-area-grant]'))change(event.target);
+ });
 }
+
+document.addEventListener('click',async event=>{
+ const button=event.target.closest('#testPermissions');
+ if(!button||(isTestDocument===false&&!me?.permissionTestAvailable))return;
+ button.disabled=true;
+ const switchTest=async(id)=>{
+  const response=await fetch('/api/permission-test',{method:'POST',headers:{'Content-Type':'application/json'},
+   body:JSON.stringify(isTestDocument?{operation:'exit'}:{operation:'start',id}),cache:'no-store'});
+  const result=await response.json();
+  if(!response.ok)throw Error(result.error||'Could not switch permission view');
+  const location=isTestDocument?'/':'/permission-preview';
+  if(result.location!==location)throw Error('Could not switch permission view');
+  try{sessionStorage.removeItem('bci-practice');}catch{}
+  clearSession('Switching permission view…');
+  window.location.replace(location);
+ };
+ try{
+  if(isTestDocument){await switchTest();return;}
+  const response=await fetch('/api/permission-test',{cache:'no-store'});
+  const result=await response.json();
+  if(!response.ok)throw Error(result.error||'Could not load permission levels');
+  const roles=[['tech','Technician'],['office','Office'],['admin','Administrator (test only)'],['hidden','No permissions'],
+   ...(result.profiles||[]).map(({id,name})=>[id,name+' (custom profile)'])];
+  modal('Test Permissions',f('level','View as',{select:roles,required:true,value:'tech'}),values=>switchTest(values.level),
+   '<p>Use a synthetic team member and example data to check access. Nothing you do in Test Mode is saved to the live app.</p>');
+  const submit=$('#actionForm button[type="submit"]');if(submit)submit.textContent='Enter Test Mode';
+ }catch(error){show(error.message,true);}
+ finally{button.disabled=false;}
+});
 
 document.addEventListener('click',event=>{
  const button=event.target.closest('#signOut');
- if(!button)return;
+ if(!button||isTestDocument)return;
  modal('Sign out of BCI Operations?', '<p>On the hosted app this also signs you out of other sites using the same Cloudflare Access team.</p>', async()=>{
   const response=await fetch('/api/signout',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}',cache:'no-store'});
   if(!response.ok)throw Error('Sign-out did not complete. Try again.');
@@ -523,20 +629,25 @@ function openProjectInvoice(w,billingStage='progress'){
 // The shell selects a screen and binds shared UI controls. Each screen owns its markup.
 function render(){
  nav();
- const views={fleet:fleetPage,staff:staffPage,invoices:invoicesPage,estimates:estimatesPage,training:trainingPage,notifications:notificationsPage,tickets:ticketsPage,dashboard,customers,projects:projectsHub,workorders,inventory:warehouse,money:moneyPage,reports,payroll:payrollPage,services:servicesPage,catalog:catalogPage,team:teamPage,testing:testingPage,changelog:changelogPage,trash:trashPage};
+ const views={calendar:calendarPage,fleet:fleetPage,staff:staffPage,invoices:invoicesPage,estimates:estimatesPage,training:trainingPage,notifications:notificationsPage,tickets:ticketsPage,dashboard,customers,projects:projectsHub,workorders,inventory:warehouse,money:moneyPage,reports,payroll:payrollPage,services:servicesPage,catalog:catalogPage,team:teamPage,testing:testingPage,changelog:changelogPage,trash:trashPage};
  const allowed=visibleView(view);
  const content=!allowed?'<section class="panel"><h1>No module access</h1><p>Ask your administrator to assign a permission profile.</p></section>':
-  managingRecords()?recordManager():
+  view!=='workorders'&&managingRecords()?recordManager():
   selectedWO&&can('workorders.view')&&wo(selectedWO)?detail(wo(selectedWO)):
   view==='customers'&&customer(selectedClientPortal)?clientPortal(customer(selectedClientPortal)):
   view==='projects'&&project(selectedProject)?projectDetail(project(selectedProject)):views[view]();
- $('#app').innerHTML=(allowed?recordTools()+(view==='team'?assignmentLink():''):'')+content;
+ $('#app').innerHTML=(allowed?calendarBackButton()+(view==='workorders'?'':recordTools())+(view==='team'?assignmentLink():''):'')+content;
+ if(view==='calendar'&&allowed)restoreCalendarScroll();
  for(const button of $('#app').querySelectorAll('[data-open],[data-change]')){
   const permission=button.hasAttribute('data-change')?'change.approve':formPermissions[button.dataset.open];
   if(permission&&!can(permission))button.remove();
  }
  if(view==='staff'&&allowed)wireProfileWeather($('#profileWeather'));
  wireRecords();
+ if(view==='workorders'&&allowed&&selectedWO){
+  const journal=$('#app').querySelector('[data-field-journal]');
+  if(journal)wireFieldJournal(journal);
+ }
  if(view==='catalog'&&allowed)wirePricingPage($('#app'));
  if(view==='trash'&&me?.role==='admin')wireTrash();
  if(view==='changelog'&&allowed)wireChangelog($('#app').querySelector('[data-changelog]'));
@@ -596,6 +707,8 @@ function practiceNavigate(screen,form){
 }
 let loadSequence=0;
 function clearSession(message){
+ if(!isTestDocument&&$('#testPermissions'))$('#testPermissions').hidden=true;
+ clearCalendar();
  $('.bci-photo-viewer[open]')?.close();
  ++loadSequence;
  accessFingerprint='';data=null;me=null;selectedWO=null;selectedProject=null;selectedClientPortal=null;
@@ -616,16 +729,25 @@ async function reload(){
   clearSession('Your access has changed. Sign in again or contact your administrator.');
   return;
  }
+ if(res.status===409){
+  if(!isTestDocument){window.location.replace('/permission-preview');return;}
+  clearSession('The permission preview is no longer active. Choose Return to My View.');return;
+ }
  if(!res.ok)throw Error('Could not load app data');
  const snapshot=await res.json();
  if(sequence!==loadSequence)return;
  data=snapshot;me=data.me;
+ const permissionButton=$('#testPermissions');
+ if(permissionButton&&!isTestDocument)permissionButton.hidden=!me?.permissionTestAvailable;
+ const permissionBanner=$('#permissionTestBanner');
+ if(permissionBanner&&isTestDocument)permissionBanner.textContent='Test Mode · '+(me?.role||'test')+' · Sample data only. Nothing changes the live app.';
  const access=practiceMode?data.liveAccess||me:me;
  accessFingerprint=JSON.stringify([access.email,access.role,[...access.permissions].sort(),access.recordScopes||{},access.accessRevision||0]);
  document.body.classList.toggle('practice-mode',practiceMode);
  if(initialLink&&!practiceMode){
   initialLink=false;
   const query=new URLSearchParams(window.location?.search||'');
+  if(query.has('calendar')&&visibleView('calendar'))view='calendar';
   if(query.has('notifications')&&can('notification.view'))view='notifications';
   if((query.has('ticket')||query.has('tickets')||query.has('intake'))&&can('tickets.view')){
    view='tickets';selectTicketLink(query.get('ticket'),query.has('intake')&&Boolean(data.mailIntake),query.get('tickets'));
@@ -646,11 +768,17 @@ async function refreshAccess(){
    if(me)clearSession('Your access has changed. Sign in again or contact your administrator.');
    return;
   }
+  if(response.status===409){
+   if(!isTestDocument)window.location.replace('/permission-preview');
+   else clearSession('The permission preview is no longer active. Choose Return to My View.');
+   return;
+  }
   if(!response.ok)return;
   const account=await response.json();
   if(sequence!==loadSequence)return;
   const fingerprint=JSON.stringify([account.email,account.role,[...account.permissions].sort(),account.recordScopes||{},account.accessRevision||0]);
   if(fingerprint===accessFingerprint)return;
+  clearCalendar();
   $('#modalContent').replaceChildren();$('#modal').hidden=true;
   await reload();
  }catch{/* Keep the current screen during temporary connection failures. */}
@@ -1034,6 +1162,7 @@ document.addEventListener('click',e=>{const target=e.target.closest('[data-nav],
 document.addEventListener('keydown',event=>{
  if(event.key==='Escape'&&!$('.bci-photo-viewer[open]')&&!$('#modal').hidden&&!$('#actionForm')?.dataset.saving&&!$('#catalogImport')?.dataset.saving)$('#modal').hidden=true;
 });
+wireWorkorderActions(document);
 $('#closeModal').addEventListener('click',()=>{if(!$('#actionForm')?.dataset.saving&&!$('#catalogImport')?.dataset.saving)$('#modal').hidden=true;});
 $('#modal').addEventListener('click',e=>{if(e.target===$('#modal')&&!$('#actionForm')?.dataset.saving&&!$('#catalogImport')?.dataset.saving)$('#modal').hidden=true;});
 document.addEventListener('change',e=>{if(e.target.id==='moneyCustomer'){moneyCustomer=e.target.value;render();}if(e.target.id==='moneyStatus'){moneyStatus=e.target.value;render();}if(e.target.id==='reportType'){reportType=e.target.value;render();}if(e.target.id==='reportStart'){reportStart=e.target.value;render();}if(e.target.id==='reportEnd'){reportEnd=e.target.value;render();}});
@@ -1231,4 +1360,12 @@ document.addEventListener('bci:open-project',event=>{
 document.addEventListener('bci:open-workorder',event=>{
  if(!can('workorders.view')||!wo(event.detail))return;
  selectedWO=event.detail;selectedProject=null;view='workorders';render();
+});
+
+document.addEventListener('bci:calendar-open',event=>{
+ const {kind,id}=event.detail||{},target={project:'projects',workorder:'workorders',vehicle:'fleet',calendar:'calendar'}[kind];
+ if(!target||!visibleView(target))return;
+ if(kind==='project'&&!project(id)||kind==='workorder'&&!wo(id)||kind==='vehicle'&&!selectFleetVehicle(id))return;
+ selectedWO=kind==='workorder'?id:null;selectedProject=kind==='project'?id:null;selectedClientPortal=null;
+ view=target;render();
 });

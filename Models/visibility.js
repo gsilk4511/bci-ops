@@ -9,6 +9,7 @@ export function visibleState(current,role,permissions) {
  const has=key=>permissions.includes(key);
  delete state.tickets;
  delete state.dashboardLayouts;
+ delete state.calendarWorkspace;
  delete state.materialDrafts;
  delete state.workorderReceiptData;
  delete state.warehousePatchReceipts;

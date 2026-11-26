@@ -1,3 +1,12 @@
+# 0.10.6 — Scheduling, Team permissions, and time entry
+
+- Central scheduling: overview, separate project and work order views, combined timeline, crew and technician views; multiday appointments with per-day hours; fleet and staff dates.
+- Project and work order Schedule controls, work-order calendar export, and separate client invitation handoff for organizer review.
+- Time, Travel and Parts journal tabs; original-submitter filtering; work-order Actions menu and relocated Manage Records.
+- Payroll-based employment costs, live and invoiced/paid contribution views, and after-reserve labor profit.
+- Team permission prerequisites, owner-only synthetic permission test, employee profile drilldown, and authorized time logging on an employee’s behalf.
+- Tactile desktop and phone controls. Omit bundled catalog photos; preserve existing operational records and uploads.
+
 # 0.10.5 — Wide screens and profile weather
 
 - Desktop browser windows 1,440 CSS pixels or wider use available workspace width, instead of the previous main-column cap.

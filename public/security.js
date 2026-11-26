@@ -1,3 +1,4 @@
+import './modules/tactile-buttons.js';
 import {showAppSignIn} from './signin.js';
 import {agentApiPage,wireAgentApi} from './modules/agent-api.js';
 const $=id=>document.getElementById(id);

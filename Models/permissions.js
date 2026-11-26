@@ -1,3 +1,4 @@
+import {permissionPrerequisitePlan} from '../public/modules/permission-prerequisites.js';
 export const permissionGroups = {
   'Clients and projects': {
     'customer.create':'Add billing clients', 'contact.create':'Add job contacts', 'project.create':'Add projects', 'project.contact':'Assign project contacts','project.close':'Close projects','project.followup':'Edit project follow-up'
@@ -96,11 +97,25 @@ export const permissionMatrix = {
 permissionGroups['Training']={'training.start':'Start and edit personal training practice'};
 permissionGroups['Edit and delete records']['pricing.profile.archive']='Archive pricing profiles';
 
-const adminOnly = new Set(['timeAttribution.preview','timeAttribution.apply','warehouse.purgePreview','warehouse.purgeApply','warehouse.patchPreview','warehouse.patchApply','trash.restore','trash.purge','workorder.delete','workorder.deletePreview','catalog.import','catalog.importPreview','catalog.packPreview','catalog.packImport','access.sync','staff.manage','staff.leaveReview','users.set','users.remove','profiles.save','customers.import','customers.importPreview','record.assign']);
+const adminOnly = new Set(['calendar.appointment','timeAttribution.preview','timeAttribution.apply','warehouse.purgePreview','warehouse.purgeApply','warehouse.patchPreview','warehouse.patchApply','trash.restore','trash.purge','workorder.delete','workorder.deletePreview','catalog.import','catalog.importPreview','catalog.packPreview','catalog.packImport','access.sync','staff.manage','staff.leaveReview','users.set','users.remove','profiles.save','customers.import','customers.importPreview','record.assign']);
 const adminOnlyGrants = new Set(['staff.manage','staff.leaveReview','workorder.delete','team.view']);
 const profilePermissions = new Set(Object.values(permissionGroups).flatMap(Object.keys));
 const viewToMode = Object.fromEntries(Object.entries(permissionMatrix).map(([name,descriptor])=>[descriptor.view,name]));
 const requiresFinance = new Set(['billing.deposit','invoices.view','money.view','reports.view','invoice.record','invoice.group','invoice.pay','settings.reserve']);
+export const permissionDependencies=Object.freeze({
+ ...Object.fromEntries([...requiresFinance].map(key=>[key,['finance.view']])),
+ 'invoices.view':['finance.view','workorders.view'],
+ 'billing.deposit':['finance.view','projects.view','invoices.view'],
+ 'estimate.convert':['projects.view','project.create'],
+ 'estimate.releaseWorkOrder':['workorders.view','workorder.approve'],
+ 'staff.internal':['workorders.view','workorder.create'],
+ 'businessManager.view':['staff.view'],
+ 'businessManager.manage':['businessManager.view'],
+ 'payroll.approve':['payroll.view'],
+ 'pricing.workorder.correct':['finance.view'],
+ 'database.workorders':['workorders.view'],
+ 'database.payroll':['payroll.view'],
+});
 const nonDelegablePassThrough = [...adminOnlyGrants];
 const actionGroups = new Map();
 for(const [module, descriptor] of Object.entries(permissionMatrix)){
@@ -146,7 +161,7 @@ export function validatePermissions(permissions) {
  if(!Array.isArray(permissions)||permissions.some(value=>!profilePermissions.has(value)))throw Error('Invalid profile permissions');
  return validateDependencies(unique(permissions));
 }
-export function normalizeProfileAccess(data) {
+export function normalizeProfileAccess(data,{repairReadPrerequisites=false}={}) {
  const selected=data.permissions??[];
  if(!Array.isArray(selected)||selected.some(key=>!profilePermissions.has(key)))throw Error('Invalid profile permissions');
  const grants=selected.filter(key=>!adminOnlyGrants.has(key));
@@ -156,7 +171,23 @@ export function normalizeProfileAccess(data) {
   selectedModes={...selectedModes,...data.modes,team:'hidden'};
  }
  const recordScopes=canonicalScopes(data.recordScopes??data.scopes);
- return {schemaVersion:4,modes:selectedModes,recordScopes,permissions:validateDependencies(selectedForModes(grants,selectedModes))};
+ let selectedGrants=selectedForModes(grants,selectedModes);
+ if(repairReadPrerequisites){
+  const additions=permissionPrerequisitePlan(selectedGrants,permissionDependencies,{
+   allow:key=>Boolean(viewToMode[key])&&key!=='payroll.view'||key==='finance.view'
+  });
+  for(const key of additions.added)if(viewToMode[key]){
+   const module=viewToMode[key];
+   if(selectedModes[module]==='hidden'){
+    selectedModes[module]='read';
+    // An automatically opened work area must not expand record access.
+    if(recordScopedModules.includes(module))recordScopes[module]='own';
+   }
+  }
+  if(additions.blocked.size)throw Error('Explicitly select the required permission: '+[...additions.blocked.keys()].join(', '));
+  selectedGrants=selectedForModes(additions.permissions,selectedModes);
+ }
+ return {schemaVersion:4,modes:selectedModes,recordScopes,permissions:validateDependencies(selectedGrants)};
 }
 
 function legacyGrants(profile) {
@@ -207,13 +238,18 @@ export function effectiveAccess(state,user,role) {
 export function effectivePermissions(state,user,role){return effectiveAccess(state,user,role).permissions;}
 
 const aliases={
+ 'project.schedule':'project.update','workorder.schedule':'workorder.update',
  'workorder.undoCloseout':'workorder.return',
  'inventory.commitFieldPurchase':'inventory.receive','inventory.receiptRead':'inventory.view',
  'entry.materialDraft':'entry.add','entry.editNote':'entry.update','estimate.rates':'estimates.view',
- 'payroll.preview':'payroll.view','mail.assign':'mail.intake','mail.sync':'mail.intake','clock.out':'clock.in','clock.cancel':'clock.in'
+ 'payroll.preview':'payroll.view','payroll.markPaid':'payroll.approve','mail.assign':'mail.intake','mail.sync':'mail.intake','clock.out':'clock.in','clock.cancel':'clock.in'
 };
 export function authorizePermission(action,role,permissions,data) {
  if(!role)throw Error('App access required');
+ if(action==='entry.addForEmployee'){
+  if(role!=='admin'||!['workorders.view','entry.add','staff.manage'].every(key=>permissions.includes(key)))throw Error('Employer work-order entry access required');
+  return;
+ }
  if(adminOnly.has(action)){
   if(role!=='admin')throw Error('Admin access required');
   if(action.startsWith('workorder.delete')&&(!permissions.includes('workorder.delete')||!permissions.includes('workorders.view')))throw Error('Admin work order deletion permission required');

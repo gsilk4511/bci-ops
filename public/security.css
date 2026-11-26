@@ -1,3 +1,4 @@
+@import url("/tactile-buttons.css");
 :root{font:16px system-ui;color-scheme:light dark}
 main{max-width:44rem;margin:2rem auto;padding:0 1rem}
 section{border:1px solid;padding:1rem;margin:1rem 0;border-radius:.5rem}

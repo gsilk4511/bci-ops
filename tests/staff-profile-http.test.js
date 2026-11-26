@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {generateKeyPairSync,sign} from 'node:crypto';
+import {generateKeyPairSync,randomUUID,sign} from 'node:crypto';
 import {spawn} from 'node:child_process';
 import {once} from 'node:events';
 import {mkdtemp,writeFile,rm} from 'node:fs/promises';
@@ -55,6 +55,19 @@ test('staff profile, private fields, and avatar are separated through authentica
   assert.equal(response.status,200,await response.clone().text());
   const result=await response.json(),profile=result.staff.directory.find(row=>row.displayName==='Public office name');
   assert.ok(profile);
+  const profilePath='/api/staff-directory/'+profile.id;
+  const selfProfile=await (await req(profilePath,office)).json();
+  const employerProfile=await (await req(profilePath,admin)).json();
+  const peerProfile=await (await req(profilePath,tech)).json();
+  assert.equal(employerProfile.profile.payScale,'private pay tier');
+  assert.equal(employerProfile.profile.contactEmail,'private-contact@example.invalid');
+  assert.equal(employerProfile.profile.vacationHours,102);
+  assert.equal(selfProfile.profile.email,office);
+  assert.deepEqual(peerProfile,{profile});
+  assert.equal((await req(profilePath)).status,401);
+  assert.equal((await req(profilePath,former)).status,403);
+  assert.equal((await req(profilePath,admin,'POST')).status,405);
+  assert.equal((await req('/api/staff-directory/'+'0'.repeat(64),admin)).status,404);
   assert.deepEqual(profile.style,{...defaultProfileStyle,icon:officeIcon});
   assert.deepEqual(result.workorders[0].entries.map(entry=>entry.technicianIcon),[officeIcon,undefined]);
   assert.equal(result.staff.directory.some(row=>row.displayName==='Former employee'),false);
@@ -91,6 +104,31 @@ test('staff profile, private fields, and avatar are separated through authentica
    body:JSON.stringify({action:'staff.profile',data:{displayName:'Own display',style:{icon:'<arbitrary-HTML>'}}})});
   assert.equal(invalid.status,400,await invalid.clone().text());
   assert.equal(after.directory.find(row=>row.id===profile.id).displayName,'Public office name');
+  const post=async(action,data,email=admin)=>{
+   const r=await fetch('http://'+address+'/api/action',{method:'POST',headers:{'cf-access-jwt-assertion':token(email),'content-type':'application/json'},body:JSON.stringify({action,data})});
+   return {status:r.status,...await r.json()};
+  };
+  const workorderId=roles.workorders[0].id;
+  const labor=roles.catalog.find(item=>item.type==='labor').id;
+  const payload={workorderId,employeeEmail:office,type:'labor',catalogId:labor,date:'2026-11-25',quantity:2,description:'Work from the office log',submissionId:randomUUID()};
+  const denied=await post('entry.addForEmployee',payload,tech);
+  assert.notEqual(denied.status,200);
+  assert.equal((await post('entry.addForEmployee',{...payload,employeeEmail:former})).status,400);
+  const unopened=await post('entry.addForEmployee',payload);
+  assert.match(unopened.error,/not released/);
+  const signatureData='data:image/png;base64,'+Buffer.concat([Buffer.from('89504e470d0a1a0a','hex'),Buffer.alloc(400,7)]).toString('base64');
+  const approval=await post('workorder.approve',{workorderId,signedBy:'Test client',signatureData,consent:true});
+  assert.equal(approval.status,200,JSON.stringify(approval));
+  const entry=await post('entry.addForEmployee',payload);
+  assert.equal(entry.status,200,JSON.stringify(entry));
+  assert.equal(entry.result.employeeEmail,office);
+  assert.equal(entry.result.createdBy,admin);
+  assert.equal((await post('entry.addForEmployee',payload)).result.id,entry.result.id);
+  const updated=(await (await req('/api/state',office)).json()).staff;
+  assert.equal(updated.time.filter(row=>row.id===entry.result.id).length,1);
+  const adminTime=(await (await req('/api/state',admin)).json()).staff;
+  assert.equal(adminTime.time.filter(row=>row.id===entry.result.id).length,0);
+
  }finally{
   if(server.exitCode===null){server.kill();await once(server,'exit');}
   await rm(dir,{recursive:true,force:true});

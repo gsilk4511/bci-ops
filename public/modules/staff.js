@@ -1,4 +1,4 @@
-import {can, data, esc, f, head, modal, practiceMode, render, send, table, today} from '../app.js';
+import {can, data, esc, f, head, me, modal, practiceMode, render, send, show, table, today} from '../app.js';
 
 import {profileCard, directoryProfile, personalProfileFields, personalProfilePayload, bindProfileEditor} from './staff-profile.js';
 import {contributionPanel} from './staff-contribution.js';
@@ -11,18 +11,18 @@ let firstDay='',lastDay='';
 const categories={work:'Customer work',travel:'Travel',internal:'Internal work',vacation:'Vacation',sick:'Sick'};
 const number=value=>Number(value || 0).toLocaleString(undefined,{maximumFractionDigits:2});
 const inRange=record=>(!firstDay||record.date>=firstDay)&&(!lastDay||record.date<=lastDay);
-const ordered=rows=>rows.slice().sort((a,b)=>b.date.localeCompare(a.date)||a.type.localeCompare(b.type));
+const ordered=rows=>rows.slice().sort((a,b)=>String(b.date||'').localeCompare(String(a.date||''))||String(a.type||'').localeCompare(String(b.type||'')));
 const action=(key,label,id='')=>`<button type="button" class="secondary" data-staff-action="${key}" data-staff-id="${esc(id)}">${label}</button>`;
 function timeLink(row) {
  return row.workorderId?`<button type="button" class="rowlink" data-wo="${esc(row.workorderId)}">${esc(row.workorder)}</button>`:esc(row.workorder);
 }
 const weekdays=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
 const weeklyCell=value=>value===null?'—':number(value)+' h';
-function weeklyTimePanel(summary,admin){
+function weeklyTimePanel(summary,admin,subject){
  if(!summary)return '';
  return `<section class="panel" aria-labelledby="weeklyTimeHeading">
-  <h2 id="weeklyTimeHeading">My last five weeks</h2>
-  <p>Live logged time for you only. The split is a weekly estimate, not a payroll statement. Running timers and pending time-off requests are not counted.</p>
+  <h2 id="weeklyTimeHeading">${subject?esc(subject)+' · last five weeks':'My last five weeks'}</h2>
+  <p>${subject?'Live logged time for this employee.':'Live logged time for you only.'} The split is a weekly estimate, not a payroll statement. Running timers and pending time-off requests are not counted.</p>
   ${summary.workweekStart===null?'<p><strong>Workweek not configured.</strong> Dates are grouped Monday–Sunday for now. Ask an administrator to set the first day of your established payroll workweek to see the Regular and Overtime split.</p>':`<p>Weeks start ${esc(weekdays[summary.workweekStart])}. The estimated split uses a 40-worked-hour threshold. Paid time off is listed separately.</p>`}
   ${admin?action('workweek','Set profile workweek'):''}
   ${table(['Week','Worked','Regular','Overtime','PTO','Sick','Holiday','Time status'],summary.rows.map(row=>`<tr>
@@ -63,9 +63,69 @@ function staffLiveContent(staff){
 document.addEventListener('visibilitychange',refreshStaffMetrics);
 if(typeof setInterval==='function')setInterval(refreshStaffMetrics,30000);
 
+let directoryState=null;
+let openDirectoryCards=new Set();
+let directoryViewer='';
+function accountDirectoryKey(){return [me?.email,me?.role,me?.accessRevision,can('staff.manage'),practiceMode].join('|');}
+function employeeDetail(summary){
+ const name=summary.profile?.displayName||'Team member';
+ const heading=head(name,'Team directory','Employee profile',action('directory-back','← Back to Team Directory'));
+ let privateInfo='';
+ if(summary.profile?.email&&me?.role==='admin'&&can('staff.manage')){
+  const profile=summary.profile, wages=summary.hourlyWages||[];
+  const year=summary.contribution?.bonus?.year;
+  const rate=summary.profitShareByYear?.[year];
+  privateInfo=`<section class="panel"><h2>Employer access</h2>
+   <dl class="bci-staff-legend">
+    <div><dt>Sign-in email</dt><dd>${esc(profile.email)}</dd></div>
+    <div><dt>Contact email</dt><dd>${esc(profile.contactEmail)}</dd></div>
+    <div><dt>Pay scale</dt><dd>${esc(profile.payScale||'Not set')}</dd></div>
+    <div><dt>Vacation balance</dt><dd>${number(profile.vacationHours)} h</dd></div>
+    <div><dt>Sick time balance</dt><dd>${number(profile.sickHours)} h</dd></div>
+    <div><dt>${esc(year||'Current')} profit share</dt><dd>${Number.isFinite(rate)?esc(rate)+'%':'Not explicitly set'}</dd></div>
+   </dl>
+   ${wages.length?`<h3>Wage history</h3>${table(['Effective','Hourly wage'],wages.map(wage=>`<tr><td>${esc(wage.effectiveDate)}</td><td>$${(wage.hourlyCents/100).toFixed(2)}</td></tr>`))}`:''}
+  </section>
+  ${contributionPanel(summary.contribution,summary.projects||[],directoryState.mode)}
+  ${weeklyTimePanel(summary.weeklyTime,false,name)}
+  <section class="panel"><h2>Recent time entries</h2>
+   ${table(['Date','Category','Hours','Work order','Project','Status'],ordered(summary.time||[]).slice(0,20).map(row=>`<tr><td>${esc(row.date)}</td><td>${esc(categories[row.type]||row.type)}</td><td>${number(row.quantity)}</td><td>${timeLink(row)}</td><td>${esc(row.project||'')}</td><td>${esc(row.status)}</td></tr>`))}
+  </section>
+  <section class="panel"><h2>Recent time off</h2>
+   ${table(['Date','Category','Hours','Status'],ordered(summary.leave||[]).slice(0,20).map(row=>`<tr><td>${esc(row.date)}</td><td>${esc(categories[row.type]||row.type)}</td><td>${number(row.quantity)}</td><td>${esc(row.status)}</td></tr>`))}
+  </section>`;
+ }
+ return staffWorkspaceTheme(summary.profile?.style,heading+`<section class="panel">${profileCard(summary.profile)}</section>`+privateInfo);
+}
+async function openDirectoryProfile(id,staff){
+ if(practiceMode||!staff.directory?.some(row=>row.id===id))return;
+ openDirectoryCards=new Set([...document.querySelectorAll('[data-directory-id][open]')].map(row=>row.dataset.directoryId));
+ const selected={id,summary:null,mode:'accrual'};
+ directoryState=selected;
+ render();
+ try{
+  const response=await fetch('/api/staff-directory/'+encodeURIComponent(id),{cache:'no-store'});
+  if(!response.ok)throw Error('This staff profile is not available.');
+  const summary=await response.json();
+  if(directoryState!==selected||directoryViewer!==accountDirectoryKey()||!can('staff.view'))return;
+  selected.summary=summary;
+  if(document.querySelector('#staffDirectoryDetail'))render();
+ }catch(error){
+  if(directoryState!==selected)return;
+  directoryState=null;
+  if(document.querySelector('#staffDirectoryDetail')){render();show(error.message,true);}
+ }
+}
+
 export function staffPage() {
  const staff=data.staff;
  if(!staff)return head('My Time & Profile','Staff','This section is not available in the current session.');
+ const viewer=accountDirectoryKey();
+ if(viewer!==directoryViewer){directoryViewer=viewer;directoryState=null;openDirectoryCards=new Set();}
+ if(directoryState){
+  const {summary}=directoryState;
+  return `<div id="staffDirectoryDetail">${summary?employeeDetail(summary):head('Opening profile…','Team directory','',action('directory-back','← Back to Team Directory'))}</div>`;
+ }
  const profile=staff.profile;
  const entries=ordered(staff.time.filter(inRange));
  const leave=ordered(staff.leave.filter(inRange));
@@ -94,8 +154,8 @@ export function staffPage() {
     <p>${Object.entries(totals).map(([type,hours])=>esc(categories[type])+' '+number(hours)+' h').join(' · ')}</p>
     ${table(['Date','Category','Hours','Work order','Project','Notes','Status'],entries.map(row=>`<tr><td>${esc(row.date)}</td><td>${esc(categories[row.type])}</td><td>${number(row.quantity)}</td><td>${timeLink(row)}</td><td>${esc(row.project||'')}</td><td>${esc(row.note)}</td><td>${esc(row.status)}</td></tr>`))}</section>
    <section class="panel"><h2>Time off</h2>${table(['Date','Category','Hours','Status'],leave.map(row=>`<tr><td>${esc(row.date)}</td><td>${esc(categories[row.type])}</td><td>${number(row.quantity)}</td><td>${esc(row.status)}</td></tr>`))}</section>`
-  +`<section class="panel"><h2>Team directory</h2><p>Read-only profiles shared internally.</p>
-   ${staff.directory?.length?`<div class="bci-staff-directory">${staff.directory.map(directoryProfile).join('')}</div>`:'<p>No other team profiles are available.</p>'}</section>`
+  +`<section class="panel"><h2>Team directory</h2><p>Expand a coworker’s card, then select their photo to open their profile.</p>
+   ${staff.directory?.length?`<div class="bci-staff-directory">${staff.directory.map(peer=>directoryProfile(peer,!practiceMode&&openDirectoryCards.has(peer.id))).join('')}</div>`:'<p>No other team profiles are available.</p>'}</section>`
   +(admin?`<section class="panel"><h2>Staff profiles</h2>${table(['Employee','Sign-in','Vacation','Sick',rateYear+' profit share',''],staff.staffProfiles.map(row=>`<tr><td>${esc(row.name)}</td><td>${esc(row.email)}</td><td>${number(row.vacationHours)} h</td><td>${number(row.sickHours)} h</td><td>${esc(rateLabel(row,rateYear))}</td><td>${can('staff.manage')?action('manage','Edit staff profile',row.email):''}</td></tr>`))}</section>
    <section class="panel"><h2>Pending time off</h2>${table(['Employee','Date','Category','Hours',''],staff.requests.map(row=>`<tr><td>${esc(staff.staffProfiles.find(member=>member.email===row.email)?.name||row.email)}</td><td>${esc(row.date)}</td><td>${esc(categories[row.type])}</td><td>${number(row.quantity)}</td><td>${can('staff.leaveReview')?action('review','Review',row.id):''}</td></tr>`))}</section>`:'');
  return staffWorkspaceTheme(profile.style,heading+`<div class="bci-staff-columns${practiceMode?'':' has-weather'}">${practiceMode?'':profileWeatherCard()}<div class="bci-staff-primary">${content}</div></div>`);
@@ -122,7 +182,18 @@ document.addEventListener('click',event=>{
  if(!button||!can('staff.view')||!data.staff)return;
  const id=button.dataset.staffId,staff=data.staff;
  switch(button.dataset.staffAction){
+  case 'directory-open': openDirectoryProfile(id,staff);break;
+  case 'directory-back': {
+   const former=directoryState?.id;
+   directoryState=null;render();
+   const restored=document.querySelector(`[data-directory-id="${former}"] [data-staff-action="directory-open"]`);
+   restored?.focus({preventScroll:true});restored?.scrollIntoView({block:'nearest'});
+   break;
+  }
   case 'contribution-mode': {
+   if(directoryState?.summary?.contribution?.cash&&button.closest('#staffDirectoryDetail')&&['accrual','cash'].includes(id)){
+    directoryState.mode=id;render();document.querySelector(`#staffDirectoryDetail [data-staff-action="contribution-mode"][data-staff-id="${id}"]`)?.focus({preventScroll:true});break;
+   }
    const target=button.closest('#staffLiveMetrics');
    if(target&&staff.contribution?.cash&&['accrual','cash'].includes(id)){
     contributionMode=id;renderLiveMetrics(target,staff,id);

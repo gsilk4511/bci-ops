@@ -9,7 +9,7 @@ const rows=state=>state.businessManager?.vehicles||[];
 const today=()=>new Intl.DateTimeFormat('sv-SE',{timeZone:'America/New_York'}).format(new Date());
 const kinds=['oil','registration','inspection','rotation','cleaning','service','repair'];
 const recurring=['oil','rotation','cleaning','service'];
-const schedulable=[...recurring,'registration','inspection','repair'];
+const schedulable=[...recurring,'registration','inspection','insurance','repair'];
 const types=['insurance','registration','inspection','dmv','other'];
 const dayShift=(d,n)=>new Date(Date.parse(d+'T00:00:00Z')+n*86400000).toISOString().slice(0,10);
 const month=x=>x==null||x===''?null:(typeof x==='string'&&/^\d{4}-(0[1-9]|1[0-2])$/.test(x)?x:(()=>{throw Error('Enter a valid inspection month');})());
@@ -179,7 +179,9 @@ export function vehiclesAction(state,data,actor){
   const booked=date(data.appointmentDate);
   const time=str(data.appointmentTime,'appointment time',5);
   if(time&&!/^([01]\d|2[0-3]):[0-5]\d$/.test(time))throw Error('Invalid appointment time');
-  row[key]={...old[key],appointment:booked?{date:booked,time,location:str(data.location,'location',160)}:null};
+  const endTime=str(data.appointmentEndTime,'appointment finish time',5);
+  if(endTime&&(!/^([01]\d|2[0-3]):[0-5]\d$/.test(endTime)||!time||endTime<=time))throw Error('Finish must be later than the appointment start time.');
+  row[key]={...old[key],appointment:booked?{date:booked,time,...(endTime?{endTime}:{}),location:str(data.location,'location',160)}:null};
   return finish();
  }
  if(data.operation==='saveDocument'){
