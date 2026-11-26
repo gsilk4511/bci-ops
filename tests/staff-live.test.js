@@ -71,11 +71,20 @@ test('live bonus is based on the work date, costs and own labor before invoices,
  assert.equal(live.totalAttributedCents,400000);
  assert.equal(live.totalEmploymentCostCents,160000);
  assert.equal(live.totalNetProfitCents,240000);
- assert.equal(live.bonus.projectedCents,24000);
- w.invoice={status:'sent',sentAt:'2027-01-05T10:00:00Z',amountPaid:0};
- assert.deepEqual(metrics(s).contribution,live);
+ assert.equal(live.taxReserveCents,72000);
+ assert.equal(live.totalAfterTaxProfitCents,168000);
+ assert.equal(live.bonus.projectedCents,16800);
+ assert.equal(live.cash.bonus.projectedCents,0);
+ const {cash:initialCash,...initialAccrual}=live;
+ w.invoice={number:'QB-1',status:'sent',sentAt:'2026-11-25T10:00:00Z',amountPaid:0};
+ const {cash:invoiced,...accrual}=metrics(s).contribution;
+ assert.deepEqual(accrual,initialAccrual);
+ assert.deepEqual([invoiced.totalAttributedCents,invoiced.totalEmploymentCostCents,invoiced.taxReserveCents,invoiced.bonus.projectedCents],
+  [400000,160000,72000,16800]);
  w.invoice={...w.invoice,status:'paid',amountPaid:5000};
- assert.deepEqual(metrics(s).contribution,live);
+ assert.deepEqual(metrics(s).contribution.cash,invoiced);
+ w.invoice={...w.invoice,voidedAt:'2026-11-25T12:00:00Z'};
+ assert.deepEqual(metrics(s).contribution.cash,initialCash);
  assert.equal(metrics(s,{...tech,email:other}).contribution.bonus.projectedCents,null);
  const quiet=metrics(s,{...tech,permissions:['staff.view']}).contribution;
  assert.equal(quiet.projects[0].projectId,null);
@@ -93,7 +102,7 @@ test('correction recomputes the live estimate without rewriting an approved payr
  s.workorders[0].entries[0].quantity=23; // Fixture represents a later source reconciliation, not a payroll write path.
  const view=metrics(s);
  assert.deepEqual(amounts(view.weeklyTime.rows[0]),[40,6,0,0,8]);
- assert.equal(view.contribution.bonus.projectedCents,23400);
+ assert.equal(view.contribution.bonus.projectedCents,16380);
  assert.deepEqual(s.payrollRuns,[locked]);
 });
 
@@ -108,4 +117,47 @@ test('other payroll entries linked by verified Team sign-in count even when the 
  s.users[0].name='New Display Name';
  assert.equal(metrics(s).weeklyTime.rows[0].holiday,11);
  assert.equal(metrics(s,{...tech,email:other}).weeklyTime.rows[0].holiday,0);
+});
+
+test('Cash uses grouped invoice labor and matched employee identity, not current rates or receipts',()=>{
+ const s=fixture(),w=s.workorders[0];
+ const invoice={id:'group-1',number:'QB-2',sentAt:'2026-11-24T17:00:00Z',projectId:w.projectId,
+  orders:[{id:w.id,entries:w.entries.map(({employeeEmail,...record})=>record)}]};
+ s.projectInvoices=[invoice];
+ w.invoice={groupId:invoice.id,number:invoice.number,status:'sent',amountPaid:0};
+ w.entries[0].rate=150; // Distinguish stored charge from live source in a synthetic fixture.
+ s.workorders.push({...w,id:'new-unbilled',invoice:null,entries:[row('new-labor','labor','2026-11-25',2)]});
+ const result=metrics(s).contribution;
+ assert.equal(result.totalAttributedCents,540000);
+ assert.equal(result.totalEmploymentCostCents,168000);
+ assert.equal(result.cash.totalAttributedCents,400000);
+ assert.equal(result.cash.totalEmploymentCostCents,160000);
+ assert.equal(result.cash.bonus.projectedCents,16800);
+ const hidden=scopeState(s,{...tech,recordScopes:{invoices:'none'}});
+ assert.equal(metrics(s,tech,hidden).contribution.cash.bonus.projectedCents,null);
+ invoice.void=true;
+ assert.equal(metrics(s).contribution.cash.totalAttributedCents,0);
+ invoice.void=false;
+ invoice.orders[0].entries[0].date='2026-11-20';
+ const incomplete=metrics(s).contribution.cash;
+ assert.equal(incomplete.status,'partial');
+ assert.equal(incomplete.bonus.projectedCents,null);
+});
+
+test('tax reserve is on positive annual profit after losses; project totals reconcile to the cent',()=>{
+ const s=fixture(),w=s.workorders[0];
+ w.entries=[row('main','labor','2026-11-25',1,{rate:40.03})];
+ s.workorders.push({...w,id:'other-profit',projectId:'second',entries:[row('small','labor','2026-11-25',1,{rate:40.03})]});
+ s.workorders.push({...w,id:'loss',projectId:'third',entries:[row('neg','labor','2026-11-25',1,{rate:39.99})]});
+ const result=metrics(s).contribution;
+ assert.equal(result.totalNetProfitCents,5);
+ assert.equal(result.taxReserveCents,2);
+ assert.equal(result.totalAfterTaxProfitCents,3);
+ assert.equal(result.projects.reduce((sum,project)=>sum+project.afterTaxProfitCents,0),3);
+ s.workorders.at(-1).entries[0].rate=35;
+ const loss=metrics(s).contribution;
+ assert.equal(loss.totalNetProfitCents,-494);
+ assert.equal(loss.taxReserveCents,0);
+ assert.equal(loss.totalAfterTaxProfitCents,-494);
+ assert.equal(loss.bonus.projectedCents,0);
 });

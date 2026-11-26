@@ -1,3 +1,16 @@
+# 0.10.5 — Wide screens and profile weather
+
+- Desktop browser windows 1,440 CSS pixels or wider use available workspace width, instead of the previous main-column cap.
+- My Time & Profile has a weather panel on the right at wide widths. On narrower screens, it is a collapsed, optional section.
+- Barre, VT forecast from the National Weather Service. No geolocation, account credentials, external browser fetch, or database migration. Weather is separate from staff metrics and unavailable in practice mode.
+- No changes to business texting, billing, payroll, or deployment credentials.
+
+# 0.10.4 — Live bonus and profile card appearance
+
+- Profile Studio colors, lighting and table styles now apply to Technician Contribution and My Last Five Weeks, including after live refresh.
+- Contribution defaults to Accrual (logged work); Cash filters to work recorded on invoices, paid or unpaid. Both use the recorded labor rate and effective wage plus 25% on the same eligible work hours.
+- Show pretax labor profit, a 30% planning reserve on positive annual labor profit, and after-reserve profit. Apply the configured share to positive after-reserve profit. Keep the year-end estimate prominent and live, with no payroll, invoicing, or payment changes.
+
 # 0.10.3 — Dashboard and account controls
 
 - Home becomes Dashboard. Work-order review, billing and open-project cards replace the old Tickets shortcut. Actual ticket records and old links stay in Service desk.

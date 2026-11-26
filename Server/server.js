@@ -1,3 +1,4 @@
+import {createProfileWeather} from './profile-weather.js';
 import {dashboardLayout} from '../Models/dashboard-layouts.js';
 import {planAttribution,applyAttribution} from '../Models/time-attribution.js';
 import {signInConfig,isAppSignIn,canUseEmail,bootSignIn,appAuthView,performAppSignIn,invalidateEmailDelivery} from '../UserSecurity/signin.js';
@@ -258,6 +259,7 @@ const databaseTablePermissions = {
  purchases:'inventory.view',projectInvoices:'money.view',payrollRuns:'payroll.view'
 };
 function response(res,status,value){res.writeHead(status,{'content-type':'application/json; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff','referrer-policy':'no-referrer','x-frame-options':'DENY','content-security-policy':"frame-ancestors 'none'"});res.end(JSON.stringify(value,(_key,item)=>typeof item==='bigint'?item.toString():item));}
+const profileWeather=createProfileWeather();
 const server=http.createServer(async(req,res)=>{
   try {
     const url=new URL(req.url,'http://local');
@@ -450,6 +452,11 @@ const server=http.createServer(async(req,res)=>{
       const practice=trainingState(current,{email:user.email,role,permissions});
       if(permissions.includes('invoice.group'))practice.workorders=practice.workorders.map(order=>({...order,crewSummary:crewSummary(order.entries)}));
       return response(res,200,{...practice,liveAccess:{email:user.email,role,accessRevision:current.meta?.accessRevision||0,...access}});
+    }
+    if(url.pathname==='/api/profile-weather'){
+      if(req.method!=='GET')return response(res,405,{error:'Method not allowed'});
+      if(!permissions.includes('staff.view'))return response(res,403,{error:'Staff access required'});
+      return response(res,200,await profileWeather());
     }
     if(url.pathname==='/api/staff-summary'){
       if(req.method!=='GET')return response(res,405,{error:'Method not allowed'});

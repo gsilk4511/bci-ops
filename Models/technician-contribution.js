@@ -218,9 +218,37 @@ export const ownLiveLabor=(line,email)=>line.type==='labor'&&trustedEmail(attrib
 export const possibleLiveDay=(day,year,today)=>!validDay(day)||(day.startsWith(year+'-')&&day<=today);
 export function liveTechnicianContribution(state,identity,options={}){
  const email=trustedEmail(identity);
- const today=daysOf(options.now??new Date());
+ const asOf=options.now??new Date();
+ const today=daysOf(asOf);
  const year=options.year??Number(today.slice(0,4));
- const basis='Own logged customer work at the recorded labor rate. Employment cost applies the wage effective for the work date plus 25%. Invoice and payment dates do not control the estimate.';
+ const mode=options.mode==='cash'?'cash':'accrual';
+ const basis=mode==='cash'?'Customer labor on recorded invoices in BCI Operations. Payment is not required.':'Logged customer work at the recorded labor rate, whether invoiced or not.';
+ const invoiceActive=invoice=>!!invoiceKey(invoice)&&!invoice.voidedAt&&!invoice.void&&!['void','draft','cancelled','canceled'].includes(invoice.status);
+ const explicitlyVoid=invoice=>invoice&&(invoice.voidedAt||invoice.void||['void','cancelled','canceled'].includes(invoice.status));
+ const invoiceGroups=new Map();
+ if(mode==='cash')for(const doc of state.projectInvoices||[]){
+  for(const record of doc.orders||[]){
+   if(!invoiceGroups.has(record.id))invoiceGroups.set(record.id,[]);
+   invoiceGroups.get(record.id).push({doc,record});
+  }
+ }
+ const invoiceSource=(order,labor)=>{
+  if(explicitlyVoid(order.invoice))return null;
+  const candidates=(invoiceGroups.get(order.id)||[]).filter(({doc})=>doc.projectId===order.projectId);
+  const matched=candidates.filter(({doc})=>!order.invoice?.groupId||doc.id===order.invoice.groupId);
+  const active=matched.filter(({doc})=>invoiceActive(doc));
+  if(active.length>1)return false;
+  const group=active[0];
+  if(!group){
+   if(matched.length||order.invoice?.groupId)return invoiceActive(order.invoice)&&!matched.length?false:null;
+   return invoiceActive(order.invoice)?labor:null; // Standalone QuickBooks recording locks the work-order amounts.
+  }
+  if(order.invoice&&(!invoiceActive(order.invoice)||invoiceKey(order.invoice)!==invoiceKey(group.doc)))return false;
+  if(!Array.isArray(group.record.entries))return false;
+  const frozen=indexUnique(group.record.entries.filter(row=>row.type==='labor'),row=>row.id);
+  return labor.every(row=>!frozen.duplicates.has(row.id)&&frozen.map.get(row.id)?.date===row.date)?
+   labor.map(row=>frozen.map.get(row.id)):false;
+ };
  const profitShareBps=Number.isInteger(options.profitShareBps)&&options.profitShareBps>=0&&options.profitShareBps<=10000?options.profitShareBps:500;
  const wages=wageTable(options.wageHistory);
  const coverage={includedOrders:0,excludedOrders:0,missingWageOrders:0,missingCostOrders:0,scopeIncomplete:options.scopeIncomplete===true};
@@ -230,8 +258,13 @@ export function liveTechnicianContribution(state,identity,options={}){
  for(const order of orders.values()){
   if(!email||order.billingHidden||internalOrder(state,order))continue;
   const entries=order.entries||[];
-  const labor=entries.filter(row=>ownLiveLabor(row,email)&&possibleLiveDay(row.date,year,today));
+  let labor=entries.filter(row=>ownLiveLabor(row,email)&&possibleLiveDay(row.date,year,today));
   if(!labor.length)continue;
+  if(mode==='cash'){
+   labor=invoiceSource(order,labor);
+   if(labor===null)continue;
+   if(labor===false){coverage.excludedOrders++;continue;}
+  }
   const {duplicates:repeatedLines}=indexUnique(entries,row=>row.id);
   if(duplicates.has(order.id)||labor.some(row=>!validDay(row.date)||!row.id||repeatedLines.has(row.id)||
     !/^(hr|hour|hours|h)$/i.test(row.unit)||!validHours(row.quantity)||!validNumber(row.rate))){
@@ -260,11 +293,30 @@ export function liveTechnicianContribution(state,identity,options={}){
   revenue+=amount;cost+=loaded;profit+=amount-loaded;
  }
  const partial=coverage.excludedOrders>0||coverage.scopeIncomplete;
- const verified=coverage.includedOrders>0&&!partial&&!coverage.missingCostOrders;
- if(!verified)for(const row of projects.values()){row.employmentCostCents=null;row.netProfitCents=null;}
- const projectedCents=verified?Number((BigInt(Math.max(0,profit))*BigInt(profitShareBps)+5000n)/10000n):null;
- return {status:!coverage.includedOrders?'unavailable':partial?'partial':'available',basis,
-  totalAttributedCents:coverage.includedOrders?revenue:null,totalEmploymentCostCents:verified?cost:null,totalNetProfitCents:verified?profit:null,
+ const emptyCash=mode==='cash'&&!coverage.includedOrders&&!partial;
+ const verified=(coverage.includedOrders>0||emptyCash)&&!partial&&!coverage.missingCostOrders;
+ // Tax is a planning reserve on positive annual labor profit after offsetting losses, not on revenue.
+ const taxReserveCents=verified?Number((BigInt(Math.max(0,profit))*30n+50n)/100n):null;
+ const afterTax=verified?profit-taxReserveCents:null;
+ const positiveProjects=[...projects.values()].filter(row=>row.netProfitCents>0);
+ const totalPositive=positiveProjects.reduce((sum,row)=>sum+BigInt(row.netProfitCents),0n);
+ const reserves=new Map();
+ if(taxReserveCents>0&&totalPositive>0n){
+  const shares=positiveProjects.map(row=>{
+   const numerator=BigInt(row.netProfitCents)*BigInt(taxReserveCents);
+   return {id:row.projectId,floor:Number(numerator/totalPositive),remainder:numerator%totalPositive};
+  }).sort((a,b)=>a.remainder===b.remainder?String(a.id).localeCompare(String(b.id)):a.remainder>b.remainder?-1:1);
+  const remainder=taxReserveCents-shares.reduce((sum,item)=>sum+item.floor,0);
+  shares.forEach((row,i)=>reserves.set(row.id,row.floor+(i<remainder?1:0)));
+ }
+ for(const row of projects.values()){
+  if(!verified){row.employmentCostCents=null;row.netProfitCents=null;row.afterTaxProfitCents=null;continue;}
+  row.afterTaxProfitCents=row.netProfitCents-(reserves.get(row.projectId)||0);
+ }
+ const projectedCents=verified?Number((BigInt(Math.max(0,afterTax))*BigInt(profitShareBps)+5000n)/10000n):null;
+ return {status:partial?'partial':!coverage.includedOrders&&!emptyCash?'unavailable':'available',basis,mode,taxReservePercent:30,
+  totalAttributedCents:coverage.includedOrders||emptyCash?revenue:null,totalEmploymentCostCents:verified?cost:null,totalNetProfitCents:verified?profit:null,
+  taxReserveCents,totalAfterTaxProfitCents:afterTax,
   projects:[...projects.values()].sort((a,b)=>b.attributedCents-a.attributedCents||String(a.projectId).localeCompare(String(b.projectId))),coverage,
   bonus:{status:projectedCents==null?'unavailable':'available',profitShareBps,projectedCents,year,payoutDate:nearestDecemberFriday(year)}};
 }

@@ -34,7 +34,7 @@ export function openCompensationProfile(row,year,profileFields){
   wageHistory(history)+'</fieldset>'+
   '<fieldset class="bci-compensation-fields"><legend>Annual bonus profit share</legend>'+
   f('profitShareYear','Bonus year',{select:years.map(value=>[String(value),String(value)]),value:String(year),required:true})+
-  f('profitSharePercent','Share of positive annual labor profit (%)',{type:'number',min:0,step:'0.01',value:existingRate(year),
+  f('profitSharePercent','Share of positive annual labor profit after tax reserve (%)',{type:'number',min:0,step:'0.01',value:existingRate(year),
    hint:'Standard: 5%. Enter 0% for an explicit zero-rate override.'})+
   '<p><label><input type="checkbox" name="clearRate"> Use the standard 5% for the selected year</label></p></fieldset>',
   values=>{

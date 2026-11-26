@@ -91,7 +91,7 @@ test('one staff-profile save can update leave, pay details, a dated wage and the
  assert.equal(self.totalAttributedCents,20000);
  assert.equal(self.totalEmploymentCostCents,8750);
  assert.equal(self.totalNetProfitCents,11250);
- assert.equal(self.bonus.projectedCents,703);
+ assert.equal(self.bonus.projectedCents,492);
  const settingsOnly=Object.fromEntries(Object.entries(combined).filter(([key])=>!['wageEffectiveDate','hourlyWage','profitShareYear','profitSharePercent'].includes(key)));
  staffAction(s,'staff.manage',{...settingsOnly,sickHours:22},boss);
  const after=staffView(s,boss).staffProfiles.find(profile=>profile.email===employee);

@@ -26,47 +26,59 @@ function pie(title,description,total,rows,net=false){
   </div></div>
   ${chartable?(positives.length?`<dl class="bci-staff-legend" aria-label="${net?'Profitable projects':'Breakdown by project'}">${legendRows(positives,true)}</dl>`:
    `<p>${net?'No positive project profit to chart.':'No positive amounts to chart.'}</p>`):'<p>Not enough verified information to chart a total.</p>'}
-  ${loss.length?`<p class="bci-profit-loss-note">Project losses are included in the net total, but cannot appear as pie slices.</p>
+  ${loss.length?`<p class="bci-profit-loss-note">Project losses reduce the total but are not pie slices.</p>
    <dl class="bci-staff-legend" aria-label="Project losses">${legendRows(loss,false)}</dl>`:''}
  </section>`;
 }
-function bonusPanel(bonus, year){
+function bonusPanel(bonus, year, cash){
  const share=Number.isFinite(bonus?.profitShareBps)?bonus.profitShareBps/100:null, available=bonus?.status==='available'&&Number.isFinite(bonus?.projectedCents);
  let reason='';
- if(!available)reason=share===null?'The projection is not available yet.':'The projection needs complete work-order labor and matching wage history.';
+ if(!available)reason=share===null?'The projection is not available yet.':'A complete projection needs qualifying labor and matching wage history.';
  return `<section class="bci-profit-bonus" aria-labelledby="bonusHeading">
-  <div class="bci-profit-bonus-copy">
-   <p>Private estimate</p><h3 id="bonusHeading">${esc(bonus?.year??year??'')} estimated year-end bonus</h3>
+  <div class="bci-profit-bonus-copy" aria-live="polite">
+   <p>${cash?'Recorded invoiced work':'Live year-to-date progress'}</p>
+   <h3 id="bonusHeading">${esc(bonus?.year??year??'')} estimated year-end bonus</h3>
    <strong>${contributionCurrency(available?bonus.projectedCents:null)}</strong>
    ${reason?`<p>${reason}</p>`:''}
   </div>
   <div><p><strong>Target date:</strong> ${esc(dateLabel(bonus?.payoutDate))}</p>
    <p><strong>Profit share:</strong> ${percent(share)}</p>
-   ${share!==null?`<meter class="bci-profit-meter" min="0" max="100" value="${share}" aria-label="Share of positive annual labor profit">${percent(share)}</meter>`:''}
-   <p>The estimate applies the shown share to positive annual labor profit. It updates with qualifying work-order entries and effective wages, before an invoice is sent or paid. It does not create or schedule a payroll payment.</p>
+   <p>${cash?'This view changes when qualifying work is recorded on an invoice, even if it has not been paid.':'Log your customer work and see it count toward your bonus without waiting for an invoice.'} Your rate applies to positive labor profit after the tax reserve. This projection does not schedule or send a payment.</p>
   </div></section>`;
 }
-export function contributionPanel(data, projects=[]){
+export function contributionPanel(data, projects=[], mode='accrual'){
  if(!data)return '';
- const {status,totalAttributedCents,totalEmploymentCostCents,totalNetProfitCents,coverage,bonus}=data;
- const year=data.year??bonus?.year;
+ const cash=mode==='cash'&&!!data.cash;
+ const view=cash?data.cash:data;
+ const {status,totalAttributedCents,totalEmploymentCostCents,totalNetProfitCents,taxReserveCents,totalAfterTaxProfitCents,coverage,bonus}=view;
+ const year=view.year??bonus?.year;
  const names=new Map(projects.map(row=>[row.id,row.name]));
- const amounts=Array.isArray(data.projects)?data.projects:[];
+ const amounts=Array.isArray(view.projects)?view.projects:[];
  const metric=field=>amounts.map((row,i)=>({
   name:row.name||row.projectName||names.get(row.projectId)||'Project',
   cents:row[field],color:palette[i%palette.length]
  }));
  return `<section class="panel" aria-labelledby="contributionHeading">
   <h2 id="contributionHeading">Technician contribution</h2>
-  <p>${year?esc(year)+' year to date. ':''}Only your logged customer work at the recorded labor rate counts. Parts, travel, vacation and other paid time off are excluded. Labor profit is labor revenue minus your loaded employment cost. It is not total company profit.</p>
-  ${status==='partial'?'<p><strong>Partial revenue:</strong> Some qualifying work could not be verified or included.</p>':''}
+  ${data.cash?`<div class="bci-contribution-modes" role="group" aria-label="Technician contribution basis">
+    <button type="button" class="secondary" data-staff-action="contribution-mode" data-staff-id="accrual" aria-pressed="${!cash}">Accrual · logged work</button>
+    <button type="button" class="secondary" data-staff-action="contribution-mode" data-staff-id="cash" aria-pressed="${cash}">Cash · invoiced work</button>
+  </div>`:''}
+  <p>${year?esc(year)+' work dates, year to date. ':''}${cash?'Only work on recorded invoices counts here, paid or unpaid. Costs are estimated for that same invoiced work.':'Your logged customer labor counts right away, even before invoicing or payment.'} Parts, travel, internal work and time off are excluded.</p>
+  ${status==='partial'?'<p><strong>Partial coverage:</strong> Some qualifying work could not be verified or included.</p>':''}
   ${status==='unavailable'?'<p>No qualifying work-order contribution is available yet.</p>':''}
+  ${cash&&status==='available'&&!coverage?.includedOrders?'<p>No qualifying invoiced work yet. Switch to Accrual to see your logged work.</p>':''}
+  ${bonusPanel(bonus,year,cash)}
   <div class="bci-profit-grid">
-   ${pie('Estimated labor revenue','Your logged customer work at the recorded labor rate.',totalAttributedCents,metric('attributedCents'))}
-   ${pie('Employment cost','Effective hourly wage × qualifying work hours × 1.25.',totalEmploymentCostCents,metric('employmentCostCents'))}
-   ${pie('Labor profit','Estimated labor revenue less loaded employment cost.',totalNetProfitCents,metric('netProfitCents'),true)}
+   ${pie('Labor revenue','Qualifying hours at the recorded customer labor rate.',totalAttributedCents,metric('attributedCents'))}
+   ${pie('Employment cost','Same hours × wage effective on the work date × 1.25.',totalEmploymentCostCents,metric('employmentCostCents'))}
+   ${pie('Labor profit after tax reserve','Labor revenue less employment cost and the tax reserve.',totalAfterTaxProfitCents,metric('afterTaxProfitCents'),true)}
   </div>
-  ${coverage?`<p>${Number(coverage.includedOrders)||0} work orders included · ${Number(coverage.excludedOrders)||0} excluded${coverage.missingWageOrders? ` · ${Number(coverage.missingWageOrders)||0} included orders missing wage coverage`:''}</p>`:''}
-  ${bonusPanel(bonus,year)}
+  <dl class="bci-staff-legend bci-profit-taxes" aria-label="Labor profit and tax reserve">
+   <div><dt>Labor profit before tax reserve</dt><dd>${contributionCurrency(totalNetProfitCents)}</dd></div>
+   <div><dt>Estimated tax reserve (30% of positive labor profit)</dt><dd>${contributionCurrency(taxReserveCents)}</dd></div>
+   <div><dt>Labor profit after tax reserve</dt><dd>${contributionCurrency(totalAfterTaxProfitCents)}</dd></div>
+  </dl>
+  ${coverage?`<p>${Number(coverage.includedOrders)||0} work orders included · ${Number(coverage.excludedOrders)||0} invalid orders excluded${coverage.missingWageOrders? ` · ${Number(coverage.missingWageOrders)||0} included orders missing wage coverage`:''}.</p>`:''}
  </section>`;
 }

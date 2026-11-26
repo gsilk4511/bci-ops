@@ -4,6 +4,7 @@ import {changelogPage,wireChangelog} from './modules/changelog.js';
 import {assignmentLink} from './modules/record-assignments.js';
 import {canEditJournalNote,receiptPicker,receiptPayload} from './modules/work-entry.js';
 import {clientPortal,readyForProgress} from './modules/project-billing.js';
+import {wireProfileWeather} from './modules/profile-weather.js';
 import {staffPage} from './modules/staff.js';
 import {fleetPage} from './modules/fleet.js';
 import {workOrderDocument} from './modules/work-order-document.js';
@@ -534,6 +535,7 @@ function render(){
   const permission=button.hasAttribute('data-change')?'change.approve':formPermissions[button.dataset.open];
   if(permission&&!can(permission))button.remove();
  }
+ if(view==='staff'&&allowed)wireProfileWeather($('#profileWeather'));
  wireRecords();
  if(view==='catalog'&&allowed)wirePricingPage($('#app'));
  if(view==='trash'&&me?.role==='admin')wireTrash();

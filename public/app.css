@@ -421,6 +421,10 @@ button.danger{background:#a72323;border:2px solid #8a1818;border-radius:8px;colo
 .bci-profit-bonus-copy>p:first-child{margin:0 0 .4rem;font-weight:650}
 .bci-profit-bonus p{margin:.35rem 0}
 .bci-profit-meter{width:100%;height:1.2rem;accent-color:#157f76}
+.bci-contribution-modes{display:flex;gap:.5rem;flex-wrap:wrap;margin:.6rem 0}
+.bci-contribution-modes button{min-height:44px;color:var(--staff-workspace-text,inherit);border-color:var(--staff-workspace-border,#818e8e80);background:var(--staff-workspace-inset,transparent)}
+.bci-contribution-modes button[aria-pressed="true"]{font-weight:750;box-shadow:inset 0 -3px currentColor;background:var(--staff-workspace-raised,transparent)}
+.bci-profit-taxes{max-width:630px}
 @media(max-width:600px){.bci-profit-bonus{grid-template-columns:1fr}}
 .bci-wage-history{border:1px solid #818e8e80;border-radius:8px;padding:.55rem .8rem;margin:0 0 .85rem}
 .bci-wage-history summary{cursor:pointer;font-weight:650;padding:.2rem 0}
@@ -449,7 +453,7 @@ button.danger{background:#a72323;border:2px solid #8a1818;border-radius:8px;colo
   background:radial-gradient(ellipse at 85% 0%,var(--staff-workspace-glow),transparent 34%),
              var(--staff-workspace-canvas,var(--staff-workspace-surface));
  }
- #app .bci-staff-workspace>:is(.pagehead,.panel){
+ :is(#app .bci-staff-workspace>.pagehead,#app :is(.bci-staff-primary,.bci-staff-columns)>.panel,#app .bci-staff-primary>[id="staffLiveMetrics"]>.panel){
   background-color:var(--staff-workspace-surface);
   border-color:var(--staff-workspace-border);
   color:var(--staff-workspace-text);
@@ -464,28 +468,28 @@ button.danger{background:#a72323;border:2px solid #8a1818;border-radius:8px;colo
    linear-gradient(#0d101bbb,#0d101bdf),
    var(--staff-workspace-banner);
  }
- #app .bci-staff-workspace>.panel{
+ :is(#app :is(.bci-staff-primary,.bci-staff-columns)>.panel,#app .bci-staff-primary>[id="staffLiveMetrics"]>.panel){
   background-image:radial-gradient(ellipse at top right,color-mix(in srgb,var(--staff-workspace-glow) 45%,transparent),transparent 68%);
  }
- #app .bci-staff-workspace>:is(.pagehead,.panel) :is(.muted,.eyebrow,.empty,.filters .field label,th){
+ :is(#app .bci-staff-workspace>.pagehead,#app :is(.bci-staff-primary,.bci-staff-columns)>.panel,#app .bci-staff-primary>[id="staffLiveMetrics"]>.panel) :is(.muted,.eyebrow,.empty,.filters .field label,th){
   color:var(--staff-workspace-muted);
  }
- #app .bci-staff-workspace>.panel :is(th,td){
+ :is(#app :is(.bci-staff-primary,.bci-staff-columns)>.panel,#app .bci-staff-primary>[id="staffLiveMetrics"]>.panel) :is(th,td){
   border-color:var(--staff-workspace-border);
  }
- #app .bci-staff-workspace>.panel tbody tr:hover td{
+ :is(#app :is(.bci-staff-primary,.bci-staff-columns)>.panel,#app .bci-staff-primary>[id="staffLiveMetrics"]>.panel) tbody tr:hover td{
   background-color:var(--staff-workspace-raised,var(--staff-workspace-surface));
  }
- #app .bci-staff-workspace>.panel .rowlink{
+ :is(#app :is(.bci-staff-primary,.bci-staff-columns)>.panel,#app .bci-staff-primary>[id="staffLiveMetrics"]>.panel) .rowlink{
   color:var(--staff-workspace-text);
   text-decoration-color:var(--staff-workspace-muted);
  }
- #app .bci-staff-workspace>.panel :is(.bci-manager-summary>div,.bci-manager-card,.bci-staff-totals>div,
+ :is(#app :is(.bci-staff-primary,.bci-staff-columns)>.panel,#app .bci-staff-primary>[id="staffLiveMetrics"]>.panel) :is(.bci-manager-summary>div,.bci-manager-card,.bci-staff-totals>div,
                                   .bci-profit-card,.bci-profit-bonus,.bci-profile-disclosure){
   border-color:var(--staff-workspace-border);
   background-color:var(--staff-workspace-inset,var(--staff-workspace-surface));
  }
- #app .bci-staff-workspace>.panel .bci-manager-maintenance{
+ :is(#app :is(.bci-staff-primary,.bci-staff-columns)>.panel,#app .bci-staff-primary>[id="staffLiveMetrics"]>.panel) .bci-manager-maintenance{
   border-color:var(--staff-workspace-border);
  }
 }
@@ -624,3 +628,24 @@ button.fleet-mini:hover{border-color:var(--fleet-text);box-shadow:0 4px 16px #00
 /* Session action stays reachable when the desktop status strip is hidden. */
 .header-signout{margin-left:12px;flex:0 0 auto;min-height:44px;padding:8px 12px;white-space:nowrap;border:1px solid #52615b;border-radius:8px;background:#263331;color:#f4f7f5}
 @media(max-width:380px){.header-signout{margin-left:6px;padding-inline:8px}header .theme-toggle{padding-inline:8px}header .brand{gap:6px}}
+
+/* Use wide viewports without changing the phone or print layout. */
+@media screen and (min-width:1440px){
+ .shell>main{max-width:none}
+ .bci-staff-columns.has-weather{display:grid;grid-template-columns:minmax(0,1fr) clamp(280px,20vw,350px);gap:20px;align-items:start}
+ .bci-staff-columns.has-weather>.bci-profile-weather{grid-area:1/2}
+ .bci-staff-primary{grid-area:1/1}
+}
+.bci-staff-primary,.bci-profile-weather{min-width:0}
+.bci-profile-weather h2{margin:0;font-size:1.12rem}
+.bci-profile-weather summary{cursor:pointer;min-height:26px;line-height:26px}
+.bci-profile-weather summary h2{display:inline}
+.bci-weather-details{margin-top:.65rem;overflow-wrap:anywhere}
+.bci-weather-next{display:flex;flex-flow:row wrap;align-items:baseline;gap:.35rem .65rem;margin-bottom:.4rem}
+.bci-weather-next strong{font-size:1.65rem}
+.bci-weather-list{padding:0;margin:.5rem 0;list-style:none}
+.bci-weather-list li{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:.4rem;padding:.32rem 0;border-bottom:1px solid var(--staff-workspace-border,#788)}
+.bci-weather-alerts{border-inline-start:3px solid #ef8b34;padding-inline-start:.55rem}
+.bci-weather-details a{color:inherit;text-decoration:underline}
+.bci-weather-details p{margin:.45rem 0}
+@media print{.bci-profile-weather{display:none!important}}

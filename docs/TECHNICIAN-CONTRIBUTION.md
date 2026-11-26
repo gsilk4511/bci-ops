@@ -1,58 +1,52 @@
-# Technician Contribution: work-time bonus estimate
+# Technician Contribution: live year-end bonus estimate
 
-My Time & Profile shows a private project breakdown and a year-to-date
-estimate. It is not an accounting ledger, cash receipts, payroll, a final
-bonus, or the company's net profit.
+Only the signed-in employee’s aggregate contribution is shown on My Time &
+Profile. Teammate directory cards do not expose time, pay, or contribution.
 
-## Formula
+## Basis and formula
 
-For each eligible customer work-labor line linked to the employee:
+- **Accrual · logged work** is the default. It uses eligible work-order labor
+  when logged, before invoice issuance or payment. It is a work projection,
+  not the general ledger's accrual accounting.
+- **Cash · invoiced work** is BCI’s billed-work view, not cash receipts. It
+  counts work linked to a recorded invoice, including unpaid invoices, and
+  excludes unbilled work. Grouped invoices use their stored labor lines;
+  standalone QuickBooks references use the locked work-order labor. Costs
+  use the wage in effect for the same hours. Both views group by the labor
+  work date; the toggle does not initiate any QuickBooks sync.
 
-1. **Labor revenue** = posted work-order labor hours × the recorded
-   customer labor rate on that line.
-2. **Loaded employment cost** = those work hours × the employee's hourly
-   wage effective on the work date × 1.25. The 25% is a flat allowance for
-   taxes, workers' compensation and office costs; not an actual expense figure.
-3. **Labor profit** = labor revenue minus loaded employment cost.
-4. **Bonus estimate** = 5% of positive year-to-date labor profit, unless an
-   admin set a different employee-specific rate for this bonus year. Losses
-   on eligible work reduce the annual result before the zero floor. No
-   negative bonus or deduction is made.
+For each eligible customer labor line linked to the employee, calculate:
 
-Parts, travel, vacation, sick leave and other nonbillable time are not inputs.
-Taking leave does not subtract from the meter or change payroll or leave
-balances. A better client rate on eligible work can increase labor margin
-without anyone needing to forgo vacation.
+1. Labor revenue = hours × recorded customer labor rate.
+2. Loaded employment cost = those same hours × wage effective on the work date
+   × 1.25. The 25% allowance estimates taxes, workers’ comp and office costs.
+3. Pretax labor profit = revenue − loaded cost. Project losses offset gains.
+4. Estimated tax reserve = 30% of positive year-to-date labor profit. A loss
+   produces no reserve. This is a planning assumption, not actual tax.
+5. Year-end bonus estimate = the configured share of positive labor profit
+   after the reserve. The standard share is 5%; an explicit 0% remains 0%.
+   No negative bonus, payroll write or payout is made.
 
-The estimate reads current work-order labor from the existing approved workflow before or
-after invoice issuance. An unpaid invoice does not change the estimate. Internal orders,
-materials, travel and leave do not contribute. Employee attribution uses the account linked
-to the time entry, not a display name or a catalog cost used as wages. Missing verified
-wages, ambiguous time rows, and relevant scoped-out work withhold a complete estimate.
-No manual job cost entries from 0.9.0 are used.
+Travel, materials, internal work and leave are not inputs. Missing wage history,
+ambiguous time rows, and relevant scoped-out work withhold a complete estimate.
+The chart allocates the estimated annual reserve across profitable projects
+so that project amounts and signed losses reconcile to the annual total.
 
-## Admin setup
+## Administration and target date
 
-In **My Time & Profile → Staff profiles → Edit**, use the same form as
-vacation and sick balances to record the hourly wage, effective date and
-annual profit-share percentage. Add a new wage entry when the wage changes.
-For work before the earliest recorded wage, record the correct earlier
-wage instead of extending a newer rate backwards. No annual override
-means 5%. An explicit 0% is a configured zero, not the default.
+In **My Time & Profile → Staff profiles → Edit staff profile**, record wage
+history and any employee/year-specific percentage. Historical work uses the
+wage in effect on its work date, not a newer wage projected backwards. Bonus
+year uses Eastern work dates. Target: the Friday nearest December 15
+(December 18 in 2026). The projection is not locked on that date.
 
-## Year and date
+## Staging example
 
-The app groups labor by its work date in the Eastern calendar year, not invoice
-or payment date. The Friday nearest December 15 is the bonus target; in 2026
-it is December 18. The projection is not locked on that date. Decide
-separately how to handle late-December work or adjustments before
-processing payroll. The app neither sends a payment nor edits payroll.
-
-## Staging verification
-
-Use a synthetic labor line: 10 posted hours with a $140/hour labor rate and wage of $35/hour.
-Expect $1,400 labor revenue, $437.50 loaded cost, $962.50 labor profit, and
-a $48.13 bonus projection at 5% (rounded to cents). Add travel, parts and PTO
-entries; all four amounts must stay the same. Verify a later wage change
-doesn't affect earlier work, and marking the invoice unpaid or paid does not change the projection. Test a missing historical wage, a scoped-out
-eligible job, a rate override of 0%, and ordinary staff access boundaries.
+Log 10 synthetic customer labor hours at $140/hour with a $35 hourly wage and
+5% bonus share. Expect $1,400.00 revenue, $437.50 employment cost, $962.50
+pretax labor profit, $288.75 reserve, $673.75 after reserve and $33.69 bonus.
+Cash starts at $0. Record a valid invoice and confirm it counts even when
+payment is zero. A later payment does not change either view. Add qualifying work before invoicing
+and confirm the live amount updates. Travel, parts, internal work and leave
+must not change the estimate. Verify custom Profile Studio styling applies to
+both live cards and remains after periodic refresh or reload.

@@ -157,14 +157,18 @@ export function staffMetrics(state,actor,metricsState,year=contributionYear(),vi
   const visible=new Map((metricsState.workorders||[]).map(order=>[order.id,order]));
   const scopeIncomplete=(state.workorders||[]).some(order=>!order.billingHidden&&!internalOrder(state,order)&&
    (!visible.has(order.id)||visible.get(order.id).billingHidden)&&(order.entries||[]).some(row=>ownLiveLabor(row,email)&&possibleLiveDay(row.date,year,today)));
-  contribution=liveTechnicianContribution(metricsState,email,{year,now,profitShareBps:rateForYear(profile,year),
-   wageHistory:contributionWageHistory(profile),scopeIncomplete});
+  const options={year,now,profitShareBps:rateForYear(profile,year),wageHistory:contributionWageHistory(profile),scopeIncomplete};
   const named=new Map((state.projects||[]).filter(p=>has(actor,'projects.view')&&(!visibleProjectIds||visibleProjectIds.has(p.id))).map(p=>[p.id,p]));
-  contribution.projects=contribution.projects.map(row=>{
-   const project=named.get(row.projectId);
-   return {attributedCents:row.attributedCents,laborHours:row.laborHours,orderCount:row.orderCount,employmentCostCents:row.employmentCostCents,
-    netProfitCents:row.netProfitCents,projectId:project?.id??null,projectName:project?.name??'Project'};
-  });
+  const scopedSummary=mode=>{
+   const view=liveTechnicianContribution(metricsState,email,{...options,mode});
+   view.projects=view.projects.map(row=>{
+    const project=named.get(row.projectId);
+    return {attributedCents:row.attributedCents,laborHours:row.laborHours,orderCount:row.orderCount,employmentCostCents:row.employmentCostCents,
+     netProfitCents:row.netProfitCents,afterTaxProfitCents:row.afterTaxProfitCents,projectId:project?.id??null,projectName:project?.name??'Project'};
+   });
+   return view;
+  };
+  contribution={...scopedSummary('accrual'),cash:scopedSummary('cash')};
  }
  return {email,weeklyTime:staffWeeklyTime(state,actor,now),contribution};
 }

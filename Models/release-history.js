@@ -3,6 +3,12 @@
 const section = (title, ...items) => ({title, items});
 const release = (version, title, summary, ...sections) => ({version, title, summary, sections});
 export const releases = [
+ release('0.10.5','Wide screens and profile weather','Use the extra desktop space for records and show the Barre forecast beside My Time & Profile.',
+  section('Layout','Wide browser windows use available space. Phones retain their existing navigation and layouts; weather is collapsed by default.'),
+  section('Weather','National Weather Service hourly outlook and active alerts for Barre, VT. No device location or customer data is sent.')),
+ release('0.10.4','Live bonus and profile card appearance','See logged labor build the estimated bonus and compare it with invoiced work.',
+  section('My Time & Profile','The signed-in profile theme now includes Technician Contribution and My Last Five Weeks.'),
+  section('Bonus','Accrual shows logged customer labor before billing. Cash shows the same labor calculation for invoiced work, paid or unpaid. A 30% reserve on positive annual labor profit is subtracted before applying the configured bonus percentage. No payroll, invoice, or payment write.')),
  release('0.10.3','Customize Dashboard and manage access','Work queues on Dashboard, with a saved layout for each account.',
   section('Dashboard','Home is now Dashboard. The work-order and billing cards sit alongside an Open Projects card. Move, resize, remove or add cards. Each login saves its own layout. Existing tickets remain available in Service desk.'),
   section('Accounts','Sign out from the app header. Administrators can remove added logins from Team after explicit confirmation, while retaining job and payroll history.')),

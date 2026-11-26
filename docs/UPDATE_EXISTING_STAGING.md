@@ -1,4 +1,4 @@
-# Update existing BCI Operations staging to 0.10.3
+# Update existing BCI Operations staging to 0.10.5
 
 ## Greg: use the existing staging stack
 
@@ -10,7 +10,7 @@
    `mariadb.env`, MariaDB database name, named volume, bridge, and service
    hostname `db`. Do not replace these with bundled examples.
 4. Confirm the app build context points to the updated source. In the active
-   Compose file, change the app image tag to `bci-operations:0.10.3`. Do not
+   Compose file, change the app image tag to `bci-operations:0.10.5`. Do not
    change the database service. Use the actual app service name if different.
 
 From the deployment directory:
@@ -21,25 +21,19 @@ docker compose -f compose.bci-operations-fixed.yml up -d --build --no-deps --for
 docker compose -f compose.bci-operations-fixed.yml exec -T bci-operations node -e "fetch('http://127.0.0.1:3100/api/health').then(r=>r.json()).then(console.log)"
 ```
 
-Recreate by itself does not build a new image. Verify `0.10.3` in the health
+Recreate by itself does not build a new image. Verify `0.10.5` in the health
 response and beside the BCI logo. For the default-off install no SQL migration, reimport or reseed is needed. To test optional User Security separately, follow USER_SECURITY.md.
 If you roll back, restore the previous source, restore its former image tag
 and rebuild only the app. Keep the database and its volume in place.
 
 ## Randy: test technician contribution and bonus projection
 
-Use only synthetic work orders, employee accounts and financial inputs in
-staging. See TECHNICIAN-CONTRIBUTION.md for the work-time, wage and attribution rules.
-Confirm that standard staff cannot edit percentages or wages, or view
-anyone else’s results. No payout action is included.
-
-## Randy: test the staff theme
-
-Pick a nondefault section color, text color and lighting in Profile Studio.
-Save, reload and check the heading, My Profile panel, time and leave panels,
-Business Manager if permitted, and the staff charts. The individual profile
-card and coworker cards keep their existing appearance. Open another app
-screen and confirm the staff theme does not follow you there.
+Use synthetic work orders and two staging logins. In Profile Studio, save a
+different section color, text color and lighting. Verify both **My last five
+weeks** and **Technician contribution** use the saved theme after reload and
+after a live refresh. In the same profile, use the [bonus examples](TECHNICIAN-CONTRIBUTION.md)
+to verify live accrual, the cash filter, and the 30% reserve. Confirm the team
+directory still does not expose private metrics. No payout action is included.
 
 ## Randy: test Profile Studio
 
@@ -63,8 +57,8 @@ Installing the update does not change Leslie’s account or permissions.
 - Verify the work-order/project counts against entries from the same user,
   remembering that historical time without an employee account link isn't
   attributed. Cross-check a test invoice with documented time distribution.
-- Verify the three charts and private bonus estimate. Missing wage history
-  or unavailable invoice evidence must not produce a fabricated bonus.
+- Verify the three charts and estimated year-end bonus. Missing wage history
+  must not produce a fabricated bonus. Cash requires a recorded invoice, not payment.
 
 ## Verify 0.9.8 before promoting
 
@@ -142,3 +136,13 @@ In staging, use one project containing an open work order with logged amounts, a
 ## Dashboard and account controls (0.10.3)
 
 See [Dashboard](DASHBOARD.md) for the layout acceptance steps. Use sample accounts only when exercising removal. Confirm Sign out works in the actual Cloudflare and app sign-in modes in use, and test keyboard/phone access. Do not remove a real account for staging verification. Preserve configured recovery administrators and existing access settings.
+
+## Randy: test wide layout and weather
+
+Open Customers and Work Orders in a wide browser window: the tables should use
+available width. Open My Time & Profile: Barre weather sits to the right. Narrow
+the window or check your phone: the same profile stays in one column and **Weather**
+can be expanded if wanted. Check a client printout remains unchanged. The browser
+must not request geolocation. The container needs outbound HTTPS to
+`api.weather.gov`. A missing feed shows a fallback link and does not block profile
+controls. No new environment variable, database migration or port is needed.

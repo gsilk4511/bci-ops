@@ -4,6 +4,7 @@ import {profileCard, directoryProfile, personalProfileFields, personalProfilePay
 import {contributionPanel} from './staff-contribution.js';
 import {contributionYear,openCompensationProfile,rateLabel} from './staff-contribution-admin.js';
 import {businessManagerPanel} from './business-manager.js';
+import {profileWeatherCard} from './profile-weather.js';
 import {staffWorkspaceTheme} from './staff-workspace-theme.js';
 
 let firstDay='',lastDay='';
@@ -31,7 +32,11 @@ function weeklyTimePanel(summary,admin){
   </tr>`))}
  </section>`;
 }
-let refreshing=false;
+let refreshing=false, contributionOwner=null, contributionMode='accrual';
+function renderLiveMetrics(target,staff,focusMode){
+ target.innerHTML=staffLiveContent(staff);
+ if(focusMode)target.querySelector?.(`[data-staff-action="contribution-mode"][data-staff-id="${focusMode}"]`)?.focus({preventScroll:true});
+}
 async function refreshStaffMetrics(){
  const target=document.querySelector('#staffLiveMetrics'), staff=target&&data?.staff;
  if(document.hidden||refreshing||!staff||!can('staff.view')||target.dataset.practice==='true')return;
@@ -45,12 +50,15 @@ async function refreshStaffMetrics(){
   if(data?.staff!==staff||!target.isConnected||next.email!==staff.profile.email||!next.weeklyTime)return;
   if(JSON.stringify([staff.contribution,staff.weeklyTime])===JSON.stringify([next.contribution,next.weeklyTime]))return;
   Object.assign(staff,{contribution:next.contribution,weeklyTime:next.weeklyTime});
-  target.innerHTML=staffLiveContent(staff);
+  const focused=document.activeElement;
+  renderLiveMetrics(target,staff,focused?.dataset.staffAction==='contribution-mode'&&target.contains?.(focused)?focused.dataset.staffId:null);
  }catch{/* A connection failure should not discard the last loaded summary. */}
  finally{refreshing=false;}
 }
 function staffLiveContent(staff){
- return contributionPanel(staff.contribution,staff.projects||[])+weeklyTimePanel(staff.weeklyTime,Array.isArray(staff.staffProfiles)&&can('staff.manage'));
+ const owner=staff.profile.email+'|'+practiceMode;
+ if(owner!==contributionOwner){contributionOwner=owner;contributionMode='accrual';}
+ return contributionPanel(staff.contribution,staff.projects||[],contributionMode)+weeklyTimePanel(staff.weeklyTime,Array.isArray(staff.staffProfiles)&&can('staff.manage'));
 }
 document.addEventListener('visibilitychange',refreshStaffMetrics);
 if(typeof setInterval==='function')setInterval(refreshStaffMetrics,30000);
@@ -64,9 +72,9 @@ export function staffPage() {
  const admin=Array.isArray(staff.staffProfiles);
  const rateYear=contributionYear(staff);
  const totals=Object.fromEntries(Object.keys(categories).map(type=>[type,[...entries,...leave.filter(row=>row.status==='Approved')].filter(e=>e.type===type).reduce((sum,e)=>sum+e.quantity,0)]));
- const content=head('My Time & Profile','Staff','Review your work orders, record time off, or start a new internal task.',
-  (can('staff.leave')?action('leave','+ Add Time Off'):'')+(staff.internalAvailable&&can('staff.internal')?action('internal','+ New Internal Work Order'):''))
-  +`<section class="panel"><h2>My profile</h2>
+ const heading=head('My Time & Profile','Staff','Review your work orders, record time off, or start a new internal task.',
+  (can('staff.leave')?action('leave','+ Add Time Off'):'')+(staff.internalAvailable&&can('staff.internal')?action('internal','+ New Internal Work Order'):''));
+ const content=`<section class="panel"><h2>My profile</h2>
    ${profileCard(profile)}
    <p class="bci-staff-private"><strong>Only visible to you and authorized admins:</strong> ${esc(profile.contactEmail||'')} · Pay scale: ${esc(profile.payScale||'Not set')} · Vacation: ${number(profile.vacationHours)} h · Sick: ${number(profile.sickHours)} h</p>
    ${can('staff.profile')?action('profile','Open Profile Studio'):''}</section>`
@@ -90,7 +98,7 @@ export function staffPage() {
    ${staff.directory?.length?`<div class="bci-staff-directory">${staff.directory.map(directoryProfile).join('')}</div>`:'<p>No other team profiles are available.</p>'}</section>`
   +(admin?`<section class="panel"><h2>Staff profiles</h2>${table(['Employee','Sign-in','Vacation','Sick',rateYear+' profit share',''],staff.staffProfiles.map(row=>`<tr><td>${esc(row.name)}</td><td>${esc(row.email)}</td><td>${number(row.vacationHours)} h</td><td>${number(row.sickHours)} h</td><td>${esc(rateLabel(row,rateYear))}</td><td>${can('staff.manage')?action('manage','Edit staff profile',row.email):''}</td></tr>`))}</section>
    <section class="panel"><h2>Pending time off</h2>${table(['Employee','Date','Category','Hours',''],staff.requests.map(row=>`<tr><td>${esc(staff.staffProfiles.find(member=>member.email===row.email)?.name||row.email)}</td><td>${esc(row.date)}</td><td>${esc(categories[row.type])}</td><td>${number(row.quantity)}</td><td>${can('staff.leaveReview')?action('review','Review',row.id):''}</td></tr>`))}</section>`:'');
- return staffWorkspaceTheme(profile.style,content);
+ return staffWorkspaceTheme(profile.style,heading+`<div class="bci-staff-columns${practiceMode?'':' has-weather'}">${practiceMode?'':profileWeatherCard()}<div class="bci-staff-primary">${content}</div></div>`);
 }
 function profileFields(row,admin) {
  const common=f('name','Name',{required:true,value:row.name})+f('contactEmail','Contact email',{type:'email',required:true,value:row.contactEmail});
@@ -114,6 +122,13 @@ document.addEventListener('click',event=>{
  if(!button||!can('staff.view')||!data.staff)return;
  const id=button.dataset.staffId,staff=data.staff;
  switch(button.dataset.staffAction){
+  case 'contribution-mode': {
+   const target=button.closest('#staffLiveMetrics');
+   if(target&&staff.contribution?.cash&&['accrual','cash'].includes(id)){
+    contributionMode=id;renderLiveMetrics(target,staff,id);
+   }
+   break;
+  }
   case 'workweek': if(Array.isArray(staff.staffProfiles)&&can('staff.manage')){
    modal('Set staff profile workweek',f('workweekStart','Established workweek starts',{required:true,value:String(staff.weeklyTime?.workweekStart??''),
     select:[['','Choose a day'],...weekdays.map((day,i)=>[String(i),day])],hint:'Use the first day your payroll already uses. This changes the estimate display only.'}),
