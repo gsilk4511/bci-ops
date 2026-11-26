@@ -1,4 +1,6 @@
 import './modules/tactile-buttons.js';
+import {entryCharge} from './modules/work-entry-charge.js';
+import {travelEntryFields,bindTravelEntryFields,travelEntryPayload} from './modules/travel-entry-fields.js';
 import {permissionPrerequisitePlan,dependentPermissionRemovals} from './modules/permission-prerequisites.js';
 import {testPermissionsView} from './modules/permission-preview.js';
 import {materialGridPage,validMaterialSelection} from './modules/material-grid.js';
@@ -82,7 +84,7 @@ const projectLabel=p=>p?[p.number,p.name].filter(Boolean).join(' · '):'Unknown'
 const labelFor=w=>{const p=project(w.projectId);return `${billingName(customer(p?.customerId))} • ${projectLabel(p)}`};
 const status=s=>`<span class="status ${esc(s)}">${esc((s||'').replaceAll('-',' '))}</span>`;
 const empty=(s)=>`<div class="empty">${esc(s)}</div>`;
-function bill(w){const buckets={labor:0,material:0,travel:0,cost:0};for(const e of w.entries){buckets[e.type]+=roundMoney(e.rate*e.quantity);buckets.cost+=roundMoney((e.cost||0)*e.quantity);}buckets.total=w.internalTask&&!w.invoice?0:roundMoney(buckets.labor+buckets.material+buckets.travel-(w.invoice?.depositCredit||0));buckets.profit=roundMoney(buckets.total-buckets.cost);return buckets;}
+function bill(w){const buckets={labor:0,material:0,travel:0,cost:0};for(const e of w.entries){buckets[e.type]+=entryCharge(e);buckets.cost+=roundMoney((e.cost||0)*e.quantity);}buckets.total=w.internalTask&&!w.invoice?0:roundMoney(buckets.labor+buckets.material+buckets.travel-(w.invoice?.depositCredit||0));buckets.profit=roundMoney(buckets.total-buckets.cost);return buckets;}
 const can=key=>me?.permissions?.includes(key);
 const viewPermissions={fleet:'vehicles.view',staff:'staff.view',estimates:'estimates.view',training:'training.view',notifications:'notification.view',tickets:'tickets.view',dashboard:'dashboard.view',customers:'customers.view',projects:'projects.view',workorders:'workorders.view',inventory:'inventory.view',money:'money.view',reports:'reports.view',payroll:'payroll.view',services:'pricing.view',catalog:'pricing.view',team:'team.view',testing:'database.view'};
 const visibleView=id=>id==='invoices'?!practiceMode&&can('invoices.view')&&can('finance.view')&&can('workorders.view'):practiceMode&&!['training','customers','projects','workorders'].includes(id)?false:id==='calendar'?['projects.view','workorders.view','staff.view','vehicles.view','dashboard.view'].some(can):id==='trash'?me?.role==='admin':['team','changelog'].includes(id)?me?.role==='admin':can(viewPermissions[id]);
@@ -848,7 +850,7 @@ function openWorkEntry(w,material){
  const approved=w.changes.filter(change=>change.status==='approved');
  const changeField=approved.length?f('changeId','Approved scope',{select:[['','Original scope'],...approved.map(change=>[change.id,change.description])]}):'';
  const shared=f('date','Work date',{type:'date',value:today(),required:true})+changeField;
- const item=material?'<input type="hidden" name="catalogId">':f('catalogId','Labor or travel rate',{required:true,select:[['','Select']]});
+ const item=material?'<input type="hidden" name="catalogId">':f('catalogId','Labor or travel service',{required:true,select:[['','Select']]});
  const materialFilters='<div class="bci-material-picker">'+f('partSearchText','Search parts',{type:'search',placeholder:'Name, brand, color, part # or SKU'})+
   '<div class="bci-material-shortcuts" role="group" aria-label="Quick material filters">'+materialShortcuts.map(([key,label])=>
    `<button class="secondary small" type="button" data-material-filter="${key}" aria-pressed="${key==='all'}">${esc(label)}</button>`).join('')+'</div>'+
@@ -864,7 +866,7 @@ function openWorkEntry(w,material){
   '<input type="hidden" name="location" value="'+esc(warehouseName)+'"><p class="muted tiny">Stock source: '+esc(warehouseName)+'</p><p id="materialStock" role="status"></p>'+shared+
   (!practiceMode&&can('receipt.add')?'<button type="button" class="secondary" id="addEntryReceipt">+ Add Receipt</button><div id="entryReceiptFields" hidden>'+receiptPicker()+'</div>':''):
   f('type','Time type',{select:[['labor','Work'],['travel','Travel']]})+item+
-  '<div id="sharedTravelChoice" class="shared-travel-choice" hidden><label><input type="checkbox" name="sharedTravel" value="yes" disabled> Shared travel (record my time, no client charge)</label><p class="muted tiny">Use when another employee is logging the travel charge.</p></div>'+
+  travelEntryFields(f)+
   shared+
   '<div class="grid2">'+f('startTime','Start',{type:'time',required:true})+f('endTime','End',{type:'time',required:true})+'</div>'+
   f('description','What did you work on?',{textarea:true,required:true,hint:'Time is saved under your signed-in profile.'});
@@ -880,7 +882,7 @@ function openWorkEntry(w,material){
   if(material&&!entryValues.catalogId)throw Error('Select a part from the results first.');
   if(material&&needsPartPricing(data.catalog.find(item=>item.id===entryValues.catalogId),entryValues.changeId))throw Error('Pricing needed: set a price or use a priced profile or approved change before logging this part.');
   const receipt=material?await receiptPayload(receiptPhoto,submissionId):null;
-  await send('entry.add',{...entryValues,sharedTravel:!material&&values.type==='travel'&&values.sharedTravel==='yes',receipt,draftId,submissionId,type:material?'material':values.type,workorderId:w.id});
+  await send('entry.add',{...entryValues,...(!material&&values.type==='travel'?travelEntryPayload(values):{}),receipt,draftId,submissionId,type:material?'material':values.type,workorderId:w.id});
   saved=true;
  });
  const form=$('#actionForm');
@@ -924,7 +926,7 @@ function openWorkEntry(w,material){
   const change=approved.find(change=>change.id===form.elements.changeId?.value);
   const previous=catalogId.value;
   const scoped=change?new Set(change.lines.map(line=>line.catalogId)):null;
-  const choices=data.catalog.filter(item=>item.type===type&&(item.type!=='material'||item.warehouseArchived!==true)&&(material||!item.needsPricing||w.effectivePricing?.id||change)&&(!scoped||scoped.has(item.id)));
+  const choices=data.catalog.filter(item=>item.type===type&&(item.type!=='material'||item.warehouseArchived!==true)&&(material||item.type==='travel'||!item.needsPricing||w.effectivePricing?.id||change)&&(!scoped||scoped.has(item.id)));
   if(material){
    fillFacet(partCategoryFilter,materialFacets(choices).categories,'All categories');
    const category=partCategoryFilter.value;
@@ -962,9 +964,8 @@ function openWorkEntry(w,material){
    choices.some(item=>item.id===me.clockDefault?.catalogId)?me.clockDefault.catalogId:choices.length===1?choices[0].id:'';
  }
  const filterChanged=()=>{page=0;refreshItems();};
- const showSharedTravel=()=>{if(material)return;const enabled=form.elements.type.value==='travel';form.querySelector('#sharedTravelChoice').hidden=!enabled;form.elements.sharedTravel.disabled=!enabled;if(!enabled)form.elements.sharedTravel.checked=false;};
- form.elements.type?.addEventListener('change',()=>{showSharedTravel();refreshItems();});
- showSharedTravel();
+ if(!material)bindTravelEntryFields(form,{isTravel:()=>form.elements.type.value==='travel',hasSignedRate:()=>!!form.elements.changeId?.value});
+ form.elements.type?.addEventListener('change',refreshItems);
  form.elements.changeId?.addEventListener('change',filterChanged);
  partSearchText?.addEventListener('input',filterChanged);
  partSearchText?.addEventListener('keydown',event=>{if(event.key==='Enter')event.preventDefault();});

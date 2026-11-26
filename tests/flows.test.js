@@ -86,7 +86,7 @@ test('shared travel records both employees for payroll without a second billable
  const base={workorderId:order.id,type:'travel',catalogId:'cat_5',date:'2026-11-11',startTime:'08:00',endTime:'09:00',description:'Travel'
  };
  applyAction(state,'workorder.approve',{workorderId:order.id,signedBy:'Demo Customer',...signed},first);
- const charge=applyAction(state,'entry.add',base,first);
+ const charge=applyAction(state,'entry.add',{...base,sharedTravel:false,travelBilling:'hourly'},first);
  const shared=applyAction(state,'entry.add',{...base,description:'Rode with driver',sharedTravel:true},second);
  assert.equal(charge.rate,65);
  assert.equal(shared.quantity,1);
@@ -100,4 +100,65 @@ test('shared travel records both employees for payroll without a second billable
  const invoice=applyAction(state,'invoice.group',{workorderIds:[order.id],number:'SHARED-1',layout:'itemized'},first);
  assert.deepEqual(invoice.orders[0].entries.map(row=>row.id),[charge.id]);
  assert.equal(order.entries.length,2);
+});
+
+test('travel rate is chosen explicitly; the vehicle charge and logged payroll hours stay separate through billing',async()=>{
+ const {entryCharge}=await import('../public/modules/work-entry-charge.js');
+ const {moneyWorkOrderRows}=await import('../Models/lib.js');
+ const {repriceOpenOrders}=await import('../Models/pricing.js');
+ const s=seed(),w=s.workorders[0],date='2026-11-11';
+ const driver={email:'driver@example.test'}, rider={email:'rider@example.test'};
+ const base={workorderId:w.id,type:'travel',catalogId:'cat_5',date,quantity:2.5,description:'Actual travel'};
+ applyAction(s,'workorder.approve',{workorderId:w.id,signedBy:'Demo Customer',...signed},driver);
+ assert.throws(()=>applyAction(s,'entry.add',base,driver),/Yes or No/);
+ assert.throws(()=>applyAction(s,'entry.add',{...base,sharedTravel:false},driver),/base trip or hourly/);
+ assert.throws(()=>applyAction(s,'entry.add',{...base,sharedTravel:true,travelBilling:'trip'},rider),/no.*client charge|cannot have/);
+ const first=applyAction(s,'entry.add',{...base,sharedTravel:false,travelBilling:'trip'},driver);
+ const passenger=applyAction(s,'entry.add',{...base,sharedTravel:true},rider);
+ const hourly=applyAction(s,'entry.add',{...base,quantity:1.25,sharedTravel:false,travelBilling:'hourly',travelCharge:'72.50'},driver);
+ const second=applyAction(s,'entry.add',{...base,quantity:.75,sharedTravel:false,travelBilling:'trip',travelCharge:'150.25'},driver);
+ assert.deepEqual([first,passenger,hourly,second].map(row=>[row.quantity,entryCharge(row)]),[[2.5,120],[2.5,0],[1.25,90.63],[.75,150.25]]);
+ assert.deepEqual(payrollPreview(s,date,date).rows.map(row=>row.travel),[4.5,2.5]);
+ assert.equal(invoiceFor(s,w).travel,360.88);
+ assert.equal(moneyWorkOrderRows(s)[0].travel,360.88);
+ s.catalog.find(item=>item.id==='cat_5').price=75;
+ repriceOpenOrders(s,{catalogId:'cat_5'});
+ assert.equal(invoiceFor(s,w).travel,360.88);
+ applyAction(s,'workorder.close',{workorderId:w.id},driver);
+ applyAction(s,'workorder.review',{workorderId:w.id},driver);
+ const inv=applyAction(s,'invoice.group',{workorderIds:[w.id],number:'TRIP-1',layout:'itemized'},driver);
+ assert.deepEqual(inv.orders[0].entries.map(row=>[row.quantity,entryCharge(row)]),[[2.5,120],[1.25,90.63],[.75,150.25]]);
+ assert.equal(inv.orders[0].entries[0].travelBilling,'trip');
+ assert.equal(entryCharge({type:'travel',quantity:2,rate:65}),130);
+});
+
+test('travel selections do not replace a signed change-order rate or accept an invalid override',()=>{
+ const s=seed(),w=s.workorders[0],actor={email:'driver@example.test'};
+ applyAction(s,'workorder.approve',{workorderId:w.id,signedBy:'Demo Customer',...signed},actor);
+ w.changes=[{id:'signed-travel',status:'approved',lines:[{catalogId:'cat_5',rate:85}]}];
+ const base={workorderId:w.id,type:'travel',catalogId:'cat_5',date:'2026-11-11',quantity:2,sharedTravel:false,description:'Drive to site'};
+ assert.throws(()=>applyAction(s,'entry.add',{...base,travelBilling:'trip',travelCharge:'90.123'},actor),/dollars and cents/);
+ assert.throws(()=>applyAction(s,'entry.add',{...base,travelBilling:'trip',changeId:'signed-travel'},actor),/approved hourly/);
+ assert.throws(()=>applyAction(s,'entry.add',{...base,travelBilling:'hourly',travelCharge:'90',changeId:'signed-travel'},actor),/approved/);
+ const trip=applyAction(s,'entry.add',{...base,travelBilling:'hourly',changeId:'signed-travel'},actor);
+ assert.equal(trip.rate,85);
+});
+
+test('itemized invoice presents a flat travel charge as one trip, while legacy travel still shows billable hours',async()=>{
+ const vm=await import('node:vm');if(!vm.SourceTextModule)return;
+ const {readFileSync}=await import('node:fs');
+ const context=vm.createContext({});
+ const appExports={esc:String,fmt:n=>'$'+n.toFixed(2),hoursLabel:String,roundMoney:n=>Math.round(n*100)/100,
+  customer:()=>null,detail:()=>'',project:()=>null,table:(_heading,rows)=>rows.join('')};
+ const app=new vm.SyntheticModule(Object.keys(appExports),function(){for(const [key,value] of Object.entries(appExports))this.setExport(key,value);},{context});
+ const read=name=>new vm.SourceTextModule(readFileSync(new URL('../public/modules/'+name,import.meta.url),'utf8'),{context});
+ const doc=read('invoice-document.js'), charge=read('work-entry-charge.js');
+ await doc.link(name=>name==='../app.js'?app:charge);await doc.evaluate();
+ const html=doc.namespace.invoiceDocument({number:'DEMO',layout:'itemized',orders:[{title:'Test',crew:[],entries:[
+  {type:'travel',name:'Base trip',quantity:2.5,unit:'hr',rate:120,travelBilling:'trip'},
+  {type:'travel',name:'Earlier travel',quantity:2,unit:'hr',rate:65}
+ ]}]});
+ assert.match(html,/1 trip<\/td>\s*<td>\$120\.00 \/ trip<\/td><td>\$120\.00/);
+ assert.match(html,/2 hr<\/td>\s*<td>\$65\.00<\/td><td>\$130\.00/);
+ assert.match(html,/<strong>\$250\.00<\/strong>/);
 });

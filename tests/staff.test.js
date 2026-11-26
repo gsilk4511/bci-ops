@@ -4,7 +4,7 @@ import {staffAction,staffAvatar,staffName,staffTechnicianIcons,staffView,isInter
 import {authorizePermission,effectivePermissions} from '../Models/permissions.js';
 import {visibleState} from '../Models/visibility.js';
 import {defaultProfileStyle,profileStyleOptions} from '../public/modules/profile-style-catalog.js';
-import {payrollPreview} from '../Models/payroll.js';
+import {addOtherTime,approvePayroll,payrollPreview} from '../Models/payroll.js';
 import {calendarView} from "../Models/calendar.js";
 
 const a='worker@example.com',b='other@example.com',o='admin@example.com';
@@ -171,4 +171,41 @@ test('Holiday does not need an existing PTO profile and cannot be posted to a fi
  s.payrollRuns=[];
  staffAction(s,'staff.leaveReview',{id:holiday.id,decision:'approve'},manager);
  assert.equal(s.payrollOther[0].quantity,8);
+});
+
+test('Holiday approval and manual entry cannot both post for the same employee and date',()=>{
+ const date='2026-11-26';
+ const holiday=(s,details)=>addOtherTime(s,{date,type:'holiday',quantity:8,...details},manager);
+ const request=s=>staffAction(s,'staff.leave',{type:'holiday',date,quantity:8},tech);
+ const approve=(s,r)=>staffAction(s,'staff.leaveReview',{id:r.id,decision:'approve'},manager);
+ const mock=()=>{const s=state();s.users[0].name='Example Tech';s.staffProfiles=[{email:a,name:'Current Name'}];return s;};
+ for(const details of [{tech:'example  tech'},{employeeEmail:a}]){
+  const s=mock();
+  holiday(s,details);
+  const r=request(s);
+  assert.throws(()=>approve(s,r),/already exists/);
+  assert.equal(r.status,'Pending');assert.equal(s.payrollOther.length,1);
+ }
+ const s=mock();
+ approve(s,request(s));
+ for(const details of [{tech:'Example Tech'},{employeeEmail:a}])assert.throws(()=>holiday(s,details),/already exists/);
+ s.users[1].name='Current Name';
+ holiday(s,{employeeEmail:b});
+ assert.equal(payrollPreview(s,date,date).issues.length,0);
+ assert.equal(s.payrollOther.length,2);
+});
+
+test('Payroll Preview flags already stored duplicate Holiday time without modifying history',()=>{
+ const s=state(),date='2026-11-26';
+ s.users[0].name='Example Tech';
+ const legacy={id:'legacy-holiday',tech:'Example Tech',date,type:'holiday',quantity:8};
+ const linked={...legacy,id:'linked-holiday',employeeEmail:a,tech:'Current Name'};
+ for(const entries of [[legacy,linked],[linked,{...linked,id:'another-linked'}]]){
+  s.payrollOther=entries;
+  const snapshot=structuredClone(s);
+  const preview=payrollPreview(s,date,date);
+  assert.match(preview.issues[0],/Possible duplicate Holiday hours/);
+  assert.throws(()=>approvePayroll(s,{start:date,end:date,payDate:date,revision:preview.revision},manager),/Resolve payroll exceptions/);
+  assert.deepEqual(s,snapshot);
+ }
 });

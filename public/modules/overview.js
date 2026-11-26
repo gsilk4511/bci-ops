@@ -1,3 +1,4 @@
+import {entryCharge} from './work-entry-charge.js';
 import {me,today,can,card,catalog,data,esc,fmt,head,labelFor,modal,f,projectLabel,render,send,show,status,view} from '../app.js';
 import {allowedCards,defaultLayout,addLayoutCard,orderLayout,visualOrder,GRID_COLUMNS} from './dashboard-layout.js';
 
@@ -50,7 +51,7 @@ function content(id,orders){
  if(id==='signoff')return workRows(orders.filter(o=>o.status==='awaiting-signoff'||(o.changes||[]).some(c=>c.status==='awaiting-signoff')));
  if(id==='timer')return workRows(orders.filter(o=>o.id===me.clock?.workorderId));
  if(id==='projects')return renderProjects(projects.filter(p=>!p.closedAt))+navButton('All projects','projects');
- if(id==='final-billing')return renderProjects(projects.filter(p=>p.closedAt&&orders.some(o=>o.projectId===p.id&&!o.invoice&&!o.internalTask&&!o.billingHidden&&(o.entries||[]).some(e=>e.rate*e.quantity>0))));
+ if(id==='final-billing')return renderProjects(projects.filter(p=>p.closedAt&&orders.some(o=>o.projectId===p.id&&!o.invoice&&!o.internalTask&&!o.billingHidden&&(o.entries||[]).some(e=>entryCharge(e)>0))));
  if(id==='overview')return businessOverview(orders);
  if(id==='prospects')return compact(tickets().filter(t=>t.kind==='prospect'&&t.status!=='Completed'),t=>
   `<li><a href="/?ticket=${encodeURIComponent(t.id)}">${esc(t.title)}</a><small>${esc([t.company,t.due&&'Due '+t.due].filter(Boolean).join(' · '))}</small></li>`);

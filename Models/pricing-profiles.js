@@ -1,3 +1,4 @@
+import {hasTravelRateOverride} from '../public/modules/work-entry-charge.js';
 import { createHash, randomUUID } from 'node:crypto';
 import { clientPricingChoices, assignedPricing, latestPricingReceipt, orderRate, pricingNumber, profileRate } from './pricing.js';
 
@@ -76,7 +77,7 @@ function applyProposal(state, proposal) {
         if(ticket)ticket.status='In progress';
       }
       for(const entry of order.entries){
-        if(entry.sharedTravel)continue;
+        if(entry.sharedTravel||hasTravelRateOverride(entry))continue;
         if(entry.changeId||(!Object.hasOwn(entry,'changeId')&&order.changes.some(change=>change.status==='approved'&&change.lines.some(line=>line.catalogId===entry.catalogId))))continue;
         const item=state.catalog.find(item=>item.id===entry.catalogId);
         if(!item)throw Error('A work entry is missing its pricing item');
@@ -123,7 +124,7 @@ function draftChanges(state, next) {
     const after = assignedPricing(next, order, project, client).profile;
     if (JSON.stringify(before) === JSON.stringify(after)) continue;
     for (const entry of order.entries) {
-      if (entry.sharedTravel||entry.changeId) continue;
+      if (entry.sharedTravel||hasTravelRateOverride(entry)||entry.changeId) continue;
       const item = next.catalog.find(candidate => candidate.id === entry.catalogId);
       if (!item) continue;
       const rate = orderRate(next, order, item, project, client, entry.cost ?? item.cost);

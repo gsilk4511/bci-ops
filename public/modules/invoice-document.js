@@ -1,3 +1,4 @@
+import {entryCharge,isTripCharge} from './work-entry-charge.js';
 // Owns the invoice document presentation.
 // Shared state is imported as live bindings from the application shell.
 // Write actions still pass through the shared permission-checked API.
@@ -6,10 +7,10 @@ import { customer, detail, esc, fmt, hoursLabel, project, roundMoney, table } fr
 export function invoiceDocument(invoice){
  const entries=invoice.orders.flatMap(order=>order.entries);
  const totals={labor:0,material:0,travel:0};
- for(const e of entries)totals[e.type]+=roundMoney(e.quantity*e.rate);
+ for(const e of entries)totals[e.type]+=entryCharge(e);
  const itemized=type=>table(['Description','Quantity','Rate','Amount'],entries.filter(e=>!type||e.type===type).map(e=>
-  `<tr><td><b>${esc(e.name)}</b>${e.description?`<div class="ticket-text">${esc(e.description)}</div>`:''}</td><td>${Number(e.quantity.toFixed(2))} ${esc(e.unit)}</td>
-  <td>${fmt(e.rate)}</td><td>${fmt(roundMoney(e.quantity*e.rate))}</td></tr>`));
+  `<tr><td><b>${esc(e.name)}</b>${e.description?`<div class="ticket-text">${esc(e.description)}</div>`:''}</td><td>${isTripCharge(e)?'1 trip':Number(e.quantity.toFixed(2))+' '+esc(e.unit)}</td>
+  <td>${fmt(e.rate)}${isTripCharge(e)?' / trip':''}</td><td>${fmt(entryCharge(e))}</td></tr>`));
  const crew=invoice.orders.flatMap(order=>order.crew.map(row=>
   `<tr><td>${esc(order.title)}</td><td>${esc(row.date)}</td><td>${esc(order.entries.find(e=>e.catalogId===row.catalogId)?.name||'Labor')}</td>
   <td>${row.crewSize}-person crew</td><td>${hoursLabel(row.crewHours)}</td></tr>`));

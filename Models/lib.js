@@ -1,3 +1,4 @@
+import {DEFAULT_TRIP_CHARGE,entryCharge} from '../public/modules/work-entry-charge.js';
 import {calendarAction} from './calendar.js';
 import {saveDashboardLayout} from './dashboard-layouts.js';
 import {attributedEmail} from './time-attribution.js';
@@ -98,7 +99,7 @@ function activeMaterial(item){
 }
 
 export function invoiceFor(state, wo) {
-  const rows = wo.entries.map(e => ({type:e.type, amount:money(e.quantity * e.rate), cost:money(e.quantity * e.cost)}));
+  const rows = wo.entries.map(e => ({type:e.type, amount:entryCharge(e), cost:money(e.quantity * e.cost)}));
   const subtotal = type => money(rows.filter(e => e.type === type).reduce((s,e) => s + e.amount, 0));
   const cost = money(rows.reduce((s,e) => s + e.cost, 0));
   const time = subtotal('labor'), materials = subtotal('material'), travel = subtotal('travel');
@@ -206,13 +207,34 @@ const addWorkEntry = (state, wo, data, actor, previous=null, enteredFor=null) =>
   const change=changeId?find(wo.changes,changeId,'Change order'):null;
   const signedLine=change?.lines.find(line=>line.catalogId===cat.id);
   if(change&&(change.status!=='approved'||!signedLine))throw Error('Choose an item on the approved change order');
-  const sharedTravel=type==='travel'&&(data.sharedTravel===undefined?previous?.sharedTravel===true:data.sharedTravel===true);
-  const rate=internalOrder(state,wo)||sharedTravel?0:previous?.catalogId===cat.id&&!previous.sharedTravel?previous.rate:signedLine?.rate??orderRate(state,wo,cat,project,client,cost);
-  if(rate==null)throw Error('Set a fixed price or record a purchase cost before billing this part');
+  const isTravel=type==='travel',internal=internalOrder(state,wo);
+  if(isTravel&&!/^(hr|hour|hours|h)$/i.test(cat.unit))throw Error('Choose an hourly travel service to record payroll hours');
+  if(isTravel&&(!previous||data.sharedTravel!==undefined)&&typeof data.sharedTravel!=='boolean')throw Error('Choose Yes or No for shared travel');
+  const sharedTravel=isTravel&&(data.sharedTravel===undefined?previous?.sharedTravel===true:data.sharedTravel);
+  const travelBilling=isTravel&&!sharedTravel?(data.travelBilling??previous?.travelBilling):undefined;
+  if(isTravel&&!sharedTravel&&(!previous||data.sharedTravel!==undefined||data.travelBilling!==undefined)&&!['trip','hourly'].includes(travelBilling))
+   throw Error('Choose base trip or hourly travel billing');
+  if(isTravel&&sharedTravel&&(data.travelBilling!==undefined||data.travelCharge!==undefined))throw Error('Shared travel cannot have a client charge');
+  const hasTravelCharge=isTravel&&data.travelCharge!==undefined&&data.travelCharge!=='';
+  if(hasTravelCharge&&(!travelBilling||signedLine))throw Error('Use the rate approved on the change order');
+  if(isTravel&&signedLine&&travelBilling==='trip')throw Error('This change order uses the approved hourly travel rate');
+  if(hasTravelCharge&&!/^\d+(?:\.\d{1,2})?$/.test(String(data.travelCharge)))throw Error('Enter a travel charge in dollars and cents');
+  const override=hasTravelCharge?pricingNumber(data.travelCharge,'travel charge',100000):null;
+  const keepOldTravel=isTravel&&previous?.catalogId===cat.id&&!previous.sharedTravel&&!hasTravelCharge&&!signedLine&&
+    (data.travelBilling===undefined||travelBilling==='hourly'&&previous.travelBilling!=='trip'&&!previous.travelRateOverride);
+  const travelRateOverride=isTravel&&travelBilling==='hourly'&&(override!==null||keepOldTravel&&previous.travelRateOverride===true);
+  let rate=internal||sharedTravel?0:previous?.catalogId===cat.id&&!previous.sharedTravel?previous.rate:signedLine?.rate??orderRate(state,wo,cat,project,client,cost);
+  if(isTravel&&!internal&&!sharedTravel){
+   if(travelBilling==='trip')rate=override??(previous?.travelBilling==='trip'?previous.rate:DEFAULT_TRIP_CHARGE);
+   else rate=override??(keepOldTravel?previous.rate:signedLine?.rate??orderRate(state,wo,cat,project,client,cost));
+  }
+  if(rate==null)throw Error(isTravel?'Set an hourly travel rate or choose a travel service with a configured rate':'Set a fixed price or record a purchase cost before billing this part');
   const description=type==='material'?text(data.description||'Materials used','Description',1000):text(data.description,'Work notes',1000);
   const entry = {id:id('entry'), at:now(), date, startTime:startTime||null, endTime:endTime||null, type, catalogId:cat.id, name:cat.name, quantity, unit:cat.unit, rate, cost,
     changeId, tech:previous?.tech??staffName(state,enteredFor??actor.email),employeeEmail:previous?previous.employeeEmail:employeeKey(enteredFor??actor.email),createdBy:previous?.createdBy??actor.email,description};
   if(sharedTravel)entry.sharedTravel=true;
+  if(travelBilling)entry.travelBilling=travelBilling;
+  if(travelRateOverride&&!internal)entry.travelRateOverride=true;
   if(type!=='material')checkTimeEntry(state,previous?.employeeAttribution?{...entry,employeeEmail:attributedEmail(previous)}:entry,previous?.id);
   if(previous){
     if(type==='material'){entry.stockLocation=previous.stockLocation;entry.stockMovementId=previous.stockMovementId;}
@@ -442,7 +464,7 @@ export function applyAction(state, action, data={}, actor={email:'system'}) {
       return editWorkEntry(state,wo,action,data,actor,entry=>addWorkEntry(state,wo,{
         type:entry.type,catalogId:data.catalogId||entry.catalogId,date:data.date,
         startTime:data.startTime,endTime:data.endTime,quantity:data.quantity,
-        description:data.description,sharedTravel:data.sharedTravel,changeId:entry.changeId,location:entry.stockLocation
+        description:data.description,sharedTravel:data.sharedTravel,travelBilling:data.travelBilling,travelCharge:data.travelCharge,changeId:entry.changeId,location:entry.stockLocation
       },actor,entry));
     }
     case 'receipt.add': return saveWorkReceipt(state,woFor(state,data.workorderId),data,actor);
@@ -545,7 +567,7 @@ export function applyAction(state, action, data={}, actor={email:'system'}) {
         address:customer.address,project:project.name,projectNumber:project.number,po:project.po,
         orders:orders.map(w=>({id:w.id,title:w.title,crew:crewSummary(w.entries),
           entries:w.entries.filter(e=>!e.sharedTravel).map(e=>({id:e.id,type:e.type,date:e.date,name:e.name,catalogId:e.catalogId,unit:e.unit,quantity:e.quantity,
-            startTime:e.startTime,endTime:e.endTime,rate:e.rate,description:String(data.notes?.[e.id]??e.description??'').trim().slice(0,1000)}))}))};
+            startTime:e.startTime,endTime:e.endTime,rate:e.rate,...(e.travelBilling?{travelBilling:e.travelBilling}:{}),description:String(data.notes?.[e.id]??e.description??'').trim().slice(0,1000)}))}))};
       (state.projectInvoices??=[]).push(snapshot);
       for(const w of orders){
         w.invoice={groupId:snapshot.id,status:invoiceFor(state,w).total===allocations[w.id]?'paid':'sent',number,sentAt,depositCredit:allocations[w.id],amountPaid:0,paidAt:null};

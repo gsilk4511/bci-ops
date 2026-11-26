@@ -1,3 +1,4 @@
+import {hasTravelRateOverride} from '../public/modules/work-entry-charge.js';
 export const serviceCategories=['Direct to client','Subcontractor','T&M'];
 const cents=value=>Math.round((value+Number.EPSILON)*100)/100;
 export function pricingNumber(value,label,max=1e8){
@@ -36,7 +37,7 @@ export function repriceOpenOrders(state,{catalogId,customerId,projectId}={}){
     // Older entries lack a change-order link. Keep any potentially signed lines at their existing price.
     const signedItems=new Set((order.changes||[]).filter(change=>change.status==='approved').flatMap(change=>change.lines.map(line=>line.catalogId)));
     for(const entry of order.entries){
-      if(entry.sharedTravel)continue;
+      if(entry.sharedTravel||hasTravelRateOverride(entry))continue;
       if(catalogId&&entry.catalogId!==catalogId||customerId&&entry.type!=='material'||entry.changeId||
           !Object.hasOwn(entry,'changeId')&&signedItems.has(entry.catalogId))continue;
       const item=items.get(entry.catalogId);

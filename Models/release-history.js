@@ -3,6 +3,10 @@
 const section = (title, ...items) => ({title, items});
 const release = (version, title, summary, ...sections) => ({version, title, summary, sections});
 export const releases = [
+ release('0.10.11','Vehicle trip and hourly travel charges','Record time for payroll separately from the vehicle’s travel charge.',
+  section('Log Travel','Choose Shared travel Yes or No. For the employee recording the vehicle charge, choose Base trip ($120 default per vehicle round trip) or Hourly. Work orders, print and invoicing use the selected charge; payroll keeps the actual logged hours.')),
+ release('0.10.10','Prevent duplicate Holiday time','Check both places you can enter the same holiday.',
+  section('Payroll','Manual Holiday and approved requests share a duplicate check, including possible matches on older typed names. Payroll Preview flags existing potential duplicates for review. No historical rows or approved pay runs are changed.')),
  release('0.10.9','Staff pay scale and holiday requests','See staff pay scales in one place and request Holiday alongside other time off.',
   section('Staff profiles','Employer-only Pay scale column. Live Accrual uses stored hourly staff pay; Cash wage policies remain unchanged.'),
   section('Time off','Holiday uses existing review and calendar access. Approval posts a Holiday payroll entry without using vacation or sick balances.')),

@@ -1,3 +1,4 @@
+import {travelEntryFields,bindTravelEntryFields,travelEntryPayload} from './travel-entry-fields.js';
 import {data,me,can,esc,f,modal,send,render,show,practiceMode,wo} from '../app.js';
 
 export const receiptPicker=()=>'<div class="field"><label for="workReceiptPhoto">Receipt photo</label><input id="workReceiptPhoto" name="receiptPhoto" type="file" accept="image/*" capture="environment"><p class="tiny muted">Take a photo or select an existing photo. Check that the text is readable.</p></div>';
@@ -49,7 +50,7 @@ function editEntry(order,entry){
  const part=entry.type==='material';
  const available=data.catalog.filter(item=>item.type===entry.type&&(
   item.id===entry.catalogId||(
-   (!part||item.warehouseArchived!==true)&&(!item.needsPricing||order.effectivePricing?.id||scoped?.lines?.some(line=>line.catalogId===item.id))&&
+   (!part||item.warehouseArchived!==true)&&(item.type==='travel'||!item.needsPricing||order.effectivePricing?.id||scoped?.lines?.some(line=>line.catalogId===item.id))&&
    (part||/^(hr|hour|hours|h)$/i.test(item.unit))&&(!entry.changeId||scoped?.lines?.some(line=>line.catalogId===item.id))
   )));
  if(!available.some(item=>item.id===entry.catalogId))available.unshift({id:entry.catalogId,name:entry.name});
@@ -61,11 +62,12 @@ function editEntry(order,entry){
  const quantity=timed?'<div class="grid2">'+f('startTime','Start',{type:'time',required:true,value:entry.startTime})+
   f('endTime','End',{type:'time',required:true,value:entry.endTime})+'</div>':
   f('quantity',entry.type==='material'?'Quantity':'Hours',{type:'number',min:0.001,step:'any',value:entry.quantity,required:true});
- return modal('Edit work-order entry',values+f('date','Date',{type:'date',required:true,value:entry.date})+quantity+
-  (entry.type==='travel'?'<label class="shared-travel-choice"><input type="checkbox" name="sharedTravel" value="yes" '+(entry.sharedTravel?'checked':'')+'> Shared travel (record my time, no client charge)</label>':'')+
+ modal('Edit work-order entry',values+f('date','Date',{type:'date',required:true,value:entry.date})+quantity+
+  (entry.type==='travel'?travelEntryFields(f,entry):'')+
   f('description',entry.type==='material'?'Notes':'What did you work on?',{textarea:true,required:entry.type!=='material',value:entry.journalNote??entry.description}),
-  patch=>send('entry.update',{...patch,sharedTravel:entry.type==='travel'?patch.sharedTravel==='yes':undefined,workorderId:order.id,entryId:entry.id,revision:entry.revision||''}),
+  patch=>send('entry.update',{...patch,...(entry.type==='travel'?travelEntryPayload(patch):{}),workorderId:order.id,entryId:entry.id,revision:entry.revision||''}),
   '<p>Changing the service uses its applicable rate and keeps the recorded hours unless you edit them. Changes affect work-order totals. A submitted work order will be reviewed again.</p>');
+ if(entry.type==='travel')bindTravelEntryFields(document.querySelector('#actionForm'),{isTravel:()=>true,hasSignedRate:()=>!!scoped});
 }
 function removeEntry(order,entry){
  modal('Remove work-order entry',f('reason','Why is this entry wrong?',{required:true,textarea:true}),

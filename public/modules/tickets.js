@@ -1,3 +1,4 @@
+import {entryCharge} from './work-entry-charge.js';
 import {emailIntakePanel} from './mail-intake.js';
 // Tickets owns the client queue, ticket forms, and review actions.
 import {data, me, can, esc, head, table, modal, f, send, show, render, projectLabel, view, fmt, bill, today} from '../app.js';
@@ -84,7 +85,7 @@ function invoicingGrid() {
     .filter(project=>project.closedAt)
     .flatMap(project=>{
       const orders=forProject(project.id);
-      const billable=orders.filter(order=>!order.internalTask && !order.invoice && (order.entries || []).some(entry=>Number(entry.quantity)*Number(entry.rate)>0));
+      const billable=orders.filter(order=>!order.internalTask && !order.invoice && (order.entries || []).some(entry=>entryCharge(entry)>0));
       if(!billable.length)return [];
       const ready=billable.filter(order=>order.closeout?.reviewedAt);
       const blockedCloseout=orders.some(order=>order.requiredForFinalBilling && !order.closeout?.reviewedAt && !order.invoice);

@@ -294,11 +294,8 @@ export function staffAction(state,action,data,actor, createOrder) {
    const holiday=row.type==='holiday';
    const bucket=row.type==='sick'?'sickHours':'vacationHours';
    if(!holiday&&(!profile||profile[bucket]<row.quantity))throw Error('Insufficient available leave balance');
-   if(holiday&&(state.payrollOther||[]).some(time=>time.type==='holiday'&&time.date===row.date&&staffKey(attributedEmail(time)||time.tech)===staffKey(row.email)))
-    throw Error('Holiday time already exists in payroll for this employee and date');
    const entry=addOtherTime(state,{tech:staffName(state,row.email),date:row.date,type:holiday?'holiday':row.type==='sick'?'sick':'pto',
-    quantity:row.quantity,description:holiday?'Approved staff holiday':'Approved staff leave'},actor);
-   entry.employeeEmail=row.email;
+    quantity:row.quantity,description:holiday?'Approved staff holiday':'Approved staff leave'},actor,{approvedLeaveEmail:row.email});
    row.payrollEntryId=entry.id;
    if(!holiday)profile[bucket]=Math.round((profile[bucket]-row.quantity)*100)/100;
   }

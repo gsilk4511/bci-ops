@@ -1,3 +1,4 @@
+import {entryCharge} from './work-entry-charge.js';
 import {readyForProgress} from './project-billing.js';
 import {data,can,esc,fmt,head,table,bill,project,projectLabel,customer,billingName,openProjectInvoice,printDocument,invoiceDocument,modal,f,send} from '../app.js';
 
@@ -14,7 +15,7 @@ function recordedInvoices(){
   const invoice=snapshot||{number:first.invoice.number,sentAt:first.invoice.sentAt,
    customer:billingName(payer),address:payer?.address,project:projectRecord?.name,projectNumber:projectRecord?.number,po:projectRecord?.po,
    layout:'totals',orders:orders.map(order=>({title:order.title,entries:order.entries,crew:[]}))};
-  const total=invoice.orders.flatMap(order=>order.entries).reduce((sum,entry)=>sum+Math.round(entry.quantity*entry.rate*100)/100,0);
+  const total=invoice.orders.flatMap(order=>order.entries).reduce((sum,entry)=>sum+entryCharge(entry),0);
   const paid=orders.reduce((sum,order)=>sum+(order.invoice.amountPaid||0),0);
   return {first:orders.find(w=>w.invoice.status!=='paid')||first,invoice,total:Math.max(0,total-(invoice.depositCredit||0)),paid};
  }).sort((a,b)=>String(b.invoice.sentAt||'').localeCompare(String(a.invoice.sentAt||'')));

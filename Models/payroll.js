@@ -26,7 +26,21 @@ export function checkTimeEntry(state,entry,excludeId){
   if(end<=start)throw Error('End time must be later on the same date');
   if(payrollEntries(state).some(e=>e.id!==excludeId&&e.date===entry.date&&(e.employeeEmail&&entry.employeeEmail?employeeKey(e.employeeEmail)===employeeKey(entry.employeeEmail):employeeKey(e.tech)===employeeKey(entry.tech))&&e.startTime&&e.endTime&&start<timeMinutes(e.endTime)&&timeMinutes(e.startTime)<end))throw Error('This employee already has overlapping time');
 }
-export function addOtherTime(state,data,actor){
+function holidayIdentity(state,row){
+  const email=employeeKey(attributedEmail(row)),name=employeeKey(attributedName(row));
+  const labels=new Set([name,email].filter(Boolean));
+  if(email)for(const person of [...(state.staffProfiles||[]),...(state.users||[])])
+    if(employeeKey(person.email)===email){
+     const label=employeeKey(person.name);
+     if(label)labels.add(label);
+    }
+  return {email,labels};
+}
+function sameHolidayPerson(a,b){
+  if(a.email&&b.email)return a.email===b.email;
+  return [...a.labels].some(label=>b.labels.has(label));
+}
+export function addOtherTime(state,data,actor,{approvedLeaveEmail}={}){
   let tech=String(data.tech||'').trim();
   const date=validDate(data.date);
   let linkedEmail;
@@ -40,12 +54,18 @@ export function addOtherTime(state,data,actor){
     const profile=(state.staffProfiles||[]).find(row=>employeeKey(row.email)===linkedEmail);
     tech=(profile?.name||matches[0]?.name||linkedEmail).slice(0,100);
   }
+  if(approvedLeaveEmail)linkedEmail=employeeKey(approvedLeaveEmail);
   if(!tech||tech.length>100||!['shop','pto','sick','holiday'].includes(data.type))throw Error('Enter an employee and pay category');
   const quantity=Number(data.quantity);
   if(!Number.isFinite(quantity)||quantity<=0||quantity>24)throw Error('Enter hours greater than zero and no more than 24');
   const entry={id:randomUUID(),tech,date,type:data.type,quantity,description:String(data.description||'').slice(0,1000),recordedBy:actor.email};
   if(linkedEmail)entry.employeeEmail=linkedEmail;
   checkTimeEntry(state,entry);
+  if(entry.type==='holiday'){
+    const person=holidayIdentity(state,entry);
+    if((state.payrollOther||[]).some(other=>other.type==='holiday'&&other.date===date&&sameHolidayPerson(person,holidayIdentity(state,other))))
+      throw Error('Holiday time already exists or may already exist for this employee and date. Review the existing payroll entry.');
+  }
   (state.payrollOther??=[]).push(entry);return entry;
 }
 export function payrollPreview(state,start,end){
@@ -53,12 +73,19 @@ export function payrollPreview(state,start,end){
   if(end<start)throw Error('Period end must be on or after start');
   const entries=payrollEntries(state).filter(e=>e.date>=start&&e.date<=end);
   const employees=new Map(), issues=[];
-  const seen=new Set(), timed=new Map();
+  const seen=new Set(), timed=new Map(), holidays=new Map();
   for(const e of entries){
     const key=employeeKey(e.employeeEmail||e.tech);
     if(!key||!Number.isFinite(e.quantity)||e.quantity<=0||(e.unit&&!/^(hr|hour|hours|h)$/i.test(e.unit))) {issues.push('Review non-hour or unnamed entry '+e.id);continue;}
     if(seen.has(e.id))issues.push('Duplicate time entry '+e.id);
     seen.add(e.id);
+    if(e.type==='holiday'){
+      const sameDay=holidays.get(e.date)||[];
+      const person=holidayIdentity(state,e);
+      for(const previous of sameDay)if(sameHolidayPerson(person,previous.person))
+        issues.push('Possible duplicate Holiday hours on '+e.date+' for '+e.tech+' (entries '+previous.id+' and '+e.id+'). Review before approval.');
+      sameDay.push({id:e.id,person});holidays.set(e.date,sameDay);
+    }
     const day=key+'|'+e.date;
     if(e.startTime&&e.endTime){
       try{

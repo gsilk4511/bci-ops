@@ -72,7 +72,8 @@ test('workflow grids split current requests, sales, open projects and final bill
  const app=new vm.SyntheticModule(Object.keys(mock),function(){for(const key of Object.keys(mock))this.setExport(key,mock[key]);},{context});
  const mail=new vm.SyntheticModule(['emailIntakePanel'],function(){this.setExport('emailIntakePanel',()=> '');},{context});
  const ui=new vm.SourceTextModule(readFileSync(new URL('../public/modules/tickets.js',import.meta.url),'utf8'),{context});
- await ui.link(name=>name==='../app.js'?app:mail);await ui.evaluate();
+ const charge=new vm.SourceTextModule(readFileSync(new URL('../public/modules/work-entry-charge.js',import.meta.url),'utf8'),{context});
+ await ui.link(name=>name==='../app.js'?app:name==='./work-entry-charge.js'?charge:mail);await ui.evaluate();
  const markup=ui.namespace.ticketsPage();
  for(const name of ['Work Order Tickets','Chasing Work','Projects','Invoicing','Awaiting review','New build opportunity','Active office','Billing office'])assert.ok(markup.includes(name),name);
  for(const absent of ['Returned WO hidden','Paid office','$999'])assert.ok(!markup.includes(absent),absent);

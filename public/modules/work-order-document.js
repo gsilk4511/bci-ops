@@ -1,3 +1,4 @@
+import {entryCharge,isTripCharge} from './work-entry-charge.js';
 import {printJournalEntries} from './work-order-journal.js';
 import {bill,billingName,contactLine,customer,esc,fmt,jobContact,project,projectLabel,roundMoney,table} from '../app.js';
 
@@ -40,7 +41,7 @@ export function workOrderDocument(order){
  <thead><tr><th scope="col">Date / Tech</th><th scope="col">Qty / Hours</th><th scope="col">Charge</th></tr></thead>
  ${entries.length?entries.map(entry=>`<tbody class="work-order-journal-entry">
  <tr class="work-order-journal-meta"><td><span class="journal-date">${esc(entry.date)}</span> <span class="journal-tech">${esc(entry.tech)}</span></td>
- <td>${esc(printQty(entry))} ${esc(entry.unit)}</td><td>${fmt(roundMoney(entry.quantity*entry.rate))}</td></tr>
+ <td>${esc(printQty(entry))} ${esc(entry.unit)}</td><td>${fmt(entryCharge(entry))}${isTripCharge(entry)?' <small>Base trip</small>':''}</td></tr>
  <tr class="work-order-journal-work"><td colspan="3"><b>${esc(entry.name)}</b>${entry.description?`<div class="ticket-text">${esc(entry.description)}</div>`:''}</td></tr>
  </tbody>`).join(''):'<tbody><tr><td colspan="3">No records found</td></tr></tbody>'}
  </table></div>

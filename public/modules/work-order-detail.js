@@ -1,3 +1,4 @@
+import {entryCharge,isTripCharge} from './work-entry-charge.js';
 import {delegatedTimeButton} from './delegated-time.js';
 import {scheduleButton} from './calendar.js';
 import {workOrderTechnicianIcon} from './work-order-technician-icon.js';
@@ -19,7 +20,7 @@ function journalEntries(order) {
    <dl class="field-journal-meta">
     <div><dt>Date / tech</dt><dd>${esc(entry.date)} <span class="muted"><span class="work-order-tech-identity">${workOrderTechnicianIcon(entry.technicianIcon,esc)}<span>${esc(entry.tech)}</span></span></span></dd></div>
     <div><dt>Qty</dt><dd>${esc(qty)} ${esc(entry.unit)}</dd></div>
-    <div><dt>Charge</dt><dd>${fmt(entry.quantity * entry.rate)}${entry.sharedTravel?' <small>Shared travel</small>':''}</dd></div>
+    <div><dt>Charge</dt><dd>${fmt(entryCharge(entry))}${entry.sharedTravel?' <small>Shared travel</small>':isTripCharge(entry)?' <small>Base trip</small>':''}</dd></div>
    </dl>
    <div class="field-journal-work">${esc(entry.name)}</div>
    ${note ? `<div class="ticket-text field-journal-note">${esc(note)}</div>` : ''}

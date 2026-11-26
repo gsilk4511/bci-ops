@@ -39,7 +39,7 @@ export function visibleState(current,role,permissions) {
  else if(!has('workorders.view'))
   state.workorders=state.workorders.map(order=>({id:order.id,title:order.title,projectId:order.projectId,status:order.status,
    internalTask:order.internalTask,changes:(order.changes||[]).map(change=>({status:change.status})),
-   entries:has('money.view')&&has('finance.view')?(order.entries||[]).map(({type,quantity,rate,cost})=>({type,quantity,rate,cost})):[],
+   entries:has('money.view')&&has('finance.view')?(order.entries||[]).map(({type,quantity,rate,cost,travelBilling,sharedTravel})=>({type,quantity,rate,cost,...(travelBilling?{travelBilling}:{}),...(sharedTravel?{sharedTravel}:{})})):[],
    invoice:has('money.view')&&has('finance.view')&&order.invoice?{status:order.invoice.status,amountPaid:order.invoice.amountPaid,depositCredit:order.invoice.depositCredit}:undefined,
    closeout:order.closeout?{reviewedAt:order.closeout.reviewedAt}:null}));
 

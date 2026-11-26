@@ -1,3 +1,13 @@
+# 0.10.11 — Vehicle trip and hourly travel charges
+
+- Travel requires a Shared Yes or No choice. Shared travel records the employee’s time with no client charge. Select a Base trip charge (defaults to $120 per vehicle round trip) or an hourly travel charge for billable travel. Enter one vehicle charge per round trip and log each staff member’s own hours.
+- Fixed trip charges don’t multiply by employee hours. Work orders, prints, Money, and QuickBooks support documents use the same billing calculation. Existing hourly travel, signed change-order rates, and issued invoices are preserved; payroll still reads the recorded hours.
+
+# 0.10.10 — Prevent duplicate Holiday time
+
+- Manual Holiday and approved Holiday requests check for existing time for the same employee and day in either order. If a legacy typed name appears to match, stop and ask for review without linking or removing records.
+- Payroll Preview flags existing potential duplicates and requires resolution before approval. The update does not edit current rows, approved payroll, or payments. No database import or migration.
+
 # 0.10.9 — Staff pay scale and holiday requests
 
 - Add Pay scale to the employer-only Staff profiles table. Accrual reads the staff profile’s effective-dated wage first, then a usable entered hourly Pay scale (such as 31.50 or $31.50/hr); do not derive hourly pay from an annual salary or tier label.

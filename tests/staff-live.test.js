@@ -25,7 +25,7 @@ function fixture(){
  s.payrollOther=[row('holiday','holiday','2026-11-25',8),row('pto','pto','2026-11-17',5),
   row('sick','sick','2026-11-10',4),row('shop','shop','2026-11-09',2),
   row('future-holiday','holiday','2026-11-26',8),row('peer-sick','sick','2026-11-25',7,{employeeEmail:other}),
-  row('legacy-unlinked','holiday','2026-11-25',8,{employeeEmail:'',tech:'Simon'})];
+  row('legacy-unlinked','holiday','2026-11-20',8,{employeeEmail:'',tech:'Simon'})];
  s.staffLeave=[{id:'pending',email,status:'Pending',date:'2026-11-27',quantity:2,type:'vacation'},
   {id:'approved',email,status:'Approved',date:'2026-11-17',quantity:5,type:'vacation',payrollEntryId:'pto'}];
  return s;
@@ -69,7 +69,7 @@ test('Simon example: Accrual excludes paid holiday and uses a 30% reserve on pos
   row('supply','material','2026-11-24',5,{unit:'ea',rate:200}),
   row('other-person','labor','2026-11-25',4,{employeeEmail:other,rate:400}),
   row('last-year','labor','2025-12-31',3),row('future','labor','2026-12-01',9)];
- s.payrollOther=[row('holiday','holiday','2026-11-25',8),row('legacy-unlinked','holiday','2026-11-25',8,{employeeEmail:'',tech:'Simon'})];
+ s.payrollOther=[row('holiday','holiday','2026-11-25',8),row('legacy-unlinked','holiday','2026-11-20',8,{employeeEmail:'',tech:'Simon'})];
  const live=metrics(s).contribution;
  assert.equal(live.totalAttributedCents,10000000);
  assert.equal(live.totalEmploymentCostCents,131750);
@@ -127,7 +127,7 @@ test('correction recomputes the live estimate without rewriting an approved payr
 test('other payroll entries linked by verified Team sign-in count even when the display name changes',async()=>{
  const {addOtherTime}=await import('../Models/payroll.js');
  const s=fixture();
- const input={employeeEmail:email.toUpperCase(),date:'2026-11-25',type:'holiday',quantity:3};
+ const input={employeeEmail:email.toUpperCase(),date:'2026-11-24',type:'holiday',quantity:3};
  assert.throws(()=>addOtherTime(s,{...input,employeeEmail:'not-on-team@example.test'},admin),/active employee/);
  const result=addOtherTime(s,input,admin);
  assert.equal(result.tech,'Simon');
