@@ -1,8 +1,10 @@
+import {dashboardLayout} from '../Models/dashboard-layouts.js';
 import {planAttribution,applyAttribution} from '../Models/time-attribution.js';
 import {signInConfig,isAppSignIn,canUseEmail,bootSignIn,appAuthView,performAppSignIn,invalidateEmailDelivery} from '../UserSecurity/signin.js';
 import {createEmailChannel} from '../UserSecurity/email-channel.js';
-import {securityConfig,requiredReady,verifyStoredEncryptionKey,securityView,inviteAccount,performEnrollment} from '../UserSecurity/enrollment.js';
-import {makeSecurityStore} from '../UserSecurity/store.js';
+import {securityConfig,requiredReady,identityId,audit,verifyStoredEncryptionKey,securityView,inviteAccount,performEnrollment} from '../UserSecurity/enrollment.js';
+import {makeSecurityStore,mutateSecurityInTransaction} from '../UserSecurity/store.js';
+import {clearBrowserSession,revokeAccount,restoreAccountAccess} from '../UserSecurity/lifecycle.js';
 import {listAgentCredentials,issueAgentCredential,revokeAgentCredential,authorizeAgentCredential,agentStatus} from '../UserSecurity/agent-api.js';
 import {vehicleDocument,vehiclePhoto,vehiclesView} from '../Models/vehicles.js';
 import {applyWarehousePurge,previewWarehousePurge} from '../Models/warehouse-purge.js';
@@ -33,7 +35,7 @@ import http from 'node:http';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { seed, applyAction, moneyStats, crewSummary } from '../Models/lib.js';
+import { seed, applyAction, moneyStats, moneyWorkOrderRows, crewSummary } from '../Models/lib.js';
 import { identity, roleFor, projectState, authorizeMachinePerimeter } from '../Models/auth.js';
 const root=fileURLToPath(new URL('../',import.meta.url));
 const manufacturerImportManifest=JSON.parse(await fs.readFile(path.join(root,'scripts','manufacturer-import-nov20-2026.manifest.json'),'utf8'));
@@ -121,7 +123,7 @@ async function loadPhotoAccess(){
   return {users:list(row.team_json),permissionProfiles:list(row.profiles_json)};
 }
 async function update(action, data, actor) {
-  const write = async s => {
+  const write = async (s,conn) => {
     const role=roleFor(s,actor);
     const {permissions,recordScopes}=effectiveAccess(s,actor,role);
     const principal=recordPrincipal(s,actor,role,permissions,recordScopes);
@@ -140,10 +142,18 @@ async function update(action, data, actor) {
     else if(action==='mail.assign')result=assignMail(s,data,principal);
     else if(action.startsWith('notification.'))result=notificationAction(s,action,data,principal);
     else result=applyAction(s,action,data,principal);
+    if(conn&&['users.set','users.remove'].includes(action)){
+      await mutateSecurityInTransaction(conn,securityState=>{
+        if(action==='users.remove'){
+          revokeAccount(securityState,result.email);
+          audit(securityState,'team-account-removed',actor.email,Date.now(),result.email);
+        }else if(data.active!==false)restoreAccountAccess(securityState,result.email);
+      },{missingTableAllowed:!securityStore});
+    }
     if(action==='warehouse.patchApply'&&(result.existing||!result.updated))return result;
     stampRecordOwner(action,data,s,result,principal);
     if(action==='customers.import'&&result.conflicts.length)throw Error('Import blocked by conflicts. Run preview and resolve the listed matches.');
-    if(['users.set','profiles.save','record.assign'].includes(action)){
+    if(['users.set','users.remove','profiles.save','record.assign'].includes(action)){
       s.meta??={};
       s.meta.accessRevision=(Number(s.meta.accessRevision)||0)+1;
     }
@@ -160,7 +170,7 @@ async function writeState(write){
     const temp=`${stateFile}.tmp`;await fs.writeFile(temp,JSON.stringify(next,null,2));await fs.rename(temp,stateFile);state=next;return result;
   }
   const conn=await pool.getConnection();
-  try {await conn.beginTransaction();const rows=await conn.query('SELECT state_json FROM pilot_state WHERE id=1 FOR UPDATE');const next=parseStoredState(rows[0].state_json);const result=await write(next);await conn.execute('UPDATE pilot_state SET state_json=?, updated_at=CURRENT_TIMESTAMP WHERE id=1',[JSON.stringify(next)]);await conn.commit();return result;}
+  try {await conn.beginTransaction();const rows=await conn.query('SELECT state_json FROM pilot_state WHERE id=1 FOR UPDATE');const next=parseStoredState(rows[0].state_json);const result=await write(next,conn);await conn.execute('UPDATE pilot_state SET state_json=?, updated_at=CURRENT_TIMESTAMP WHERE id=1',[JSON.stringify(next)]);await conn.commit();return result;}
   catch(e){await conn.rollback();throw e;}finally{conn.release();}
 }
 // Network requests run outside the database lock. A page and its cursor
@@ -251,6 +261,11 @@ function response(res,status,value){res.writeHead(status,{'content-type':'applic
 const server=http.createServer(async(req,res)=>{
   try {
     const url=new URL(req.url,'http://local');
+    if(req.method==='GET'&&url.pathname==='/signed-out'){
+      res.writeHead(200,{'content-type':'text/html; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff',
+        'content-security-policy':"default-src 'none'; frame-ancestors 'none'; base-uri 'none'"});
+      return res.end('<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Signed out · BCI Operations</title><main><h1>Signed out</h1><p><a href="/">Return to BCI Operations</a></p></main></html>');
+    }
     if(req.method==='GET'&&url.pathname==='/api/health')return response(res,200,{ok:true,release,storage:dbProvider,auth:process.env.APP_AUTH_MODE||'cloudflare'});
     if(url.pathname.startsWith('/api/agent/')){
       if(!security.agentEnabled||!appGateReady||url.pathname!=='/api/agent/v1/status')return response(res,404,{error:'Not found'});
@@ -266,6 +281,16 @@ const server=http.createServer(async(req,res)=>{
     const photoRoute=url.pathname.startsWith('/api/catalog-photo/');
     const current=await (photoRoute?loadPhotoAccess():load());const role=roleFor(current,user);
     if(!role)return response(res,403,{error:'Email is not authorized for BCI Operations. Ask Greg to add this user.'});
+    if(url.pathname==='/api/signout'){
+      if(req.method!=='POST')return response(res,405,{error:'Method not allowed'});
+      if(req.headers['sec-fetch-site']==='cross-site'||(publicOrigin&&req.headers.origin!==publicOrigin))return response(res,403,{error:'Untrusted request origin'});
+      if(String(req.headers['content-type']||'').split(';')[0].trim().toLowerCase()!=='application/json')return response(res,415,{error:'JSON required'});
+      if(securityStore){
+        const cookie=await securityStore.transact(store=>clearBrowserSession(store,security,identityId(user),req.headers.cookie));
+        res.setHeader('set-cookie',cookie);
+      }
+      return response(res,200,{redirect:user.issuer?'/cdn-cgi/access/logout':'/signed-out'});
+    }
     if(securityStore){
       const securityAsset=['/security','/security.js','/security.css','/signin.js','/modules/agent-api.js'].includes(url.pathname);
       const appLogin=isAppSignIn(signIn,user);
@@ -448,7 +473,7 @@ const server=http.createServer(async(req,res)=>{
         mailIntake:permissions.includes('mail.intake')&&permissions.includes('tickets.view')?{
           enabled:mailbox.enabled,address:mailbox.mailbox,lastSuccess:current.mailSync?.identity===mailbox.identity?current.mailSync.lastSuccess:undefined,error:mailError,
           messages:(current.mailQueue||[]).map(({attachments,...message})=>({...message,attachmentCount:attachments.length}))
-        }:undefined,ticketOverview:permissions.includes('tickets.view')?ticketOverview(scoped,principal):undefined,pricingOverview:permissions.includes('pricing.view')?pricingOverview(scoped,permissions):undefined,accessSync:role==='admin'?accessSync.status():undefined,permissionGroups:role==='admin'?permissionGroups:undefined,modulePermissions:role==='admin'?modulePermissions:undefined,permissionMatrix:role==='admin'?permissionMatrix:undefined,stats:finance?moneyStats(scoped):null,vehicles:vehiclesView(current,principal),staff:staffView(current,principal,new Set(scoped.workorders.map(w=>w.id)),new Set(scoped.projects.map(project=>project.id)),scoped,selectedContributionYear),storage:dbProvider,me:{email:user.email,role,accessRevision:current.meta?.accessRevision||0,clock:permissions.includes('workorders.view')?(current.activeClocks||[]).find(c=>c.email===user.email&&scoped.workorders.some(w=>w.id===c.workorderId)):undefined,clockDefault:permissions.includes('workorders.view')?(current.clockDefaults||[]).find(c=>c.email===user.email):undefined,databaseTesting:permissions.includes('database.view'),rawDatabaseTesting,...access}});
+        }:undefined,ticketOverview:permissions.includes('tickets.view')?ticketOverview(scoped,principal):undefined,pricingOverview:permissions.includes('pricing.view')?pricingOverview(scoped,permissions):undefined,accessSync:role==='admin'?accessSync.status():undefined,permissionGroups:role==='admin'?permissionGroups:undefined,modulePermissions:role==='admin'?modulePermissions:undefined,permissionMatrix:role==='admin'?permissionMatrix:undefined,stats:finance?moneyStats(scoped):null,dashboardLayout:dashboardLayout(current,principal),moneyOrders:permissions.includes('money.view')&&permissions.includes('finance.view')?moneyWorkOrderRows(scoped):undefined,vehicles:vehiclesView(current,principal),staff:staffView(current,principal,new Set(scoped.workorders.map(w=>w.id)),new Set(scoped.projects.map(project=>project.id)),scoped,selectedContributionYear),storage:dbProvider,me:{email:user.email,role,accessRevision:current.meta?.accessRevision||0,clock:permissions.includes('workorders.view')?(current.activeClocks||[]).find(c=>c.email===user.email&&scoped.workorders.some(w=>w.id===c.workorderId)):undefined,clockDefault:permissions.includes('workorders.view')?(current.clockDefaults||[]).find(c=>c.email===user.email):undefined,databaseTesting:permissions.includes('database.view'),rawDatabaseTesting,...access}});
     }
     if(req.method==='POST'&&(packRoute||['/api/action','/api/training/action'].includes(url.pathname))){
       if(req.headers['sec-fetch-site']==='cross-site'||(publicOrigin&&req.headers.origin!==publicOrigin))return response(res,403,{error:'Untrusted request origin'});
@@ -521,7 +546,7 @@ const server=http.createServer(async(req,res)=>{
           return accessSync.sync(latest.users||[]);
         }
         const result=await update(body.action,body.data,user);
-        if(body.action==='users.set'&&accessSync.status().enabled){
+        if(['users.set','users.remove'].includes(body.action)&&accessSync.status().enabled){
           try{await accessSync.sync((await load()).users||[]);}
           catch{console.error('Could not load users for Cloudflare Access sync');}
         }

@@ -546,3 +546,81 @@ button.danger{background:#a72323;border:2px solid #8a1818;border-radius:8px;colo
 .bci-vehicle-card details{margin-block:.6rem}
 .bci-vehicle-card li{overflow-wrap:anywhere;margin-block:.35rem}
 .bci-vehicle-card button{min-height:40px}
+
+/* Fleet overview and per-vehicle profile studio */
+.fleet-card-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,275px),1fr));gap:.75rem;align-items:stretch}
+.fleet-filters{display:flex;gap:.5rem;flex-wrap:wrap;margin:0 0 .9rem}
+.fleet-filters button{min-height:44px}
+.fleet-filters button[aria-pressed=true]{box-shadow:inset 0 -3px 0 #ed8934}
+.fleet-filters b{margin-left:.3rem}
+.fleet-mini{position:relative;isolation:isolate;display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:.72rem;text-align:left;width:100%;min-height:104px;border:1px solid var(--fleet-border);border-radius:12px;background:var(--fleet-light),var(--fleet-surface);color:var(--fleet-text);padding:.75rem;overflow:hidden}
+.fleet-mini:before{content:"";position:absolute;inset:0 0 auto;height:6px;background:var(--fleet-banner);pointer-events:none}
+button.fleet-mini:hover{border-color:var(--fleet-text);box-shadow:0 4px 16px #0003}
+.fleet-mini:focus-visible,.fleet-filters button:focus-visible,.fleet-section summary:focus-visible{outline:3px solid #fbb46b;outline-offset:2px}
+.fleet-mini-copy{min-width:0;display:grid;gap:.23rem;justify-items:start}
+.fleet-mini-copy>strong{font-size:1.05rem;overflow-wrap:anywhere}
+.fleet-mini-copy .bci-manager-status{font-size:.73rem;line-height:1.25;max-width:100%;overflow-wrap:anywhere}
+.fleet-model,.fleet-arrow{color:var(--fleet-muted)}
+.fleet-model{font-size:.82rem;overflow-wrap:anywhere}
+.fleet-arrow{font-size:1.65rem}
+.fleet-photo-trim{display:grid;padding:2px;background:var(--fleet-ring);border-radius:9px;flex-shrink:0;}
+.fleet-photo-trim img,.fleet-photo-placeholder{width:86px;height:68px;display:block;object-fit:cover;border-radius:7px}
+.fleet-photo-placeholder{display:grid;place-items:center;background:#10161b;color:#bccad7;font-size:1.4rem}
+.fleet-profile-shell>button{margin-bottom:.85rem;min-height:44px}
+.fleet-profile{color:var(--fleet-text);background:var(--fleet-surface);border:1px solid var(--fleet-border);border-radius:14px;overflow:hidden}
+.fleet-hero{display:flex;align-items:center;gap:clamp(.8rem,3vw,1.75rem);padding:clamp(1rem,3vw,1.8rem);background:var(--fleet-light),var(--fleet-banner)}
+.fleet-hero .fleet-photo-trim img,.fleet-hero .fleet-photo-placeholder{width:clamp(94px,22vw,220px);height:clamp(86px,17vw,154px);object-fit:cover}
+.fleet-hero-copy{min-width:0}
+.fleet-hero-copy h1{overflow-wrap:anywhere}
+.fleet-hero-copy p{margin:.15rem 0 .6rem}
+.fleet-profile .fleet-profile-body{display:grid;gap:.7rem;padding:clamp(.75rem,2vw,1.35rem)}
+.fleet-section{min-width:0;border:1px solid var(--fleet-border);border-radius:10px;padding:.75rem 1rem;overflow-wrap:anywhere}
+.fleet-section summary{cursor:pointer;font-weight:750;padding:.24rem 0;min-height:34px}
+.fleet-section .bci-manager-maintenance{background:var(--fleet-surface);border-color:var(--fleet-border)}
+.fleet-section .bci-manager-maintenance dt,.fleet-section.bci-manager-card dt{color:var(--fleet-muted)}
+.fleet-section a{color:var(--fleet-text);text-decoration:underline}
+.fleet-style-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 .65rem}
+[data-fleet-preview]{margin:.25rem 0 .8rem}
+[data-fleet-reset]{margin-bottom:.7rem}
+@media(max-width:740px){.fleet-card-grid{grid-template-columns:1fr}.fleet-hero{align-items:flex-start}}
+@media(max-width:440px){.fleet-mini{min-height:94px;padding:.63rem}.fleet-hero .bci-manager-actions{align-items:flex-start}.fleet-hero-copy h1{font-size:1.45rem}.fleet-style-fields{grid-template-columns:1fr}}
+
+/* Money: a project rollup followed by its underlying work orders. */
+.money-project{border:1px solid var(--border,#dce4dd);border-radius:9px;margin:.6rem 0;padding:.15rem .65rem}
+.money-project>summary{cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:.6rem;min-height:45px;padding:.3rem .2rem;overflow-wrap:anywhere}
+.money-project>summary::before{content:"▸";flex:0 0 auto}
+.money-project[open]>summary::before{content:"▾"}
+.money-project>summary span{flex:1;min-width:0}
+.money-project>summary small{display:block;margin-top:.22rem}
+.money-project>summary b{font-variant-numeric:tabular-nums;flex-shrink:0}
+.money-project .tablewrap{margin:0}
+
+/* Positionable Dashboard. The saved 12-column layout flows into a phone list. */
+.dashboard-board{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));grid-auto-rows:66px;gap:.8rem;align-items:stretch;margin-block:1rem}
+.dashboard-card{position:relative;display:flex;flex-direction:column;min-width:0;min-height:0;margin:0;padding:.75rem 1rem;overflow:hidden}
+.dashboard-card h2{margin:0;font-size:1.05rem}
+.dashboard-card-head{display:flex;justify-content:space-between;align-items:center;gap:.5rem;margin-bottom:.4rem;min-height:1.6rem}
+.dashboard-card-body{flex:1;min-height:0;overflow:auto;overflow-wrap:anywhere}
+.dashboard-list{padding:0;margin:.15rem 0;list-style:none}
+.dashboard-list li{padding:.3rem 0;border-bottom:1px solid color-mix(in srgb,currentColor 17%,transparent)}
+.dashboard-list li:last-child{border-bottom:0}
+.dashboard-list small{display:block;opacity:.82;margin-top:.2rem}
+.dashboard-card-body .dashboard-overview-counts{margin:.35rem 0;grid-template-columns:repeat(auto-fit,minmax(min(100%,12rem),1fr))}
+.dashboard-overview-counts .card{padding:.65rem}
+.dash-actions select{width:auto;max-width:100%}
+.dash-card-controls{display:flex;gap:.35rem;flex-wrap:wrap;margin-bottom:.35rem}
+.dash-move,.dash-resize{display:grid;place-items:center;cursor:grab;user-select:none;touch-action:none;min-width:27px;min-height:27px;border:1px dashed currentColor;border-radius:5px}
+.dash-resize{position:absolute;right:.2rem;bottom:.2rem;cursor:nwse-resize;background:var(--panel,#f1eeee)}
+.dashboard-edit .dashboard-card{border-style:dashed;padding-bottom:1.55rem}
+.dashboard-board[data-drag=true]{user-select:none}
+@media(max-width:800px){
+ .dashboard-board{grid-template-columns:minmax(0,1fr);grid-auto-rows:auto}
+ .dashboard-board>.dashboard-card{grid-column:auto!important;grid-row:auto!important;min-height:0}
+ .dashboard-card-body{max-height:22rem}
+ .dash-move,.dash-resize{display:none}
+ .dashboard-edit .dashboard-card{padding-bottom:.75rem}
+}
+
+/* Session action stays reachable when the desktop status strip is hidden. */
+.header-signout{margin-left:12px;flex:0 0 auto;min-height:44px;padding:8px 12px;white-space:nowrap;border:1px solid #52615b;border-radius:8px;background:#263331;color:#f4f7f5}
+@media(max-width:380px){.header-signout{margin-left:6px;padding-inline:8px}header .theme-toggle{padding-inline:8px}header .brand{gap:6px}}

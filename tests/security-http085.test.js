@@ -63,6 +63,29 @@ test('HTTP role boundaries protect scoped details and remain effective after a p
   assert.deepEqual(after.workorders,[]);
   assert.ok(after.me.accessRevision>before.me.accessRevision);
   assert.equal((await act(admin,'users.set',{email:admin,role:'tech',active:false})).status,400);
+  const logoutRoute=(email,site='same-origin')=>fetch('http://'+address+'/api/signout',{method:'POST',headers:{
+   'content-type':'application/json','sec-fetch-site':site,...(email?{'cf-access-jwt-assertion':token(email)}:{})},body:'{}'});
+  assert.equal((await read('/api/signout',member)).status,405);
+  assert.equal((await logoutRoute(undefined)).status,401);
+  assert.equal((await logoutRoute(member,'cross-site')).status,403);
+  const logout=await logoutRoute(member);
+  assert.equal(logout.status,200,await logout.clone().text());
+  assert.deepEqual(await logout.json(),{redirect:'/cdn-cgi/access/logout'});
+  assert.equal(logout.headers.get('cache-control'),'no-store');
+  const html=await (await read('/',member)).text();
+  assert.match(html,/<\/div><button type="button" id="signOut"[^>]*>Sign out/);
+  assert.equal((await act(member,'users.remove',{email:other,confirmation:other})).status,403);
+  assert.equal((await act(admin,'users.remove',{email:admin,confirmation:admin})).status,400);
+  const removed=await act(admin,'users.remove',{email:member,confirmation:member});
+  assert.equal(removed.status,200,await removed.clone().text());
+  assert.equal((await read('/api/me',member)).status,403);
+  assert.equal((await read('/api/state',member)).status,403);
+  assert.equal((await act(member,'staff.profile',{displayName:'Blocked'})).status,403);
+  const administrator=await (await read('/api/state',admin)).json();
+  assert.equal(administrator.teamAccess[member],undefined);
+  assert.ok(administrator.workorders.some(w=>w.id===own.id&&w.createdBy===member));
+  assert.ok(administrator.me.accessRevision>after.me.accessRevision);
+
  }finally{
   if(server.exitCode===null){const exited=once(server,'exit');server.kill();await exited;}
   await rm(dir,{recursive:true,force:true});

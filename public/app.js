@@ -59,7 +59,7 @@ const today=()=>{
  return [now.getFullYear(),pad(now.getMonth()+1),pad(now.getDate())].join('-');
 };
 const roundMoney=value=>Math.round((value+Number.EPSILON)*100)/100;
-const navItems=[['dashboard','◫','Home'],['training','▷','Training'],['customers','♙','Customers'],['projects','▦','Projects'],['estimates','≡','Estimates'],['invoices','▤','Invoices'],['workorders','▤','Work Orders'],['tickets','◇','Tickets'],['notifications','◉','Notifications'],['inventory','▣','Warehouse'],['money','◈','Money'],['reports','▥','Reports'],['payroll','▤','Payroll'],['staff','◷','My Time & Profile'],['services','≡','Services'],['catalog','▦','Pricing'],['team','♧','Team'],['fleet','▰','Vehicles'],['testing','▦','Database Testing'],['changelog','▤','Changelog'],['trash','▤','Trash']];
+const navItems=[['dashboard','◫','Dashboard'],['training','▷','Training'],['customers','♙','Customers'],['projects','▦','Projects'],['estimates','≡','Estimates'],['invoices','▤','Invoices'],['workorders','▤','Work Orders'],['tickets','◇','Tickets'],['notifications','◉','Notifications'],['inventory','▣','Warehouse'],['money','◈','Money'],['reports','▥','Reports'],['payroll','▤','Payroll'],['staff','◷','My Time & Profile'],['services','≡','Services'],['catalog','▦','Pricing'],['team','♧','Team'],['fleet','▰','Vehicles'],['testing','▦','Database Testing'],['changelog','▤','Changelog'],['trash','▤','Trash']];
 let data=null,me=null,view='dashboard',selectedWO=null,reportType='purchases',reportStart='',reportEnd='',moneyCustomer='all',moneyStatus='all';
 const customer=id=>data.customers.find(c=>c.id===id),project=id=>data.projects.find(p=>p.id===id),catalog=id=>data.catalog.find(c=>c.id===id),wo=id=>data.workorders.find(w=>w.id===id);
 let selectedClientPortal=null;
@@ -79,7 +79,7 @@ const formPermissions={customer:'customer.create',contact:'contact.create',proje
  close:'workorder.close',review:'workorder.review','warehouse-receive':'inventory.receive',
  'warehouse-item':'catalog.create',service:'catalog.create',invoice:'invoice.record',payment:'invoice.pay',catalog:'catalog.create',reserve:'settings.reserve'};
 function nav(){
- const groups=[['Field work',['dashboard','workorders','tickets','projects','customers','inventory','notifications','staff']],
+ const groups=[['Field work',['dashboard','workorders',...(!can('dashboard.view')?['tickets']:[]),'projects','customers','inventory','notifications','staff']],
   ['Office',['estimates','invoices','services','catalog','money','reports','payroll']],['Admin',['training','team','fleet','testing','changelog','trash']]];
  const rail=$('#nav'), priorScroll=rail.scrollLeft;
  rail.setAttribute('aria-label','Workspace navigation');
@@ -365,6 +365,25 @@ function profileForm(profile){
   sync(row);row.querySelector('[data-access-mode]').addEventListener('change',()=>sync(row,true));
  }
 }
+
+document.addEventListener('click',event=>{
+ const button=event.target.closest('#signOut');
+ if(!button)return;
+ modal('Sign out of BCI Operations?', '<p>On the hosted app this also signs you out of other sites using the same Cloudflare Access team.</p>', async()=>{
+  const response=await fetch('/api/signout',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}',cache:'no-store'});
+  if(!response.ok)throw Error('Sign-out did not complete. Try again.');
+  const {redirect}=await response.json();
+  if(!['/cdn-cgi/access/logout','/signed-out'].includes(redirect))throw Error('Sign-out did not complete. Try again.');
+  try{sessionStorage.removeItem('bci-practice');}catch{}
+  clearSession('Signing out…');
+  window.location.replace(redirect);
+ });
+ const submit=document.querySelector('#actionForm button[type="submit"]');
+ if(submit)submit.textContent='Sign out';
+});
+window.addEventListener?.('pageshow',event=>{
+ if(event.persisted)refreshAccess();
+});
 
 function userForm(user){
  const options=[['tech','Technician'],['office','Office'],['admin','Administrator'],...(data.permissionProfiles||[]).map(p=>[p.id,p.name])];
@@ -1053,6 +1072,17 @@ document.addEventListener('click',event=>{
  if(me?.role!=='admin') return;
  const profile=event.target.closest('[data-profile-id]');
  if(profile) profileForm(data.permissionProfiles.find(p=>p.id===profile.dataset.profileId));
+ const remove=event.target.closest('[data-remove-user]');
+ if(remove){
+  const email=remove.dataset.removeUser;
+  if(email===me.email||!data.teamAccess?.[email]||data.teamAccess[email].protectedAdmin||!(data.users||[]).some(user=>user.email.toLowerCase()===email))return;
+  modal('Remove teammate',f('confirmation','Type the Team email to confirm',{type:'email',required:true}),
+   values=>send('users.remove',{email,confirmation:values.confirmation}),
+   '<p>Remove access for <strong>'+esc(email)+'</strong>. Work orders, time, payroll and other history stay on record. This also clears BCI sign-in setup, where enabled. Cloudflare Access changes are separate.</p>');
+  const submit=document.querySelector('#actionForm button[type="submit"]');
+  if(submit)submit.textContent='Remove teammate';
+  return;
+ }
  const user=event.target.closest('[data-user-email]');
  if(user) userForm(data.users.find(u=>u.email===user.dataset.userEmail));
 });

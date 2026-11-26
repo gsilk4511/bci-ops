@@ -1,5 +1,6 @@
-import {can,data,esc,f,modal,send,today} from '../app.js';
+import {can,data,esc,f,modal,render,send,today} from '../app.js';
 import {receiptPayload} from './work-entry.js';
+import {fleetStyle,fleetStyleFields,fleetStyleVars,profileStyleOptions} from './fleet-style.js';
 
 const kinds={oil:'Oil change',registration:'Registration',inspection:'Inspection',rotation:'Tire rotation',cleaning:'Cab cleanup',service:'General service',repair:'Repair'};
 const types=[['insurance','Insurance card'],['registration','Registration'],['inspection','Inspection'],['dmv','DMV / restricted'],['other','Other / restricted']];
@@ -20,15 +21,59 @@ const staffOptions=(board,row,key='assignedEmail')=>{
 };
 const manageOnly=(set,html)=>set?html:'';
 
+let selectedVehicle='',fleetFilter='all',fleetScroll=0;
+const sections=new Map();
+const sectionOpen=(row,key,defaultOpen=false)=>((sections.get(row.id)?.[key]??defaultOpen)?' open':'');
+const level={overdue:0,due:1,soon:2};
+function attention(row,today){
+ const schedules=row.schedules||{};
+ const urgent=Object.entries(schedules).filter(([,e])=>Object.hasOwn(level,e.status)).sort(([,a],[,b])=>level[a.status]-level[b.status]);
+ if(urgent.length){
+  const [key,e]=urgent[0];
+  const delta=e.dueMileage==null||row.odometer==null?null:e.dueMileage-row.odometer;
+  const suffix=e.status==='soon'&&!row.odometerStale&&delta>0&&delta<=500?' due in '+miles(delta):
+   e.status==='soon'&&e.dueDate?' due '+e.dueDate:' '+(status[e.status]||'').toLowerCase();
+  return {kind:e.status,text:(kinds[key]||'Service')+suffix,extra:urgent.length-1};
+ }
+ if(row.needsCleanup)return {kind:'soon',text:'Needs cleanup'};
+ const booked=Object.entries(schedules).filter(([,e])=>e.appointment?.date>=today).sort(([,a],[,b])=>a.appointment.date.localeCompare(b.appointment.date))[0];
+ if(booked)return {kind:'booked',text:(kinds[booked[0]]||'Service')+' booked '+booked[1].appointment.date};
+ if(['registration','inspection','oil'].some(key=>!schedules[key]?.dueDate&&schedules[key]?.dueMileage==null))
+  return {kind:'not-set',text:'Setup needed'};
+ return {kind:'upcoming',text:'No service due soon'};
+}
+const modelName=row=>[row.year,row.make,row.model].filter(Boolean).join(' ');
+const photo=(row,large=false)=>`<span class="fleet-photo-trim">${row.photoUrl?
+ `<img src="${esc(row.photoUrl)}" alt="" width="${large?220:90}" height="${large?150:70}"${large?'':' loading="lazy"'}>`:
+ '<span class="fleet-photo-placeholder" aria-hidden="true">◇</span>'}</span>`;
+function miniCard(row,at,preview=false){
+ const info=attention(row,at), tag=preview?'div':'button';
+ return `<${tag} class="fleet-mini" style="${esc(fleetStyleVars(row.style,row.color))}"${preview?'':` type="button" data-fleet-action="open" data-fleet-id="${esc(row.id)}"`}>
+ ${photo(row)}<span class="fleet-mini-copy"><strong>${esc(row.name)}</strong>
+ <span class="fleet-model">${esc(modelName(row)||'Vehicle')}</span>
+ ${badge(info.kind,info.text+(info.extra?' +'+info.extra:''))}</span><span class="fleet-arrow" aria-hidden="true">›</span></${tag}>`;
+}
+function showFleetLocation(selector,y,vehicleId=''){
+ render();
+ const restore=()=>{
+  const card=vehicleId&&Array.from(document.querySelectorAll('[data-fleet-action="open"]')).find(el=>el.dataset.fleetId===vehicleId);
+  const node=card||document.querySelector(selector);
+  node?.focus({preventScroll:true});
+  window.scrollTo(0,y);
+ };
+ if(typeof requestAnimationFrame==='function')requestAnimationFrame(restore);
+ else if(typeof window!=='undefined')restore();
+}
 export function fleetPage(){
  const fleet=data?.vehicles;
  if(!fleet||!can('vehicles.view'))return '<section class="panel"><h1>Vehicles</h1><p>Fleet data is unavailable.</p></section>';
  const manage=can('vehicles.manage'),records=fleet.records||[];
- const tasks=records.flatMap(row=>Object.values(row.schedules||{}));
- const count=(...kinds)=>tasks.filter(row=>kinds.includes(row.status)).length;
+ const active=records.find(row=>row.id===selectedVehicle);
+ if(!active)selectedVehicle='';
+ const count=key=>records.filter(row=>matchesFilter(row,key)).length;
  const person=email=>esc(fleet.staff?.find(x=>x.email===email)?.name||email||'Unassigned');
  const renderVehicle=row=>{
-  const profile=[row.year,row.make,row.model].filter(Boolean).join(' ');
+  const profile=modelName(row), next=attention(row,fleet.today);
   const layout=Object.keys(kinds).map(key=>{
    const entry=row.schedules?.[key]||{}, visit=entry.appointment;
    return `<div class="bci-manager-maintenance"><h4>${kinds[key]}</h4><dl>${line('Next due',dateText(entry.dueDate))}
@@ -46,28 +91,46 @@ export function fleetPage(){
    ${item.mileage==null?'':` · ${miles(item.mileage)}`}${item.notes?`<p>${esc(item.notes)}</p>`:''}</li>`).join('');
   const sets=(row.tireSets||[]).map(x=>`<li><b>${esc(x.name)}</b> · ${esc([x.type,x.size].filter(Boolean).join(' · ')||'No type/size')} · ${miles(x.mileage)} on set · ${x.mountedAt==null?'Stored':`Mounted at ${miles(x.mountedAt)}`}</li>`).join('');
   const docs=(row.documents||[]).map(x=>`<li><a href="${esc(x.url)}">${esc(x.name)}</a> · ${esc(types.find(([k])=>k===x.type)?.[1]||'Document')}${x.date?' · '+dateText(x.date):''} ${manageOnly(manage,action('remove-doc','Remove',row.id,x.id))}</li>`).join('');
-  return `<article class="panel bci-manager-card bci-vehicle-card" data-vehicle-color="${colorNames.has(row.color)?row.color:'slate'}">
-   <header class="bci-vehicle-header">${row.photoUrl?`<img class="bci-vehicle-photo" src="${esc(row.photoUrl)}" alt="" width="96" height="72" loading="lazy">`:''}
-    <div><h3>${esc(row.name)}</h3>${profile?`<p>${esc(profile)}</p>`:''}</div></header>
-   <dl>${line('VIN',esc(row.vin||'Not set'))}${line('Plate',esc(row.plate||'Not set'))}${line('Driver',person(row.assignedEmail))}
+  return `<div class="fleet-profile-shell">
+   ${action('back','‹ Back to Fleet')}
+   <article class="fleet-profile" style="${esc(fleetStyleVars(row.style,row.color))}">
+   <div class="fleet-hero">${photo(row,true)}<div class="fleet-hero-copy">
+    <h1 id="fleetProfileHeading" tabindex="-1">${esc(row.name)}</h1>
+    ${profile?`<p class="fleet-model">${esc(profile)}</p>`:''}
+    ${badge(next.kind,next.text+(next.extra?' +'+next.extra+' more':''))}
+    ${manageOnly(manage,`<div class="bci-manager-actions">${action('edit','Edit vehicle',row.id)}${action('odometer','Update odometer',row.id)}${action('style','Customize profile',row.id)}</div>`)}
+   </div></div>
+   <div class="fleet-profile-body">
+   <section class="fleet-section bci-manager-card" aria-label="Vehicle information"><dl>${line('VIN',esc(row.vin||'Not set'))}${line('Plate',esc(row.plate||'Not set'))}${line('Driver',person(row.assignedEmail))}
     ${line('Odometer',miles(row.odometer)+(row.odometerDate?' · '+dateText(row.odometerDate):''))}
     ${line('Health notes',esc(row.health||'Not recorded'))}</dl>
-   ${row.odometerStale&&row.odometer!=null?'<p class="muted">Odometer is undated or more than 30 days old.</p>':''}
-   ${row.about?`<p class="bci-manager-notes">${esc(row.about)}</p>`:''}
-   ${manageOnly(manage,`<div class="bci-manager-actions">${action('edit','Edit vehicle',row.id)}${action('odometer','Update odometer',row.id)}${action('cleanup',row.needsCleanup?'Clear cleanup flag':'Flag for cleanup',row.id)}</div>`)}
-   <div class="bci-vehicle-maintenance">${layout}</div>
-   <details><summary>Tire sets (${row.tireSets?.length||0})</summary>${sets?`<ul>${sets}</ul>`:'<p>No tire sets recorded.</p>'}
+   ${row.odometerStale&&row.odometer!=null?'<p class="fleet-model">Odometer is undated or more than 30 days old.</p>':''}
+   ${row.about?`<p class="bci-manager-notes">${esc(row.about)}</p>`:''}</section>
+   <details class="fleet-section" data-fleet-section="maintenance"${sectionOpen(row,'maintenance',['overdue','due','soon'].includes(next.kind))}><summary>Maintenance &amp; Cleaning</summary>
+   ${manageOnly(manage,action('cleanup',row.needsCleanup?'Clear cleanup flag':'Flag for cleanup',row.id))}
+   <div class="bci-vehicle-maintenance">${layout}</div></details>
+   <details class="fleet-section" data-fleet-section="tires"${sectionOpen(row,'tires')}><summary>Tires (${row.tireSets?.length||0})</summary>${sets?`<ul>${sets}</ul>`:'<p>No tire sets recorded.</p>'}
    ${manageOnly(manage,`<div class="bci-manager-actions">${action('add-set','Add tire set',row.id)}${row.tireSets?.length?action('swap','Mount / swap / remove',row.id):''}</div>`)}</details>
-   <details><summary>Documents (${row.documents?.length||0})</summary>${docs?`<ul>${docs}</ul>`:'<p>No documents visible to you.</p>'}
+   <details class="fleet-section" data-fleet-section="documents"${sectionOpen(row,'documents')}><summary>Documents (${row.documents?.length||0})</summary>${docs?`<ul>${docs}</ul>`:'<p>No documents visible to you.</p>'}
    ${manageOnly(manage,action('upload','Add document',row.id))}</details>
-   <details><summary>Service and repair history (${row.serviceHistory?.length||0})</summary>${entries?`<ul>${entries}</ul>`:'<p>No completed work recorded.</p>'}</details>
-  </article>`;
+   <details class="fleet-section" data-fleet-section="history"${sectionOpen(row,'history')}><summary>Service History (${row.serviceHistory?.length||0})</summary>${entries?`<ul>${entries}</ul>`:'<p>No completed work recorded.</p>'}</details>
+   </div></article></div>`;
  };
- return `<div class="pagehead"><div><h1>Vehicles</h1><p>Fleet schedules, tire mileage, paperwork and completed work.</p></div>${manageOnly(manage,action('edit','+ Add vehicle'))}</div>
-  <section class="panel bci-manager"><dl class="bci-manager-summary">${line('Vehicles',records.length)}${line('Overdue',count('overdue'))}${line('Due now / soon',count('due','soon'))}</dl>
-  ${manage?'':'<p class="muted">Fleet records are read only. You can complete cleaning assigned to you.</p>'}</section>
-  ${records.length?`<div class="bci-manager-grid">${records.map(renderVehicle).join('')}</div>`:'<p>No vehicles yet.</p>'}`;
+ if(active)return renderVehicle(active);
+ const filtered=records.filter(row=>matchesFilter(row,fleetFilter));
+ return `<div class="pagehead"><div><h1>Vehicles</h1><p>Choose a vehicle to see its profile.</p></div>${manageOnly(manage,action('edit','+ Add vehicle'))}</div>
+  <div class="fleet-filters" aria-label="Filter vehicles">${[['all','All vehicles'],['overdue','Overdue'],['soon','Due now / soon']].map(([key,label])=>
+   `<button type="button" class="secondary" data-fleet-action="filter" data-fleet-type="${key}" aria-pressed="${key===fleetFilter}">${label} <b>${key==='all'?records.length:count(key)}</b></button>`).join('')}</div>
+  ${filtered.length?`<div class="fleet-card-grid">${filtered.map(row=>miniCard(row,fleet.today)).join('')}</div>`:
+   `<p class="muted">${records.length?'No vehicles match this filter.':'No vehicles yet.'}</p>`}`;
 }
+function matchesFilter(row,key){
+ if(key==='all')return true;
+ const schedules=Object.values(row.schedules||{});
+ return key==='overdue'?schedules.some(e=>e.status==='overdue'):
+  Boolean(row.needsCleanup||schedules.some(e=>e.status==='due'||e.status==='soon'));
+}
+
 function documentContent(file){
  if(!file?.size||file.size>350000||!['application/pdf','image/jpeg','image/png'].includes(file.type))throw Error('Choose a PDF, JPEG or PNG up to 350 KB.');
  return new Promise((resolve,reject)=>{
@@ -76,12 +139,28 @@ function documentContent(file){
   reader.readAsDataURL(file);
  });
 }
+document.addEventListener('toggle',event=>{
+ const el=event.target, key=el.dataset?.fleetSection;
+ if(!key||!selectedVehicle||!el.isConnected)return;
+ sections.set(selectedVehicle,{...sections.get(selectedVehicle),[key]:el.open});
+},true);
 document.addEventListener('click',event=>{
  const button=event.target.closest('[data-fleet-action]'), board=data?.vehicles;
  if(!button||!board||!can('vehicles.view'))return;
  const {fleetAction:key,fleetId:id,fleetType:type}=button.dataset;
  const row=(board.records||[]).find(item=>item.id===id);
  if(id&&!row)return;
+ if(key==='open'&&row){
+  fleetScroll=typeof window==='undefined'?0:window.scrollY;
+  selectedVehicle=id;showFleetLocation('#fleetProfileHeading',0);return;
+ }
+ if(key==='back'){
+  const returnId=selectedVehicle;
+  selectedVehicle='';showFleetLocation('[data-fleet-action="filter"][aria-pressed="true"]',fleetScroll,returnId);return;
+ }
+ if(key==='filter'&&['all','overdue','soon'].includes(type)){
+  fleetFilter=type;showFleetLocation('[data-fleet-action="filter"][aria-pressed="true"]',typeof window==='undefined'?0:window.scrollY);return;
+ }
  if(key==='assigned-cleanup'){
   if(row?.mayClean)modal('Mark cab cleanup done',f('notes','Cleanup notes (optional)',{textarea:true}),
    values=>send('vehicles.cleanup',{id,...values}));
@@ -108,6 +187,26 @@ document.addEventListener('click',event=>{
    });return;
  }
  if(!row)return;
+ if(key==='style'){
+  const fields=Object.keys(fleetStyleFields),chosen=fleetStyle(row.style,row.color);
+  const prefix='fleetStyle_';
+  const draft=values=>Object.fromEntries(fields.map(field=>[field,values[prefix+field]]));
+  modal('Customize vehicle profile',`<div class="fleet-style-fields">${fields.map(field=>f(prefix+field,fleetStyleFields[field],{
+   select:profileStyleOptions[field].map(option=>[option.id,option.label]),value:chosen[field]
+  })).join('')}</div><p class="muted">Fleet card preview</p><div data-fleet-preview>${miniCard(row,now,true)}</div>
+   <button type="button" class="secondary small" data-fleet-reset>Reset appearance</button>`,
+   values=>submit('saveStyle',{style:draft(values)}),
+   '<p>These choices apply to this vehicle’s page and its fleet card.</p>');
+  const form=document.querySelector('#actionForm');
+  const redraw=()=>{const preview=form?.querySelector('[data-fleet-preview]');if(preview)preview.innerHTML=miniCard({...row,style:draft(Object.fromEntries(new FormData(form)))},now,true);};
+  form?.addEventListener('change',redraw);
+  form?.querySelector('[data-fleet-reset]')?.addEventListener('click',()=>{
+   const defaults=fleetStyle(null,row.color);
+   for(const field of fields)form.elements.namedItem(prefix+field).value=defaults[field];
+   redraw();
+  });
+  return;
+ }
  const entry=row.schedules?.[type]||{};
  const repeat=['oil','rotation','cleaning','service'].includes(type), mileage=repeat&&type!=='cleaning';
  if(key==='schedule'&&Object.hasOwn(kinds,type)){

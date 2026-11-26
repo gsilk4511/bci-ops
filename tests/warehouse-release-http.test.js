@@ -30,14 +30,25 @@ test('the shipped app handles counts, field receipts and warehouse receipts with
   const get=path=>fetch('http://'+address+path);
   const act=(action,data)=>fetch('http://'+address+'/api/action',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({action,data})});
   const health=await (await get('/api/health')).json();
-  assert.equal(health.release,'0.10.0');
-  assert.match(await (await get('/')).text(),/id="appRelease">v0\.10\.0<\/span>/);
+  assert.equal(health.release,'0.10.3');
+  assert.match(await (await get('/')).text(),/id="appRelease">v0\.10\.3<\/span>/);
   for(const path of ['/security','/security.html','/security.js','/security.css','/signin.js','/modules/agent-api.js','/api/security/session','/api/security/agent-credentials','/api/agent/v1/status']){
    assert.equal((await get(path)).status,404,path+' must stay disabled by default');
   }
+  const personalLayout=[{id:'projects',x:0,y:0,w:6,h:3},{id:'review',x:6,y:0,w:6,h:3}];
+  const layoutSave=await act('dashboard.layout',{cards:personalLayout});
+  assert.equal(layoutSave.status,200,await layoutSave.clone().text());
+  const dashboard=await (await get('/api/state')).json();
+  assert.deepEqual(dashboard.dashboardLayout,personalLayout);
+  assert.equal(dashboard.dashboardLayouts,undefined);
+  assert.equal((await act('dashboard.layout',{cards:personalLayout,email:'other@example.invalid'})).status,400);
   const truck=await (await act('vehicles.manage',{operation:'saveVehicle',name:'HTTP fixture truck',year:'2023'})).json();
   assert.ok(truck.ok);
   const truckId=truck.result.id;
+  const style=await act('vehicles.manage',{operation:'saveStyle',id:truckId,style:{ring:'emerald',banner:'aurora'}});
+  assert.equal(style.status,200,await style.clone().text());
+  assert.equal((await style.json()).result.style.banner,'aurora');
+  assert.equal((await act('vehicles.manage',{operation:'saveStyle',id:truckId,style:{banner:'url(https://example.invalid)'}})).status,400);
   const booked=await act('vehicles.manage',{operation:'bookService',id:truckId,type:'oil',appointmentDate:'2030-08-17',appointmentTime:'10:30'});
   assert.equal(booked.status,200);
   const png='iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/2VkAAAAASUVORK5CYII=';
@@ -54,6 +65,7 @@ test('the shipped app handles counts, field receipts and warehouse receipts with
   const stateResponse=await (await get('/api/state')).json();
   assert.ok(!JSON.stringify(stateResponse).includes(png));
   assert.equal(stateResponse.vehicles.records[0].schedules.oil.appointment.time,'10:30');
+  assert.equal(stateResponse.vehicles.records[0].style.ring,'emerald');
   const saved=await act('inventory.adjust',{catalogId,mode:'count',quantity:5,expectedQuantity:2,reason:'Test physical count'});
   assert.equal(saved.status,200,await saved.clone().text());
   const stale=await act('inventory.adjust',{catalogId,mode:'count',quantity:7,expectedQuantity:2,reason:'Stale tab'});
@@ -73,6 +85,9 @@ test('the shipped app handles counts, field receipts and warehouse receipts with
   const issued=await (await get('/api/state')).json();
   assert.equal(issued.inventory.find(x=>x.id==='warehouse-test').quantity,-1);
   assert.ok(!JSON.stringify(issued).includes(content),'receipt bytes must not be in the state feed');
+  const moneyRow=issued.moneyOrders.find(row=>row.id===workorderId);
+  assert.equal(moneyRow.stateKey,'unbilled');
+  assert.ok(moneyRow.total>0,'open work must reach Money state before closeout');
   const line=issued.warehouseFieldPurchases.find(x=>x.workorderId===workorderId);
   assert.ok(line,'linked receipt must appear in the warehouse feed');
   const woPhoto=await act('receipt.read',{workorderId,id:issued.workorders[0].receipts[0].id});

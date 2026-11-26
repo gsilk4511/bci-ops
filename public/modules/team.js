@@ -18,7 +18,8 @@ export function teamPage(){
   const label=access.protectedAdmin?'Deployment administrator':profiles.find(profile=>profile.id===user?.profileId)?.name||user?.role||'—';
   return `<tr><td>${esc(email)}</td><td>${esc(label)}</td><td>${access.role?'Active':'Disabled'}</td>
    <td><button class="secondary small" data-team-access="${esc(email)}">View effective access</button>
-   ${user&&!access.protectedAdmin?`<button class="secondary small" data-user-email="${esc(user.email)}">Edit</button>`:''}</td></tr>`;
+   ${user&&!access.protectedAdmin?`<button class="secondary small" data-user-email="${esc(user.email)}">Edit</button>`:''}
+   ${user&&!access.protectedAdmin&&email!==me?.email?`<button type="button" class="secondary small" data-remove-user="${esc(email)}">Remove</button>`:''}</td></tr>`;
  });
  const saved=profiles.map(profile=>`<tr><td>${esc(profile.name)}</td><td>${descriptors.filter(d=>!d.adminOnly&&effectiveModuleAccess(d,profile).mode!=='hidden').length} visible areas</td><td>${(data.users||[]).filter(u=>u.profileId===profile.id&&u.active!==false).length}</td><td><button class="secondary small" data-profile-id="${esc(profile.id)}">Edit</button></td></tr>`);
  return head('Admin permissions','Access control','Manage teammates and save reusable permission profiles.', '<div class="gap"><button class="secondary" data-open="import">Import clients &amp; projects</button><button class="primary" data-open="user">+ Teammate</button></div>')+

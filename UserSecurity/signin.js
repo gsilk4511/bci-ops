@@ -1,3 +1,4 @@
+import {accountOffboarded,accountRevision,isCurrentAccountRecord} from './lifecycle.js';
 import {randomUUID} from 'node:crypto';
 import {identityId,audit,requiredReady} from './enrollment.js';
 import {encryptTotp,decryptTotp,createTotpEnrollment,verifyTotp,totpQrDataUrl,createRecoveryCodes,digestRecoveryCode,issueSecurityToken,digestSecurityToken,mfaSessionCookie,readMfaCookie} from './mfa.js';
@@ -39,14 +40,14 @@ export function bootSignIn(state,config,security){
  return true;
 }
 export function appAuthView(store,security,config,user,requestCookie,emailAllowed,now=Date.now()){
- if(!user.sub||!user.issuer)return {allowed:false,identifiable:false};
+ if(!user.sub||!user.issuer||accountOffboarded(store,user.email))return {allowed:false,identifiable:false};
  const id=identityId(user),account=store.accounts?.[id];
  if(Object.values(store.accounts||{}).some(a=>a.email===user.email&&a.id!==id&&(a.enabled||a.password)))return {allowed:false,identityChanged:true};
  const auth=store.sessions?.[ticket(security,requestCookie,'session')];
  const step=store.passSteps?.[ticket(security,requestCookie,'pass-step')];
- const verified=Boolean(auth?.appPassword&&auth.id===id&&auth.expires>now&&(auth.method!=='email'||emailAllowed));
+ const verified=Boolean(isCurrentAccountRecord(store,user.email,auth)&&auth.appPassword&&auth.id===id&&auth.expires>now&&(auth.method!=='email'||emailAllowed));
  return {allowed:verified,verified,recent:verified&&auth.method==='totp'&&auth.checked+10*minute>=now,
-  enrolled:Boolean(account?.enabled),passwordSet:Boolean(account?.password),passwordStep:step?.id===id&&step.expires>now,
+  enrolled:Boolean(account?.enabled),passwordSet:Boolean(account?.password),passwordStep:isCurrentAccountRecord(store,user.email,step)&&step.id===id&&step.expires>now,
   emailAllowed:emailAllowed&& !account?.enabled&&account?.factor!=='totp', method:account?.enabled?'totp':account?.factor||null};
 }
 export async function performAppSignIn(store,security,config,user,body,requestCookie,emailAllowed,now=Date.now(),renderQr=totpQrDataUrl){
@@ -55,13 +56,15 @@ export async function performAppSignIn(store,security,config,user,body,requestCo
  const id=identityId(user);
  const intent=await store.transact(state=>{
   fields(state);prune(state.passSteps,now);prune(state.sessions,now);prune(state.signInLimits,now);
+  if(accountOffboarded(state,user.email))return denial('Account access was removed.');
+  const revision=accountRevision(state,user.email);
   const view=appAuthView(state,security,config,user,requestCookie,emailAllowed,now);
   if(view.identityChanged)return denial('Cloudflare identity changed. Contact your trusted administrator.');
   const account=state.accounts[id];
   const newSession=method=>{
    delete state.passSteps[ticket(security,requestCookie,'pass-step')];
    const {token,digest}=issueSecurityToken('session',security.key);
-   state.sessions[digest]={id,method,appPassword:true,checked:now,expires:now+8*hour};
+   state.sessions[digest]={id,email:user.email,accountRevision:revision,method,appPassword:true,checked:now,expires:now+8*hour};
    return {cookie:cookie(token,8*hour)};
   };
   if(op==='logout'){
@@ -75,7 +78,7 @@ export async function performAppSignIn(store,security,config,user,body,requestCo
   if(op==='password'){
    if(limit.password++>=8)return denial('Too many sign-in attempts. Try again later.');
    if(!account?.password&&!validPassword(body.password))return denial('Use a passphrase of at least 15 characters.');
-   return {passwordWork:true,expected:account?.password};
+   return {passwordWork:true,expected:account?.password,revision};
   }
   if(op==='replace-recovery'){
    if(!view.recent)return denial('Verify your authenticator again first.');
@@ -85,7 +88,7 @@ export async function performAppSignIn(store,security,config,user,body,requestCo
   }
   const digest=ticket(security,requestCookie,'pass-step');
   const step=state.passSteps[digest];
-  if(!step||step.id!==id||step.expires<=now||step.expected!==account?.password)return denial('Enter your BCI password first.');
+  if(!isCurrentAccountRecord(state,user.email,step)||step.id!==id||step.expires<=now||step.expected!==account?.password)return denial('Enter your BCI password first.');
   if(op==='begin-totp'){
    if(account?.enabled||account?.factor==='email')return denial('Use your existing verification method.');
    if(limit.factor++>=20)return denial('Too many factor attempts. Try again later.');
@@ -143,10 +146,10 @@ export async function performAppSignIn(store,security,config,user,body,requestCo
  const newHash=intent.expected?undefined:await hashPassword(body.password);
  return store.transact(state=>{
   fields(state);
-  if(state.accounts[id]?.password!==intent.expected)return denial('Sign-in changed. Restart with your BCI password.');
+  if(accountOffboarded(state,user.email)||accountRevision(state,user.email)!==intent.revision||state.accounts[id]?.password!==intent.expected)return denial('Sign-in changed. Restart with your BCI password.');
   for(const [digest,step] of Object.entries(state.passSteps))if(step.id===id)delete state.passSteps[digest];
   const {token,digest}=issueSecurityToken('pass-step',security.key);
-  state.passSteps[digest]={id,expected:intent.expected,newHash,expires:now+10*minute};
+  state.passSteps[digest]={id,email:user.email,accountRevision:intent.revision,expected:intent.expected,newHash,expires:now+10*minute};
   return {cookie:cookie(token,10*minute)};
  });
 }

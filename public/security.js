@@ -72,4 +72,15 @@ $('hideCodes').onclick=()=>{$('codes').querySelector('ul').replaceChildren();$('
 $('logout').onclick=async()=>{
  try{await request(endpoint,{operation:'logout'});location.assign('/security');}catch(error){setFeedback(error.message);}
 };
+$('signOutAll').onclick=async()=>{
+ if(!window.confirm('This also signs you out of other sites using the same Cloudflare Access team. Continue?'))return;
+ $('signOutAll').disabled=true;
+ try{
+  const result=await request('/api/signout',{});
+  if(result.redirect!=='/cdn-cgi/access/logout')throw Error('Could not verify the sign-out destination.');
+  $('codes').querySelector('ul').replaceChildren();
+  $('qr').removeAttribute('src');
+  location.replace(result.redirect);
+ }catch(error){setFeedback(error.message);$('signOutAll').disabled=false;}
+};
 refresh().catch(error=>setFeedback(error.message));

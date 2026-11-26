@@ -83,3 +83,19 @@ test('assigned driver can complete cleaning without general fleet edit privilege
  assert.throws(()=>completeAssignedCleanup(state,{id},driver),/already completed/);
  assert.throws(()=>vehiclesAction(state,{id,operation:'saveVehicle',year:2020},driver),/permission/);
 });
+
+test('per-vehicle appearance validates only shared preset IDs and preserves existing data and grants',()=>{
+ const {state,id,act}=context();
+ const base=act('saveVehicle',{color:'blue'});
+ assert.equal(base.style.ring,'signal-blue');
+ assert.equal(base.style.section,'navy');
+ assert.throws(()=>act('saveStyle',{style:{ring:'url(javascript:blocked)'}}),/available vehicle style/);
+ assert.throws(()=>act('saveStyle',{style:{icon:'fiber'}}),/valid vehicle style/);
+ assert.throws(()=>vehiclesAction(state,{operation:'saveStyle',id,style:{ring:'emerald'}},driver),/permission/);
+ const saved=act('saveStyle',{style:{ring:'emerald',banner:'aurora',lighting:'none',section:'pine',text:'ice'}});
+ assert.equal(saved.style.banner,'aurora');
+ assert.deepEqual(vehiclesView(state,driver).records[0].style,saved.style);
+ assert.equal(saved.about,base.about);
+ assert.equal(saved.assignedEmail,base.assignedEmail);
+ assert.equal(act('saveStyle',{style:null}).style.ring,'signal-blue');
+});

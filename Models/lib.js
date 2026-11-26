@@ -1,3 +1,4 @@
+import {saveDashboardLayout} from './dashboard-layouts.js';
 import {attributedEmail} from './time-attribution.js';
 import {completeAssignedCleanup,vehiclesAction} from './vehicles.js';
 import {checkWorkReceipt,saveWorkReceipt,stockMovement,editWorkEntry,mayEditWorkEntry,logEntryChange} from './work-entry.js';
@@ -103,6 +104,36 @@ export function invoiceFor(state, wo) {
   const gross = money(time + materials + travel);
   const total = internalOrder(state,wo)&&!wo.invoice?0:money(gross-(wo.invoice?.depositCredit||0));
   return {time, materials, travel, total, directCost:cost, grossProfit:money(total-cost), reserve:money(Math.max(total-cost,0)*state.meta.reserveRate/100)};
+}
+// Money tab only: project totals are the sum of the scoped work orders, not
+// an additional ledger line. No approval, closeout, or billing state is written.
+export function moneyWorkOrderRows(state){
+ const linked=new Map();
+ const isActiveInvoice=invoice=>typeof invoice?.number==='string'&&invoice.number.trim()&&!invoice.void&&!invoice.voidedAt&&invoice.status!=='void';
+ for(const invoice of state.projectInvoices||[]){
+  if(!isActiveInvoice(invoice))continue;
+  for(const row of invoice.orders||[]){
+   if(!linked.has(row.id))linked.set(row.id,[]);
+   linked.get(row.id).push(invoice);
+  }
+ }
+ return (state.workorders||[]).flatMap(order=>{
+  if(order.billingHidden||internalOrder(state,order))return [];
+  const matches=(linked.get(order.id)||[]).filter(inv=>inv.projectId===order.projectId);
+  const own=order.invoice;
+  const voided=own&&(own.void||own.voidedAt||own.status==='void');
+  const group=matches.length===1&&(!own?.groupId||matches[0].id===own.groupId)?matches[0]:null;
+  const invoiced=!voided&&(isActiveInvoice(own)||Boolean(group));
+  const invoicing=invoiced?(own||group):null;
+  const entries=(order.entries||[]).filter(e=>['labor','material','travel'].includes(e.type)).map(e=>({
+   ...e,quantity:Number.isFinite(Number(e.quantity))?Number(e.quantity):0,
+   rate:e.type==='travel'&&e.sharedTravel?0:Number(e.rate)||0,cost:Number(e.cost)||0
+  }));
+  const totals=invoiceFor(state,{...order,entries,invoice:invoicing===group&&!own?null:invoicing});
+  const stateKey=invoiced?(invoicing.status==='paid'?'paid':'outstanding'):'unbilled';
+  return [{id:order.id,projectId:order.projectId,title:order.title,workStatus:order.status,stateKey,
+   ...totals,openBalance:stateKey==='outstanding'?money(Math.max(0,totals.total-(Number(invoicing.amountPaid)||0))):0}];
+ });
 }
 export function moneyStats(state) {
   const sums = {unbilled:0, outstanding:0, paid:0, grossProfit:0, reserve:0, unbilledCount:0, openCount:0, paidCount:0};
@@ -280,6 +311,7 @@ export function applyAction(state, action, data={}, actor={email:'system'}) {
   if(action==='pricing.profile.save')return savePricing(state,data,actor);
   if(action.startsWith('ticket.'))return ticketAction(state,action,data,actor);
   if(action.startsWith('estimate.'))return estimateAction(state,action,data,actor,fields=>applyAction(state,'project.create',fields,actor),fields=>applyAction(state,'workorder.create',fields,actor));
+  if(action==='dashboard.layout')return saveDashboardLayout(state,actor,data);
   if(action==='vehicles.cleanup')return completeAssignedCleanup(state,data,actor);
   if(action==='vehicles.manage')return vehiclesAction(state,data,actor);
   if(action==='businessManager.manage')return businessManagerAction(state,data,actor);
@@ -656,6 +688,28 @@ export function applyAction(state, action, data={}, actor={email:'system'}) {
       state.events[0].changes={before,after:structuredClone(profile)};
       result=profile;break;
     }
+    case 'users.remove': {
+      if(actor.role!=='admin')throw Error('Admin access required');
+      const email=text(data.email,'Email',180).toLowerCase();
+      if(email===employeeKey(actor.email))throw Error('You cannot remove your own account');
+      const configuredAdmins=(process.env.BCI_ADMIN_EMAILS||'').split(',').map(employeeKey).filter(email=>/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email));
+      const local=process.env.APP_AUTH_MODE==='local';
+      if(configuredAdmins.includes(email)||local&&email==='local-admin@example.invalid')throw Error('This deployment administrator is protected');
+      const matches=(state.users||[]).filter(user=>employeeKey(user.email)===email);
+      if(matches.length!==1)throw Error('The teammate is missing or has a duplicate account');
+      if(data.confirmation!==email)throw Error('To confirm, enter the exact Team email');
+      const target=matches[0];
+      if(target.role==='admin'&&target.active!==false&&!configuredAdmins.length&&!local&&
+        !(state.users||[]).some(user=>user!==target&&user.role==='admin'&&user.active!==false))throw Error('Keep at least one active administrator');
+      if((state.activeClocks||[]).some(clock=>employeeKey(clock.email)===email))throw Error('This teammate has a running clock. Resolve it before removing the account.');
+      state.users=state.users.filter(user=>user!==target);
+      if(state.notificationUsers)state.notificationUsers=state.notificationUsers.filter(user=>employeeKey(user.email)!==email);
+      if(state.dashboardLayouts)state.dashboardLayouts=state.dashboardLayouts.filter(user=>employeeKey(user.email)!==email);
+      event(state,action,email,'Team access removed; work and payroll history retained');
+      state.events[0].actor=actor.email;
+      result={id:email,email,removed:true};
+      break;
+    }
     case 'users.set': {
       const email=text(data.email,'Email',180).toLowerCase();
       if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))throw new Error('Invalid email');
@@ -667,6 +721,7 @@ export function applyAction(state, action, data={}, actor={email:'system'}) {
       const user=state.users.find(x=>x.email.trim().toLowerCase()===email);
       const active=data.active!==false;
       const protectedAdmin=(process.env.BCI_ADMIN_EMAILS||'').split(',').some(x=>x.trim().toLowerCase()===email)||process.env.APP_AUTH_MODE==='local'&&email==='local-admin@example.invalid';
+      if(email===employeeKey(actor.email)&&(!active||role!=='admin'))throw Error('You cannot disable or demote your own account');
       if(protectedAdmin&&(!active||role!=='admin'))throw Error('This deployment administrator is protected');
       if(user?.role==='admin'&&user.active!==false&&(!active||role!=='admin')&&
         !protectedAdmin&&!(process.env.BCI_ADMIN_EMAILS||'').split(',').some(x=>x.trim())&&

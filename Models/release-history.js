@@ -3,6 +3,15 @@
 const section = (title, ...items) => ({title, items});
 const release = (version, title, summary, ...sections) => ({version, title, summary, sections});
 export const releases = [
+ release('0.10.3','Customize Dashboard and manage access','Work queues on Dashboard, with a saved layout for each account.',
+  section('Dashboard','Home is now Dashboard. The work-order and billing cards sit alongside an Open Projects card. Move, resize, remove or add cards. Each login saves its own layout. Existing tickets remain available in Service desk.'),
+  section('Accounts','Sign out from the app header. Administrators can remove added logins from Team after explicit confirmation, while retaining job and payroll history.')),
+ release('0.10.2','Unbilled work in Money','See the running value of work without an attached QuickBooks invoice.',
+  section('Money tab','Open and completed client work orders roll up under their projects. Recording a QuickBooks invoice removes those linked orders from Unbilled. Project subtotals are not counted twice.'),
+  section('Scope','Internal work and records outside the viewer’s access are excluded. Invoicing and payment actions are unchanged.')),
+ release('0.10.1','Fleet cards and vehicle profile styles','A compact fleet overview opens individual vehicle profiles.',
+  section('Vehicles','Clickable photo cards show one status at a glance. Filter overdue or due-soon vehicles, open a profile, and return to the same fleet filter.'),
+  section('Profile appearance','Authorized fleet managers can save a banner, photo trim, lighting, section color and text color for each vehicle. The card and profile share the style; service records, documents and permissions stay the same.')),
  release('0.10.0','Fleet schedules and live My Time','Track fleet service and paperwork, live weekly time totals and bonus estimates.',
   section('Vehicles','Model year, dated odometer readings, independent maintenance and compliance schedules, bookings, cleaning, tire-set mileage and restricted vehicle documents. Bookings stay in the app.'),
   section('My Time','Five weekly rows separate Regular, Overtime, PTO, Sick and Holiday; the overtime projection requires the administrator to set the company workweek.'),

@@ -96,7 +96,7 @@ export const permissionMatrix = {
 permissionGroups['Training']={'training.start':'Start and edit personal training practice'};
 permissionGroups['Edit and delete records']['pricing.profile.archive']='Archive pricing profiles';
 
-const adminOnly = new Set(['timeAttribution.preview','timeAttribution.apply','warehouse.purgePreview','warehouse.purgeApply','warehouse.patchPreview','warehouse.patchApply','trash.restore','trash.purge','workorder.delete','workorder.deletePreview','catalog.import','catalog.importPreview','catalog.packPreview','catalog.packImport','access.sync','staff.manage','staff.leaveReview','users.set','profiles.save','customers.import','customers.importPreview','record.assign']);
+const adminOnly = new Set(['timeAttribution.preview','timeAttribution.apply','warehouse.purgePreview','warehouse.purgeApply','warehouse.patchPreview','warehouse.patchApply','trash.restore','trash.purge','workorder.delete','workorder.deletePreview','catalog.import','catalog.importPreview','catalog.packPreview','catalog.packImport','access.sync','staff.manage','staff.leaveReview','users.set','users.remove','profiles.save','customers.import','customers.importPreview','record.assign']);
 const adminOnlyGrants = new Set(['staff.manage','staff.leaveReview','workorder.delete','team.view']);
 const profilePermissions = new Set(Object.values(permissionGroups).flatMap(Object.keys));
 const viewToMode = Object.fromEntries(Object.entries(permissionMatrix).map(([name,descriptor])=>[descriptor.view,name]));
@@ -239,6 +239,7 @@ export function authorizePermission(action,role,permissions,data) {
  if(action==='entry.add'&&data?.receipt!=null&&!permissions.includes('receipt.add'))throw Error('Work-order receipt upload permission required');
  if(action==='inventory.commitFieldPurchase'&&(!permissions.includes('workorders.view')||!permissions.includes('receipt.read')))throw Error('Work-order receipt access required');
  if(action==='inventory.receive'&&data?.warehouseReceive===true&&data.unitCost!=null&&!permissions.includes('finance.view'))throw Error('Finance access required to record unit cost');
+ if(action==='dashboard.layout'){if(!permissions.includes('dashboard.view'))throw Error('Dashboard access required');return;}
  if(action==='vehicles.cleanup'){if(!permissions.includes('vehicles.view'))throw Error('Vehicle access required');return;}
  action=aliases[action]||action;
  if(requiresFinance.has(action)&&!permissions.includes('finance.view'))throw Error('Finance access required');

@@ -8,6 +8,7 @@ export function visibleState(current,role,permissions) {
  if(role==='admin')state.permissionProfiles=(state.permissionProfiles||[]).map(profile=>({...profile,...profileAccess(profile)}));
  const has=key=>permissions.includes(key);
  delete state.tickets;
+ delete state.dashboardLayouts;
  delete state.materialDrafts;
  delete state.workorderReceiptData;
  delete state.warehousePatchReceipts;

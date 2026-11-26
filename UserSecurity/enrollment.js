@@ -1,3 +1,4 @@
+import {accountOffboarded,accountRevision,isCurrentAccountRecord} from './lifecycle.js';
 import {createHash} from 'node:crypto';
 import {mfaKey,createTotpEnrollment,encryptTotp,decryptTotp,verifyTotp,issueSecurityToken,digestSecurityToken,createRecoveryCodes,digestRecoveryCode,mfaSessionCookie,readMfaCookie,totpQrDataUrl} from './mfa.js';
 
@@ -38,13 +39,14 @@ export function requiredReady(state,config){
  return new Set(Object.values(state.accounts||{}).filter(a=>config.owners.includes(a.email)&&a.enabled&&a.recoveryVerified&&(a.recovery||[]).length>0).map(a=>a.email)).size>=2;
 }
 export function securityView(state,config,user,cookie,now=Date.now()){
+ if(accountOffboarded(state,user.email))return {allowed:false,reason:'Account access was removed'};
  if(config.mode==='off')return {allowed:true};
  if(!user.issuer||!user.sub)return {allowed:false,reason:'Verified identity is incomplete'};
  const id=identityId(user), account=state.accounts?.[id];
  if(Object.values(state.accounts||{}).some(a=>a.email===user.email&&a.id!==id&&a.enabled))return {allowed:false,enrolled:true,reason:'Identity changed. Contact Greg for trusted-host recovery.'};
  const digest=digestSecurityToken('session',readMfaCookie(cookie),config.key);
  const session=digest&&state.sessions?.[digest];
- const verified=Boolean(account?.enabled&&session&&session.id===id&&session.expires>now);
+ const verified=Boolean(account?.enabled&&isCurrentAccountRecord(state,user.email,session)&&session.id===id&&session.expires>now);
  const enrolled=Boolean(account?.enabled);
  return {allowed:verified||(!enrolled&&!state.reset?.[user.email]&&config.mode==='optional'),enrolled,verified,recent:verified&&session.method==='totp'&&session.checked+10*minute>=now,recoveryVerified:Boolean(account?.recoveryVerified)};
 }
@@ -52,6 +54,7 @@ export function inviteAccount(state,config,actor,target,now=Date.now()){
  maps(state);
  const email=String(target||'').trim().toLowerCase();
  if(!emailPattern.test(email)||email.length>254)throw Error('Enter a valid staff email address');
+ if(accountOffboarded(state,email))throw Error('Account access was removed');
  const token=issueSecurityToken('invite',config.key);
  for(const [digest,invite] of Object.entries(state.invites))if(invite.expires<=now||invite.email===email)delete state.invites[digest];
  if(Object.keys(state.invites).length>=500)throw Error('Invitation capacity reached');
@@ -61,6 +64,7 @@ export function inviteAccount(state,config,actor,target,now=Date.now()){
 }
 export async function performEnrollment(state,config,user,body,cookie,now=Date.now(),renderQr=totpQrDataUrl){
  maps(state);
+ if(accountOffboarded(state,user.email))return {error:'Account access was removed'};
  if(!user.issuer||!user.sub)throw Error('Verified identity is incomplete');
  const id=identityId(user);
  let account=state.accounts[id];
@@ -72,7 +76,7 @@ export async function performEnrollment(state,config,user,body,cookie,now=Date.n
  const mint=method=>{
   const {token,digest}=issueSecurityToken('session',config.key);
   for(const [key,s] of Object.entries(state.sessions))if(s.expires<=now)delete state.sessions[key];
-  state.sessions[digest]={id,method,checked:now,expires:now+lifetime};
+  state.sessions[digest]={id,email:user.email,accountRevision:accountRevision(state,user.email),method,checked:now,expires:now+lifetime};
   return mfaSessionCookie(token,lifetime/1000);
  };
  const fail=message=>({error:message});

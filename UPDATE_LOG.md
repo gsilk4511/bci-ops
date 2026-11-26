@@ -1,3 +1,21 @@
+# 0.10.3 — Dashboard and account controls
+
+- Home becomes Dashboard. Work-order review, billing and open-project cards replace the old Tickets shortcut. Actual ticket records and old links stay in Service desk.
+- Edit, add, remove, drag and resize cards, then save the grid under the signed-in account. Phones show cards in the same grid order.
+- Add header sign-out and guarded administrator removal of added Team logins. Historical work-order and payroll records are retained.
+
+# 0.10.2 — Unbilled work in Money
+
+- Money now rolls up logged work order labor, materials and travel by project, regardless of closeout. A recorded QuickBooks invoice removes only the linked work orders from Unbilled.
+- Customer and billing-status filters apply to both totals and detail. The Money tab only reads records; invoice, payroll, and the separate dashboard closeout metric are unchanged.
+
+# 0.10.1 — Compact fleet cards and styleable vehicle profiles
+
+- Turn each vehicle into a compact clickable card with photo, name, model and attention badge. Filter the fleet by overdue or due soon and open full vehicle pages.
+- Move vehicle information, maintenance and cleanup, tires, documents, and service history into the corresponding profile.
+- Fleet managers can preview and save five appearance choices from the same preset library as team profiles. Styles appear on both the profile and its card.
+- Retains fleet records, photos, schedules, permissions and staff time. No import or database migration.
+
 # 0.10.0 — Fleet schedules and live My Time
 
 - Added model year, driver assignment, individual maintenance schedules and independent appointments, recorded odometer dates and seasonal tire-set mileage, assigned cleaning, and permissioned fleet document storage.

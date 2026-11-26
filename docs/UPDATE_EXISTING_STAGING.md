@@ -1,4 +1,4 @@
-# Update existing BCI Operations staging to 0.10.0
+# Update existing BCI Operations staging to 0.10.3
 
 ## Greg: use the existing staging stack
 
@@ -10,7 +10,7 @@
    `mariadb.env`, MariaDB database name, named volume, bridge, and service
    hostname `db`. Do not replace these with bundled examples.
 4. Confirm the app build context points to the updated source. In the active
-   Compose file, change the app image tag to `bci-operations:0.10.0`. Do not
+   Compose file, change the app image tag to `bci-operations:0.10.3`. Do not
    change the database service. Use the actual app service name if different.
 
 From the deployment directory:
@@ -21,7 +21,7 @@ docker compose -f compose.bci-operations-fixed.yml up -d --build --no-deps --for
 docker compose -f compose.bci-operations-fixed.yml exec -T bci-operations node -e "fetch('http://127.0.0.1:3100/api/health').then(r=>r.json()).then(console.log)"
 ```
 
-Recreate by itself does not build a new image. Verify `0.10.0` in the health
+Recreate by itself does not build a new image. Verify `0.10.3` in the health
 response and beside the BCI logo. For the default-off install no SQL migration, reimport or reseed is needed. To test optional User Security separately, follow USER_SECURITY.md.
 If you roll back, restore the previous source, restore its former image tag
 and rebuild only the app. Keep the database and its volume in place.
@@ -128,3 +128,17 @@ Use an isolated staging database and sample documents first. Give the person man
 - Log oil service on a date and mileage with a recurring interval, then confirm the next due thresholds. Set a cleanup recurrence and assignment, and mark it done as that assigned driver. Check tire set A across 40,000 mount, 46,000 remove, 52,000 reinstall and 53,000 current: 7,000 miles on set A, not 13,000. Rotate tires and add a backdated service entry; neither resets the set or replaces the newest reading.
 - Set the actual first day of the payroll workweek in My Time & Profile before relying on the Regular/Overtime projection. Review actual compensability/coverage and payroll rules separately. With synthetic data only, compare the current plus four prior weeks as the employee and a different employee. Test 40 onsite hours plus seven compensable job-to-job travel hours and eight unworked holiday hours: 40 regular, seven overtime, eight holiday under those fixture assumptions. A shared billing flag does not remove employee hours.
 - Confirm that verified qualifying work-order labor appears in the private bonus estimate before an invoice exists and stays when an invoice is unpaid. Correct an eligible entry and confirm the projection refreshes without changing locked payroll. There is no payout, payroll approval or invoice write from this screen.
+
+## Compact fleet layout and profile customization (0.10.1)
+
+Open Vehicles on desktop and phone. Confirm the default board shows the whole compact card as a tap target and does not show VIN, notes or service actions. Verify the Overdue and Due now / soon counts and filters. Open a result and check the header and the Maintenance & Cleaning, Tires, Documents and Service History sections. Use Back to Fleet to check the old filter and scroll position.
+
+As a fleet manager, use Customize profile to preview and save a different banner, lighting, photo trim, section color and text color. Confirm the appearance on both the vehicle profile and corresponding card after refreshing. Check that the photo, schedules, documents and permissions are intact. A reader cannot customize or edit. This build does not require a data import or migration; do not copy a sample database over staging.
+
+## Money tab (0.10.2)
+
+In staging, use one project containing an open work order with logged amounts, a completed order with no invoice, and a separate already-invoiced order. In Money, open and completed unbilled work should appear in the same project total. Under test conditions only, record a QuickBooks reference for the eligible completed order and confirm that exactly its amount comes out of Unbilled. Keep open work present and confirm a project-level deposit does not mark every work order billed. Verify the customer and billing-status filters and exercise a finance role with restricted access. This is a read-only reporting change; it does not add QuickBooks sync, alter the closeout process, or create invoices automatically.
+
+## Dashboard and account controls (0.10.3)
+
+See [Dashboard](DASHBOARD.md) for the layout acceptance steps. Use sample accounts only when exercising removal. Confirm Sign out works in the actual Cloudflare and app sign-in modes in use, and test keyboard/phone access. Do not remove a real account for staging verification. Preserve configured recovery administrators and existing access settings.
