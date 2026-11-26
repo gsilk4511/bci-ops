@@ -1,4 +1,4 @@
-# Update existing BCI Operations staging to 0.9.9
+# Update existing BCI Operations staging to 0.10.0
 
 ## Greg: use the existing staging stack
 
@@ -10,7 +10,7 @@
    `mariadb.env`, MariaDB database name, named volume, bridge, and service
    hostname `db`. Do not replace these with bundled examples.
 4. Confirm the app build context points to the updated source. In the active
-   Compose file, change the app image tag to `bci-operations:0.9.9`. Do not
+   Compose file, change the app image tag to `bci-operations:0.10.0`. Do not
    change the database service. Use the actual app service name if different.
 
 From the deployment directory:
@@ -21,7 +21,7 @@ docker compose -f compose.bci-operations-fixed.yml up -d --build --no-deps --for
 docker compose -f compose.bci-operations-fixed.yml exec -T bci-operations node -e "fetch('http://127.0.0.1:3100/api/health').then(r=>r.json()).then(console.log)"
 ```
 
-Recreate by itself does not build a new image. Verify `0.9.9` in the health
+Recreate by itself does not build a new image. Verify `0.10.0` in the health
 response and beside the BCI logo. For the default-off install no SQL migration, reimport or reseed is needed. To test optional User Security separately, follow USER_SECURITY.md.
 If you roll back, restore the previous source, restore its former image tag
 and rebuild only the app. Keep the database and its volume in place.
@@ -119,3 +119,12 @@ and use Next/Previous 10. The selected item and units remain visible below the
 grid while browsing. Switching approved work scope clears an out-of-scope
 selection. Verify quantity, stock projection, existing receipt flow, and the
 exact selected item in the resulting field journal. No new SQL migration.
+
+## Fleet and live staff summary (0.10.0)
+
+Use an isolated staging database and sample documents first. Give the person managing the fleet Vehicles View and Manage. Give a driver Vehicles View only if they should use the fleet screen; assign the vehicle and/or cleaning task to their existing Team account. Confirm that an unassigned reader cannot download document files, and that an assigned driver can read insurance, registration and inspection documents on their vehicle but cannot read DMV / restricted uploads or edit the fleet. Restricted documents are kept in application database state, not in the public folder. Protect database backups accordingly. Files are downloaded as attachments; PDFs, JPEGs and PNGs up to 350 KB each; 12 files per vehicle and approximately 2.8 MB of encoded data fleet-wide. Upload only actual fleet paperwork; use DMV / restricted for verification letters, never upload credentials.
+
+- Check that a legacy vehicle keeps its notes after entering model year. Add an inspection month and a separate registration date, then book and reschedule the inspection. The deadline stays the same. Bookings and notices are in-app only; there is no calendar sync.
+- Log oil service on a date and mileage with a recurring interval, then confirm the next due thresholds. Set a cleanup recurrence and assignment, and mark it done as that assigned driver. Check tire set A across 40,000 mount, 46,000 remove, 52,000 reinstall and 53,000 current: 7,000 miles on set A, not 13,000. Rotate tires and add a backdated service entry; neither resets the set or replaces the newest reading.
+- Set the actual first day of the payroll workweek in My Time & Profile before relying on the Regular/Overtime projection. Review actual compensability/coverage and payroll rules separately. With synthetic data only, compare the current plus four prior weeks as the employee and a different employee. Test 40 onsite hours plus seven compensable job-to-job travel hours and eight unworked holiday hours: 40 regular, seven overtime, eight holiday under those fixture assumptions. A shared billing flag does not remove employee hours.
+- Confirm that verified qualifying work-order labor appears in the private bonus estimate before an invoice exists and stays when an invoice is unpaid. Correct an eligible entry and confirm the projection refreshes without changing locked payroll. There is no payout, payroll approval or invoice write from this screen.

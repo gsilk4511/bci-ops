@@ -3,6 +3,10 @@
 const section = (title, ...items) => ({title, items});
 const release = (version, title, summary, ...sections) => ({version, title, summary, sections});
 export const releases = [
+ release('0.10.0','Fleet schedules and live My Time','Track fleet service and paperwork, live weekly time totals and bonus estimates.',
+  section('Vehicles','Model year, dated odometer readings, independent maintenance and compliance schedules, bookings, cleaning, tire-set mileage and restricted vehicle documents. Bookings stay in the app.'),
+  section('My Time','Five weekly rows separate Regular, Overtime, PTO, Sick and Holiday; the overtime projection requires the administrator to set the company workweek.'),
+  section('Live bonus','Qualifying work-order labor feeds the private estimate before invoicing or payment. Existing payroll records, approvals, and payments are unchanged.')),
  release('0.9.9','Log Materials part grid','Find and tap the right part on a phone without a parts dropdown.',
   section('Work order materials','One filterable results list shows ten parts per page. Direct selection, item details and selection readback replace the recommendation cards and part dropdown. Stock, approvals, quantities and receipts follow the existing workflow.')),
  release('0.9.8','Correct work-order service types','Select the right labor or travel service on an editable time entry.',

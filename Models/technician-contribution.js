@@ -211,3 +211,61 @@ export function technicianContribution(state,identity,options){
   coverage,profit:null,employmentCost:null,
  };
 }
+
+// Staff projection from the current work ledger, not the invoice or payment ledger.
+// Leave the older invoice-only calculator intact for historical use.
+export const ownLiveLabor=(line,email)=>line.type==='labor'&&trustedEmail(attributedEmail(line))===email;
+export const possibleLiveDay=(day,year,today)=>!validDay(day)||(day.startsWith(year+'-')&&day<=today);
+export function liveTechnicianContribution(state,identity,options={}){
+ const email=trustedEmail(identity);
+ const today=daysOf(options.now??new Date());
+ const year=options.year??Number(today.slice(0,4));
+ const basis='Own logged customer work at the recorded labor rate. Employment cost applies the wage effective for the work date plus 25%. Invoice and payment dates do not control the estimate.';
+ const profitShareBps=Number.isInteger(options.profitShareBps)&&options.profitShareBps>=0&&options.profitShareBps<=10000?options.profitShareBps:500;
+ const wages=wageTable(options.wageHistory);
+ const coverage={includedOrders:0,excludedOrders:0,missingWageOrders:0,missingCostOrders:0,scopeIncomplete:options.scopeIncomplete===true};
+ const {map:orders,duplicates}=indexUnique(state.workorders||[],row=>row.id);
+ const projects=new Map();
+ let revenue=0,cost=0,profit=0;
+ for(const order of orders.values()){
+  if(!email||order.billingHidden||internalOrder(state,order))continue;
+  const entries=order.entries||[];
+  const labor=entries.filter(row=>ownLiveLabor(row,email)&&possibleLiveDay(row.date,year,today));
+  if(!labor.length)continue;
+  const {duplicates:repeatedLines}=indexUnique(entries,row=>row.id);
+  if(duplicates.has(order.id)||labor.some(row=>!validDay(row.date)||!row.id||repeatedLines.has(row.id)||
+    !/^(hr|hour|hours|h)$/i.test(row.unit)||!validHours(row.quantity)||!validNumber(row.rate))){
+   coverage.excludedOrders++;continue;
+  }
+  let amount=0,loaded=0,hours=0,missing=false;
+  for(const row of labor){
+   const effective=wages.find(wage=>wage.date<=row.date);
+   amount+=rounding(row.quantity*row.rate);
+   hours+=row.quantity;
+   if(!effective||effective.cents==null)missing=true;
+   else loaded+=Math.round(row.quantity*effective.cents*1.25);
+  }
+  if(!Number.isSafeInteger(revenue+amount)){coverage.excludedOrders++;continue;}
+  if(missing||![loaded,cost+loaded,profit+amount-loaded].every(Number.isSafeInteger)){
+   coverage.missingWageOrders++;coverage.missingCostOrders++;loaded=0;
+  }
+  coverage.includedOrders++;
+  const project=projects.get(order.projectId)||{projectId:order.projectId,attributedCents:0,laborHours:0,orderCount:0,employmentCostCents:0,netProfitCents:0};
+  project.attributedCents+=amount;
+  project.laborHours+=hours;
+  project.orderCount++;
+  project.employmentCostCents+=loaded;
+  project.netProfitCents+=amount-loaded;
+  projects.set(order.projectId,project);
+  revenue+=amount;cost+=loaded;profit+=amount-loaded;
+ }
+ const partial=coverage.excludedOrders>0||coverage.scopeIncomplete;
+ const verified=coverage.includedOrders>0&&!partial&&!coverage.missingCostOrders;
+ if(!verified)for(const row of projects.values()){row.employmentCostCents=null;row.netProfitCents=null;}
+ const projectedCents=verified?Number((BigInt(Math.max(0,profit))*BigInt(profitShareBps)+5000n)/10000n):null;
+ return {status:!coverage.includedOrders?'unavailable':partial?'partial':'available',basis,
+  totalAttributedCents:coverage.includedOrders?revenue:null,totalEmploymentCostCents:verified?cost:null,totalNetProfitCents:verified?profit:null,
+  projects:[...projects.values()].sort((a,b)=>b.attributedCents-a.attributedCents||String(a.projectId).localeCompare(String(b.projectId))),coverage,
+  bonus:{status:projectedCents==null?'unavailable':'available',profitShareBps,projectedCents,year,payoutDate:nearestDecemberFriday(year)}};
+}
+export const liveContributionToday=daysOf;

@@ -1,0 +1,85 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {vehiclesAction,vehiclesView,vehicleDocument,completeAssignedCleanup} from '../Models/vehicles.js';
+import {authorizePermission} from '../Models/permissions.js';
+
+const manager={email:'leslie@example.invalid',permissions:['vehicles.view','vehicles.manage']};
+const driver={email:'driver@example.invalid',permissions:['vehicles.view']};
+const other={...driver,email:'other@example.invalid'};
+const png='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/2VkAAAAASUVORK5CYII=';
+function context(){
+ const state={users:[{email:driver.email,name:'Driver'}],businessManager:{vehicles:[],bills:[{id:'unrelated'}]}};
+ const saved=vehiclesAction(state,{operation:'saveVehicle',name:'Test truck',year:'2022',assignedEmail:driver.email,about:'Legacy year note'},manager);
+ return {state,id:saved.id,act:(operation,data={})=>vehiclesAction(state,{operation,id:saved.id,...data},manager)};
+}
+test('vehicle schedules are independent; bookings and failed inspection notes leave expiration alone',()=>{
+ const {state,act,id}=context();
+ let row=act('saveSchedule',{type:'inspection',dueMonth:'2030-08',assignedEmail:driver.email});
+ assert.equal(row.year,2022);assert.equal(row.about,'Legacy year note');assert.equal(row.inspection.dueDate,'2030-08');
+ row=act('bookService',{type:'inspection',appointmentDate:'2030-08-17',appointmentTime:'09:00',location:'Test shop'});
+ assert.equal(row.inspection.appointment.date,'2030-08-17');
+ row=act('bookService',{type:'inspection',appointmentDate:'2030-09-01'});
+ assert.equal(row.inspection.dueDate,'2030-08');
+ row=act('recordService',{type:'inspection',date:'2025-01-01',notes:'Failed check, needs repair'});
+ assert.equal(row.inspection.dueDate,'2030-08');
+ row=act('recordService',{type:'inspection',date:'2025-01-02',nextDueMonth:'2030-09'});
+ assert.equal(row.inspection.dueDate,'2030-09');
+ act('saveSchedule',{type:'registration',dueDate:'2031-01-02'});
+ act('saveSchedule',{type:'oil',intervalDays:'60',intervalMiles:'5000',dueDate:'2025-01-10',dueMileage:'45000'});
+ assert.throws(()=>act('recordService',{type:'oil',date:'2025-01-05'}),/odometer/);
+ row=act('recordService',{type:'oil',date:'2025-01-05',mileage:'44000'});
+ assert.equal(row.oil.dueDate,'2025-03-06');
+ assert.equal(row.oil.dueMileage,49000);
+ assert.equal(row.registration.dueDate,'2031-01-02');
+ assert.equal(row.inspection.dueDate,'2030-09');
+ assert.throws(()=>act('bookService',{type:'oil',appointmentDate:'2025-01-02',appointmentTime:'29:30'}));
+ assert.equal(state.businessManager.bills[0].id,'unrelated');
+ assert.equal(vehiclesView(state,driver).records[0].id,id);
+});
+test('tire set mileage pauses on removal and rotation does not reset it',()=>{
+ const {act}=context();
+ const id=act('saveTireSet',{name:'Winter',type:'winter',size:'245/70R16'}).tireSets[0].id;
+ const swap=(date,mileage,tireSetId)=>act('tireSwap',{date,mileage,tireSetId});
+ swap('2025-01-01',40000,id);
+ swap('2025-02-01',46000);
+ swap('2025-11-01',52000,id);
+ const row=act('saveVehicle',{odometerDate:'2025-12-01',odometer:53000});
+ assert.equal(row.tireSets[0].mileage,7000);
+ const corrected=act('recordService',{type:'rotation',date:'2025-11-15',mileage:52500});
+ assert.equal(corrected.odometer,53000);
+ assert.equal(corrected.odometerDate,'2025-12-01');
+ assert.equal(corrected.tireSets[0].mileage,7000);
+ assert.throws(()=>swap('2025-11-04',54000),/inconsistent/);
+ assert.throws(()=>swap('2025-03-01',48000),/swap date/);
+});
+test('document downloads enforce role and assignment, and never expose embedded bytes in fleet view',()=>{
+ const {act,id,state}=context();
+ const secret=act('saveDocument',{type:'dmv',name:'Private DMV letters',content:png}).documents[0];
+ const insurance=act('saveDocument',{type:'insurance',name:'Current insurance',content:png}).documents[1];
+ const office=vehiclesView(state,manager);
+ assert.equal(office.records[0].documents.length,2);
+ assert.ok(!JSON.stringify(office).includes(png));
+ assert.deepEqual(vehiclesView(state,driver).records[0].documents.map(x=>x.id),[insurance.id]);
+ assert.equal(vehiclesView(state,other).records[0].documents.length,0);
+ assert.equal(vehicleDocument(state,driver,id,secret.id),undefined);
+ assert.equal(vehicleDocument(state,other,id,insurance.id),undefined);
+ assert.equal(vehicleDocument(state,driver,id,insurance.id).mime,'image/png');
+ assert.equal(vehicleDocument(state,manager,id,secret.id).mime,'image/png');
+ assert.throws(()=>act('saveDocument',{type:'other',name:'Not a document',content:'data:text/html;base64,AAAA'}));
+ act('removeDocument',{documentId:secret.id});
+ assert.equal(vehicleDocument(state,manager,id,secret.id),undefined);
+});
+test('assigned driver can complete cleaning without general fleet edit privilege',()=>{
+ const {state,id,act}=context();
+ act('saveSchedule',{type:'cleaning',intervalDays:'14',dueDate:'2025-01-01',assignedEmail:driver.email});
+ act('saveVehicle',{needsCleanup:true});
+ assert.doesNotThrow(()=>authorizePermission('vehicles.cleanup','tech',driver.permissions));
+ assert.throws(()=>authorizePermission('vehicles.cleanup','tech',[]));
+ assert.throws(()=>completeAssignedCleanup(state,{id},other));
+ const done=completeAssignedCleanup(state,{id,notes:'Vacuumed cab'},driver);
+ assert.equal(done.needsCleanup,false);
+ assert.equal(done.serviceHistory[0].type,'cleaning');
+ assert.notEqual(done.schedules.cleaning.dueDate,'2025-01-01');
+ assert.throws(()=>completeAssignedCleanup(state,{id},driver),/already completed/);
+ assert.throws(()=>vehiclesAction(state,{id,operation:'saveVehicle',year:2020},driver),/permission/);
+});

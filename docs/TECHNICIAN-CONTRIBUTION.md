@@ -6,10 +6,10 @@ bonus, or the company's net profit.
 
 ## Formula
 
-For each supported billed work-labor line linked to the employee:
+For each eligible customer work-labor line linked to the employee:
 
-1. **Labor revenue** = recorded invoiced work hours × the recorded rate
-   charged to the client on that line.
+1. **Labor revenue** = posted work-order labor hours × the recorded
+   customer labor rate on that line.
 2. **Loaded employment cost** = those work hours × the employee's hourly
    wage effective on the work date × 1.25. The 25% is a flat allowance for
    taxes, workers' compensation and office costs; not an actual expense figure.
@@ -24,14 +24,12 @@ Taking leave does not subtract from the meter or change payroll or leave
 balances. A better client rate on eligible work can increase labor margin
 without anyone needing to forgo vacation.
 
-Use only sent/paid, reviewed invoices with verified labor evidence. For a
-standalone invoice, the frozen reviewed labor must exactly match the linked
-work entries. Voids,
-duplicate billing references, and internal non-client work are not counted.
-No matching from employee display names or use of a catalog cost as wages.
-Missing wages, unavailable or ambiguous invoice rows, and relevant scoped
-records prevent a complete bonus projection. No manual job cost entries
-from 0.9.0 are used by this method.
+The estimate reads current work-order labor from the existing approved workflow before or
+after invoice issuance. An unpaid invoice does not change the estimate. Internal orders,
+materials, travel and leave do not contribute. Employee attribution uses the account linked
+to the time entry, not a display name or a catalog cost used as wages. Missing verified
+wages, ambiguous time rows, and relevant scoped-out work withhold a complete estimate.
+No manual job cost entries from 0.9.0 are used.
 
 ## Admin setup
 
@@ -44,17 +42,17 @@ means 5%. An explicit 0% is a configured zero, not the default.
 
 ## Year and date
 
-The app groups invoiced work by the Eastern calendar year of the recorded
-sent invoice. The Friday nearest December 15 is the bonus target; in 2026
+The app groups labor by its work date in the Eastern calendar year, not invoice
+or payment date. The Friday nearest December 15 is the bonus target; in 2026
 it is December 18. The projection is not locked on that date. Decide
-separately how to handle late-December invoices or adjustments before
+separately how to handle late-December work or adjustments before
 processing payroll. The app neither sends a payment nor edits payroll.
 
 ## Staging verification
 
-Use a synthetic labor line: 10 hours billed at $140/hour and wage of $35/hour.
+Use a synthetic labor line: 10 posted hours with a $140/hour labor rate and wage of $35/hour.
 Expect $1,400 labor revenue, $437.50 loaded cost, $962.50 labor profit, and
 a $48.13 bonus projection at 5% (rounded to cents). Add travel, parts and PTO
 entries; all four amounts must stay the same. Verify a later wage change
-doesn't affect earlier work. Test a missing historical wage, a scoped-out
+doesn't affect earlier work, and marking the invoice unpaid or paid does not change the projection. Test a missing historical wage, a scoped-out
 eligible job, a rate override of 0%, and ordinary staff access boundaries.

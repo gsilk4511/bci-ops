@@ -538,3 +538,11 @@ button.danger{background:#a72323;border:2px solid #8a1818;border-radius:8px;colo
  .bci-material-row-unit{grid-column:1;grid-row:2;font-size:.79rem}
  .bci-material-row-stock{grid-column:2;grid-row:1 / span 2;max-width:7rem;text-align:right;align-self:center}
 }
+
+/* Fleet: service deadlines and bookings are independent. */
+.bci-vehicle-maintenance{grid-template-columns:repeat(auto-fit,minmax(min(100%,14rem),1fr));gap:.65rem;margin-block:.85rem}
+.bci-vehicle-maintenance .bci-manager-status{margin:.1rem .25rem .15rem 0}
+.bci-manager-status[data-kind=booked]{color:#16395c;background:#dceefe}
+.bci-vehicle-card details{margin-block:.6rem}
+.bci-vehicle-card li{overflow-wrap:anywhere;margin-block:.35rem}
+.bci-vehicle-card button{min-height:40px}

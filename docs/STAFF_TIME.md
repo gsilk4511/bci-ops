@@ -6,3 +6,25 @@
 5. Staff filter **My Time** by week or pay-period dates and follow linked orders. Older entries with no trusted employee identifier are not automatically assigned by a name guess. Review those using the existing payroll and order history before reconciling a period.
 
 The pay scale field is a profile reference, not a gross pay calculation. QuickBooks remains the payroll processor. The staging app does not change payroll rates or post payroll externally.
+
+## Live five-week profile
+
+The private **My last five weeks** panel shows the current workweek and the previous four.
+Work-order labor, travel and retained applicable payroll time feed Worked; PTO, Sick and Holiday
+have separate columns. Shared travel remains employee time even when the customer travel charge
+is zero. Pending leave is reported separately, not counted; approved requests count via their
+payroll record, which avoids counting the same leave twice. A running clock is not posted time.
+
+An admin opens **My Time & Profile → Set profile workweek** to confirm the first weekday
+used in the established BCI payroll schedule. Until then, the screen groups dates Monday–Sunday
+and does not display a Regular or Overtime estimate. The split uses a 40-worked-hour threshold
+once configured. It does not set payroll dates, change overtime input, or amend an approved
+payroll snapshot. The time status column says whether logged time falls inside a finalized
+period, not whether each current row was part of the original payout. Keep payroll exceptions
+and corrections in the existing review process.
+
+For **Payroll → Log shop time or leave**, enter the employee’s existing Team sign-in email so the
+row is attributed even if their display name changes. Use **Reconcile employee time** for historical
+name-only records instead of assuming identities. The current staff tab refreshes summaries every
+30 seconds while visible and on returning to the tab. No employee schedules or payroll payments
+are created by this feature.

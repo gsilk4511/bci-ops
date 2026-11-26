@@ -1,3 +1,9 @@
+# 0.10.0 — Fleet schedules and live My Time
+
+- Added model year, driver assignment, individual maintenance schedules and independent appointments, recorded odometer dates and seasonal tire-set mileage, assigned cleaning, and permissioned fleet document storage.
+- My Time adds five recent workweeks with Regular, Overtime, PTO, Sick and Holiday and a private live work-order bonus estimate before billing/collection. The regular/overtime estimate requires the real payroll week start to be configured.
+- No card linking, purchasing integration, calendar sync, payout, or payroll mutation. Existing work-order receipt flow is unchanged.
+
 # 0.9.9 — Log Materials part grid
 
 - Replaces the four quick-pick cards and native part dropdown with a detailed ten-row, filterable results grid. Direct taps choose parts; selected SKU stays visible when paging or filtering.

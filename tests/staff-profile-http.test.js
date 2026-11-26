@@ -59,6 +59,17 @@ test('staff profile, private fields, and avatar are separated through authentica
   assert.deepEqual(result.workorders[0].entries.map(entry=>entry.technicianIcon),[officeIcon,undefined]);
   assert.equal(result.staff.directory.some(row=>row.displayName==='Former employee'),false);
   assert.equal(result.staff.contribution.status,'unavailable');
+  assert.equal(result.staff.weeklyTime.rows.length,5);
+  const summary=await req('/api/staff-summary?email='+encodeURIComponent(office),tech);
+  assert.equal(summary.status,200,await summary.clone().text());
+  assert.equal(summary.headers.get('cache-control'),'no-store');
+  const ownSummary=await summary.json();
+  assert.equal(ownSummary.email,tech);
+  assert.deepEqual(ownSummary.weeklyTime,result.staff.weeklyTime);
+  assert.deepEqual(ownSummary.contribution,result.staff.contribution);
+  assert.equal((await req('/api/staff-summary')).status,401);
+  assert.equal((await req('/api/staff-summary',former)).status,403);
+  assert.equal((await req('/api/staff-summary',tech,'POST')).status,405);
   const supplied=JSON.stringify(result.staff);
   for(const forbidden of [office,former,'private-contact@example.invalid','private pay tier','priv_leave',photo])assert.ok(!supplied.includes(forbidden),forbidden);
   assert.equal((await req(profile.avatarUrl)).status,401);

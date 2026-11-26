@@ -30,11 +30,30 @@ test('the shipped app handles counts, field receipts and warehouse receipts with
   const get=path=>fetch('http://'+address+path);
   const act=(action,data)=>fetch('http://'+address+'/api/action',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({action,data})});
   const health=await (await get('/api/health')).json();
-  assert.equal(health.release,'0.9.9');
-  assert.match(await (await get('/')).text(),/id="appRelease">v0\.9\.9<\/span>/);
+  assert.equal(health.release,'0.10.0');
+  assert.match(await (await get('/')).text(),/id="appRelease">v0\.10\.0<\/span>/);
   for(const path of ['/security','/security.html','/security.js','/security.css','/signin.js','/modules/agent-api.js','/api/security/session','/api/security/agent-credentials','/api/agent/v1/status']){
    assert.equal((await get(path)).status,404,path+' must stay disabled by default');
   }
+  const truck=await (await act('vehicles.manage',{operation:'saveVehicle',name:'HTTP fixture truck',year:'2023'})).json();
+  assert.ok(truck.ok);
+  const truckId=truck.result.id;
+  const booked=await act('vehicles.manage',{operation:'bookService',id:truckId,type:'oil',appointmentDate:'2030-08-17',appointmentTime:'10:30'});
+  assert.equal(booked.status,200);
+  const png='iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/2VkAAAAASUVORK5CYII=';
+  const savedDoc=await (await act('vehicles.manage',{operation:'saveDocument',id:truckId,type:'dmv',name:'Synthetic DMV test',content:'data:image/png;base64,'+png})).json();
+  assert.ok(savedDoc.ok);
+  const doc=savedDoc.result.documents[0];
+  assert.doesNotMatch(JSON.stringify(savedDoc),/iVBORw0/);
+  const download=await get(doc.url);
+  assert.equal(download.status,200);
+  assert.equal(download.headers.get('content-type'),'image/png');
+  assert.match(download.headers.get('content-disposition'),/^attachment/);
+  assert.match(download.headers.get('cache-control'),/no-store/);
+  assert.equal(Buffer.from(await download.arrayBuffer()).toString('base64'),png);
+  const stateResponse=await (await get('/api/state')).json();
+  assert.ok(!JSON.stringify(stateResponse).includes(png));
+  assert.equal(stateResponse.vehicles.records[0].schedules.oil.appointment.time,'10:30');
   const saved=await act('inventory.adjust',{catalogId,mode:'count',quantity:5,expectedQuantity:2,reason:'Test physical count'});
   assert.equal(saved.status,200,await saved.clone().text());
   const stale=await act('inventory.adjust',{catalogId,mode:'count',quantity:7,expectedQuantity:2,reason:'Stale tab'});

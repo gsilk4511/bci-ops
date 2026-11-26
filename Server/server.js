@@ -4,7 +4,7 @@ import {createEmailChannel} from '../UserSecurity/email-channel.js';
 import {securityConfig,requiredReady,verifyStoredEncryptionKey,securityView,inviteAccount,performEnrollment} from '../UserSecurity/enrollment.js';
 import {makeSecurityStore} from '../UserSecurity/store.js';
 import {listAgentCredentials,issueAgentCredential,revokeAgentCredential,authorizeAgentCredential,agentStatus} from '../UserSecurity/agent-api.js';
-import {vehiclePhoto,vehiclesView} from '../Models/vehicles.js';
+import {vehicleDocument,vehiclePhoto,vehiclesView} from '../Models/vehicles.js';
 import {applyWarehousePurge,previewWarehousePurge} from '../Models/warehouse-purge.js';
 import {applyWarehousePatch,exportWarehouse,previewWarehousePatch} from '../Models/warehouse-export.js';
 import {releases} from '../Models/release-history.js';
@@ -14,7 +14,7 @@ import {readWorkReceipt} from '../Models/work-entry.js';
 import {readWarehouseReceipt,warehouseFieldPurchases} from '../Models/warehouse-receipts.js';
 import {previewWorkorderRemoval} from '../Models/records.js';
 import {validatedContributionYear} from '../Models/staff-profit-settings.js';
-import {staffAvatar,staffTechnicianIcons,staffView} from '../Models/staff.js';
+import {staffAvatar,staffMetrics,staffTechnicianIcons,staffView} from '../Models/staff.js';
 import {reconcileStock} from '../Models/stock-demand.js';
 import {estimateRates} from '../Models/estimates.js';
 import {trainingState,trainingAction} from '../Models/training.js';
@@ -360,6 +360,16 @@ const server=http.createServer(async(req,res)=>{
        return res.end(req.method==='HEAD'?undefined:body);
       }catch{return response(res,404,{error:'Catalog photo unavailable'});}
     }
+    if(url.pathname.startsWith('/api/vehicle-document/')){
+      if(req.method!=='GET'&&req.method!=='HEAD')return response(res,405,{error:'Method not allowed'});
+      const ids=url.pathname.match(/^\/api\/vehicle-document\/([0-9a-f-]{36})\/([0-9a-f-]{36})$/i);
+      let doc;try{if(ids)doc=vehicleDocument(current,{email:user.email,permissions},ids[1],ids[2]);}catch{}
+      if(!doc)return response(res,404,{error:'Document unavailable'});
+      const ext={'application/pdf':'pdf','image/png':'png','image/jpeg':'jpg'}[doc.mime];
+      res.writeHead(200,{'content-type':doc.mime,'content-length':doc.bytes.length,'content-disposition':'attachment; filename="vehicle-document.'+ext+'"',
+       'cache-control':'private, no-store','x-content-type-options':'nosniff','cross-origin-resource-policy':'same-origin','referrer-policy':'no-referrer','content-security-policy':"default-src 'none'; frame-ancestors 'none'; sandbox"});
+      return res.end(req.method==='HEAD'?undefined:doc.bytes);
+    }
     if(url.pathname.startsWith('/api/vehicle-photo/')){
       if(req.method!=='GET'&&req.method!=='HEAD')return response(res,405,{error:'Method not allowed'});
       if(!permissions.includes('vehicles.view'))return response(res,403,{error:'Vehicle access required'});
@@ -415,6 +425,13 @@ const server=http.createServer(async(req,res)=>{
       const practice=trainingState(current,{email:user.email,role,permissions});
       if(permissions.includes('invoice.group'))practice.workorders=practice.workorders.map(order=>({...order,crewSummary:crewSummary(order.entries)}));
       return response(res,200,{...practice,liveAccess:{email:user.email,role,accessRevision:current.meta?.accessRevision||0,...access}});
+    }
+    if(url.pathname==='/api/staff-summary'){
+      if(req.method!=='GET')return response(res,405,{error:'Method not allowed'});
+      if(!permissions.includes('staff.view'))return response(res,403,{error:'Staff access required'});
+      const selection=url.searchParams.get('contributionYear');
+      const year=selection===null?undefined:validatedContributionYear(selection);
+      return response(res,200,staffMetrics(current,principal,scoped,year,new Set(scoped.projects.map(project=>project.id))));
     }
     if(req.method==='GET'&&url.pathname==='/api/state'){
       const selection=url.searchParams.get('contributionYear');

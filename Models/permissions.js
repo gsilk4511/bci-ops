@@ -239,6 +239,7 @@ export function authorizePermission(action,role,permissions,data) {
  if(action==='entry.add'&&data?.receipt!=null&&!permissions.includes('receipt.add'))throw Error('Work-order receipt upload permission required');
  if(action==='inventory.commitFieldPurchase'&&(!permissions.includes('workorders.view')||!permissions.includes('receipt.read')))throw Error('Work-order receipt access required');
  if(action==='inventory.receive'&&data?.warehouseReceive===true&&data.unitCost!=null&&!permissions.includes('finance.view'))throw Error('Finance access required to record unit cost');
+ if(action==='vehicles.cleanup'){if(!permissions.includes('vehicles.view'))throw Error('Vehicle access required');return;}
  action=aliases[action]||action;
  if(requiresFinance.has(action)&&!permissions.includes('finance.view'))throw Error('Finance access required');
  if(['catalog.create','catalog.update'].includes(action)&&data?.inventoryEdit===true){

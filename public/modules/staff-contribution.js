@@ -33,17 +33,17 @@ function pie(title,description,total,rows,net=false){
 function bonusPanel(bonus, year){
  const share=Number.isFinite(bonus?.profitShareBps)?bonus.profitShareBps/100:null, available=bonus?.status==='available'&&Number.isFinite(bonus?.projectedCents);
  let reason='';
- if(!available)reason=share===null?'The projection is not available yet.':'The projection needs complete invoiced work and matching wage history.';
+ if(!available)reason=share===null?'The projection is not available yet.':'The projection needs complete work-order labor and matching wage history.';
  return `<section class="bci-profit-bonus" aria-labelledby="bonusHeading">
   <div class="bci-profit-bonus-copy">
-   <p>Private estimate</p><h3 id="bonusHeading">${esc(bonus?.year??year??'')} year-to-date bonus</h3>
+   <p>Private estimate</p><h3 id="bonusHeading">${esc(bonus?.year??year??'')} estimated year-end bonus</h3>
    <strong>${contributionCurrency(available?bonus.projectedCents:null)}</strong>
    ${reason?`<p>${reason}</p>`:''}
   </div>
   <div><p><strong>Target date:</strong> ${esc(dateLabel(bonus?.payoutDate))}</p>
    <p><strong>Profit share:</strong> ${percent(share)}</p>
    ${share!==null?`<meter class="bci-profit-meter" min="0" max="100" value="${share}" aria-label="Share of positive annual labor profit">${percent(share)}</meter>`:''}
-   <p>The estimate applies the shown share to positive annual labor profit. It updates with invoices and effective wages. It does not create or schedule a payroll payment.</p>
+   <p>The estimate applies the shown share to positive annual labor profit. It updates with qualifying work-order entries and effective wages, before an invoice is sent or paid. It does not create or schedule a payroll payment.</p>
   </div></section>`;
 }
 export function contributionPanel(data, projects=[]){
@@ -58,15 +58,15 @@ export function contributionPanel(data, projects=[]){
  }));
  return `<section class="panel" aria-labelledby="contributionHeading">
   <h2 id="contributionHeading">Technician contribution</h2>
-  <p>${year?esc(year)+' year to date. ':''}Only your invoiced work time at the billed labor rate counts. Parts, travel, vacation and other paid time off are excluded. Labor profit is labor revenue minus your loaded employment cost. It is not total company profit.</p>
-  ${status==='partial'?'<p><strong>Partial revenue:</strong> Some invoiced work hours could not be attributed.</p>':''}
-  ${status==='unavailable'?'<p>No invoiced contribution is available yet.</p>':''}
+  <p>${year?esc(year)+' year to date. ':''}Only your logged customer work at the recorded labor rate counts. Parts, travel, vacation and other paid time off are excluded. Labor profit is labor revenue minus your loaded employment cost. It is not total company profit.</p>
+  ${status==='partial'?'<p><strong>Partial revenue:</strong> Some qualifying work could not be verified or included.</p>':''}
+  ${status==='unavailable'?'<p>No qualifying work-order contribution is available yet.</p>':''}
   <div class="bci-profit-grid">
-   ${pie('Billed labor revenue','Your invoiced work hours at the billed labor rate.',totalAttributedCents,metric('attributedCents'))}
-   ${pie('Employment cost','Effective hourly wage × invoiced work hours × 1.25.',totalEmploymentCostCents,metric('employmentCostCents'))}
-   ${pie('Labor profit','Invoiced labor revenue less loaded employment cost.',totalNetProfitCents,metric('netProfitCents'),true)}
+   ${pie('Estimated labor revenue','Your logged customer work at the recorded labor rate.',totalAttributedCents,metric('attributedCents'))}
+   ${pie('Employment cost','Effective hourly wage × qualifying work hours × 1.25.',totalEmploymentCostCents,metric('employmentCostCents'))}
+   ${pie('Labor profit','Estimated labor revenue less loaded employment cost.',totalNetProfitCents,metric('netProfitCents'),true)}
   </div>
-  ${coverage?`<p>${Number(coverage.includedOrders)||0} billed work orders included · ${Number(coverage.excludedOrders)||0} excluded${coverage.missingWageOrders? ` · ${Number(coverage.missingWageOrders)||0} included orders missing wage coverage`:''}</p>`:''}
+  ${coverage?`<p>${Number(coverage.includedOrders)||0} work orders included · ${Number(coverage.excludedOrders)||0} excluded${coverage.missingWageOrders? ` · ${Number(coverage.missingWageOrders)||0} included orders missing wage coverage`:''}</p>`:''}
   ${bonusPanel(bonus,year)}
  </section>`;
 }

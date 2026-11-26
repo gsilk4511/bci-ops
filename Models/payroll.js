@@ -27,11 +27,24 @@ export function checkTimeEntry(state,entry,excludeId){
   if(payrollEntries(state).some(e=>e.id!==excludeId&&e.date===entry.date&&(e.employeeEmail&&entry.employeeEmail?employeeKey(e.employeeEmail)===employeeKey(entry.employeeEmail):employeeKey(e.tech)===employeeKey(entry.tech))&&e.startTime&&e.endTime&&start<timeMinutes(e.endTime)&&timeMinutes(e.startTime)<end))throw Error('This employee already has overlapping time');
 }
 export function addOtherTime(state,data,actor){
-  const tech=String(data.tech||'').trim(), date=validDate(data.date);
+  let tech=String(data.tech||'').trim();
+  const date=validDate(data.date);
+  let linkedEmail;
+  if(Object.hasOwn(data,'employeeEmail')){
+    linkedEmail=employeeKey(data.employeeEmail);
+    if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(linkedEmail)||linkedEmail.length>254)throw Error('Enter an active employee’s Team sign-in email');
+    const matches=(state.users||[]).filter(row=>employeeKey(row.email)===linkedEmail);
+    const protectedAdmins=(process.env.BCI_ADMIN_EMAILS||'').split(',').map(employeeKey);
+    if(matches.length>1||matches.length===1&&matches[0].active===false||
+      !matches.length&&linkedEmail!==employeeKey(actor.email)&&!protectedAdmins.includes(linkedEmail))throw Error('Enter an active employee’s Team sign-in email');
+    const profile=(state.staffProfiles||[]).find(row=>employeeKey(row.email)===linkedEmail);
+    tech=(profile?.name||matches[0]?.name||linkedEmail).slice(0,100);
+  }
   if(!tech||tech.length>100||!['shop','pto','sick','holiday'].includes(data.type))throw Error('Enter an employee and pay category');
   const quantity=Number(data.quantity);
   if(!Number.isFinite(quantity)||quantity<=0||quantity>24)throw Error('Enter hours greater than zero and no more than 24');
   const entry={id:randomUUID(),tech,date,type:data.type,quantity,description:String(data.description||'').slice(0,1000),recordedBy:actor.email};
+  if(linkedEmail)entry.employeeEmail=linkedEmail;
   checkTimeEntry(state,entry);
   (state.payrollOther??=[]).push(entry);return entry;
 }

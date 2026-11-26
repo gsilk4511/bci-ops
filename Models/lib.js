@@ -1,5 +1,5 @@
 import {attributedEmail} from './time-attribution.js';
-import {vehiclesAction} from './vehicles.js';
+import {completeAssignedCleanup,vehiclesAction} from './vehicles.js';
 import {checkWorkReceipt,saveWorkReceipt,stockMovement,editWorkEntry,mayEditWorkEntry,logEntryChange} from './work-entry.js';
 import {staffName} from './staff.js';
 import {businessManagerAction} from './business-manager.js';
@@ -280,6 +280,7 @@ export function applyAction(state, action, data={}, actor={email:'system'}) {
   if(action==='pricing.profile.save')return savePricing(state,data,actor);
   if(action.startsWith('ticket.'))return ticketAction(state,action,data,actor);
   if(action.startsWith('estimate.'))return estimateAction(state,action,data,actor,fields=>applyAction(state,'project.create',fields,actor),fields=>applyAction(state,'workorder.create',fields,actor));
+  if(action==='vehicles.cleanup')return completeAssignedCleanup(state,data,actor);
   if(action==='vehicles.manage')return vehiclesAction(state,data,actor);
   if(action==='businessManager.manage')return businessManagerAction(state,data,actor);
   if(action.startsWith('staff.'))return staffAction(state,action,data,actor,fields=>applyAction(state,'workorder.create',fields,actor));

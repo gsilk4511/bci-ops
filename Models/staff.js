@@ -2,8 +2,10 @@ import {attributedEmail} from './time-attribution.js';
 import {createHmac,randomBytes,randomUUID} from 'node:crypto';
 import {addOtherTime, validDate} from './payroll.js';
 import {businessManagerView} from './business-manager.js';
-import {changedWageHistory,contributionScopeLimited,contributionWageHistory,contributionYear,profileProfitShare,rateForYear,updatedProfitRates,verifiedWageHistory} from './staff-profit-settings.js';
-import {technicianContribution} from './technician-contribution.js';
+import {changedWageHistory,contributionWageHistory,contributionYear,profileProfitShare,rateForYear,updatedProfitRates,verifiedWageHistory} from './staff-profit-settings.js';
+import {liveTechnicianContribution,liveContributionToday,ownLiveLabor,possibleLiveDay} from './technician-contribution.js';
+import {internalOrder} from './project-workflow.js';
+import {staffWeeklyTime,workweekStart} from './staff-weekly-time.js';
 import {defaultProfileStyle,profileStyleOptions} from '../public/modules/profile-style-catalog.js';
 
 export const staffKey = value => String(value || '').trim().toLowerCase();
@@ -146,6 +148,27 @@ function staffTarget(state,actor,input) {
  return target;
 }
 
+export function staffMetrics(state,actor,metricsState,year=contributionYear(),visibleProjectIds,now=new Date()){
+ const email=staffKey(actor?.email);
+ if(!email||!has(actor,'staff.view'))return undefined;
+ let contribution;
+ if(metricsState){
+  const today=liveContributionToday(now), profile=profileAt(state,email);
+  const visible=new Map((metricsState.workorders||[]).map(order=>[order.id,order]));
+  const scopeIncomplete=(state.workorders||[]).some(order=>!order.billingHidden&&!internalOrder(state,order)&&
+   (!visible.has(order.id)||visible.get(order.id).billingHidden)&&(order.entries||[]).some(row=>ownLiveLabor(row,email)&&possibleLiveDay(row.date,year,today)));
+  contribution=liveTechnicianContribution(metricsState,email,{year,now,profitShareBps:rateForYear(profile,year),
+   wageHistory:contributionWageHistory(profile),scopeIncomplete});
+  const named=new Map((state.projects||[]).filter(p=>has(actor,'projects.view')&&(!visibleProjectIds||visibleProjectIds.has(p.id))).map(p=>[p.id,p]));
+  contribution.projects=contribution.projects.map(row=>{
+   const project=named.get(row.projectId);
+   return {attributedCents:row.attributedCents,laborHours:row.laborHours,orderCount:row.orderCount,employmentCostCents:row.employmentCostCents,
+    netProfitCents:row.netProfitCents,projectId:project?.id??null,projectName:project?.name??'Project'};
+  });
+ }
+ return {email,weeklyTime:staffWeeklyTime(state,actor,now),contribution};
+}
+
 export function staffView(state,actor,visibleOrderIds,visibleProjectIds,metricsState,year=contributionYear()) {
  const email=staffKey(actor?.email);
  if (!email || !has(actor,'staff.view')) return undefined;
@@ -176,15 +199,10 @@ export function staffView(state,actor,visibleOrderIds,visibleProjectIds,metricsS
    status:entry.deletedWorkorderId?'Archived — payroll review':'Other payroll time',workorderId:null,workorder:has(actor,'workorders.view')&&!visibleOrderIds?entry.job:'Archived work order',note:entry.description});
  }
  const admin=actor.role==='admin'&&has(actor,'staff.manage');
+ const {weeklyTime,contribution}=staffMetrics(state,actor,metricsState,year,visibleProjectIds);
  const records=state.staffLeave||[];
  const internalProject=has(actor,'staff.internal')&&has(actor,'workorder.create')&&has(actor,'workorders.view')?internalChoice(state):null;
- const contribution=metricsState?technicianContribution(metricsState,email,{year,profitShareBps:rateForYear(profileAt(state,email),year),
-  wageHistory:contributionWageHistory(profileAt(state,email)),scopeIncomplete:contributionScopeLimited(state,metricsState,email,year)}):undefined;
- if(contribution)contribution.projects=contribution.projects.map(row=>{
-  const visible=projects.get(row.projectId);
-  return {attributedCents:row.attributedCents,laborHours:row.laborHours,orderCount:row.orderCount,employmentCostCents:row.employmentCostCents,netProfitCents:row.netProfitCents,projectId:visible?.id??null,projectName:visible?.name??'Project'};
- });
- return {businessManager:businessManagerView(state,actor),contribution,profile:{...safeProfile(state,email),...publicProfile(state,email)},directory:directoryEmails(state,actor).map(email=>publicProfile(state,email)).sort((a,b)=>a.displayName.localeCompare(b.displayName)),
+ return {businessManager:businessManagerView(state,actor),weeklyTime,contribution,profile:{...safeProfile(state,email),...publicProfile(state,email)},directory:directoryEmails(state,actor).map(email=>publicProfile(state,email)).sort((a,b)=>a.displayName.localeCompare(b.displayName)),
   overview:{workorders:ordersWorked.size,projects:projectsWorked.size},projects:[...projects.values()].map(project=>({...project,hours:Math.round(project.hours*100)/100})),time,leave:records.filter(row=>row.email===email),
   ...(admin?{staffProfiles:[...new Set([email,...(state.users||[]).map(user=>staffKey(user.email))])].filter(Boolean).map(key=>({...safeProfile(state,key),profitShareByYear:profileProfitShare(profileAt(state,key)),hourlyWages:verifiedWageHistory(profileAt(state,key))})),
    requests:records.filter(row=>row.status==='Pending')}:{}),internalAvailable:Boolean(internalProject)};
@@ -208,6 +226,12 @@ export function staffAction(state,action,data,actor, createOrder) {
  }
  if (action==='staff.manage') {
   if (actor.role!=='admin') throw Error('Admin access required');
+  if(Object.hasOwn(data,'workweekStart')){
+   if(Object.keys(data).length!==1||workweekStart(data.workweekStart)===null)throw Error('Choose the first day of an established workweek');
+   (state.meta??={}).staffWorkweekStart=data.workweekStart;
+   (state.events??=[]).unshift({id:randomUUID(),action:'staff.workweek',at:new Date().toISOString(),reference:'staff',detail:email+' set the workweek first day'});
+   return {workweekStart:data.workweekStart};
+  }
   const target=staffTarget(state,actor,data.email);
   const changes={};
   const rateChange=Object.hasOwn(data,'profitShareYear')||Object.hasOwn(data,'profitSharePercent');

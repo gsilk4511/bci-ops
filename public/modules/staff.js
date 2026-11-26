@@ -1,4 +1,4 @@
-import {can, data, esc, f, head, modal, render, send, table, today} from '../app.js';
+import {can, data, esc, f, head, modal, practiceMode, render, send, table, today} from '../app.js';
 
 import {profileCard, directoryProfile, personalProfileFields, personalProfilePayload, bindProfileEditor} from './staff-profile.js';
 import {contributionPanel} from './staff-contribution.js';
@@ -15,6 +15,46 @@ const action=(key,label,id='')=>`<button type="button" class="secondary" data-st
 function timeLink(row) {
  return row.workorderId?`<button type="button" class="rowlink" data-wo="${esc(row.workorderId)}">${esc(row.workorder)}</button>`:esc(row.workorder);
 }
+const weekdays=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+const weeklyCell=value=>value===null?'—':number(value)+' h';
+function weeklyTimePanel(summary,admin){
+ if(!summary)return '';
+ return `<section class="panel" aria-labelledby="weeklyTimeHeading">
+  <h2 id="weeklyTimeHeading">My last five weeks</h2>
+  <p>Live logged time for you only. The split is a weekly estimate, not a payroll statement. Running timers and pending time-off requests are not counted.</p>
+  ${summary.workweekStart===null?'<p><strong>Workweek not configured.</strong> Dates are grouped Monday–Sunday for now. Ask an administrator to set the first day of your established payroll workweek to see the Regular and Overtime split.</p>':`<p>Weeks start ${esc(weekdays[summary.workweekStart])}. The estimated split uses a 40-worked-hour threshold. Paid time off is listed separately.</p>`}
+  ${admin?action('workweek','Set profile workweek'):''}
+  ${table(['Week','Worked','Regular','Overtime','PTO','Sick','Holiday','Time status'],summary.rows.map(row=>`<tr>
+   <td>${esc(row.start)} to ${esc(row.end)}${row.current?' (current)':''}</td>
+   ${['worked','regular','overtime','pto','sick','holiday'].map(key=>`<td>${weeklyCell(row[key])}</td>`).join('')}
+   <td>${row.lockedHours?esc(number(row.lockedHours))+' h in a finalized period. ':''}${row.openHours?esc(number(row.openHours))+' h not finalized. ':''}${row.pendingLeave?esc(number(row.pendingLeave))+' h pending leave, excluded. ':''}${row.issues?'One or more time entries need review. ':''}${!row.lockedHours&&!row.openHours&&!row.pendingLeave&&!row.issues?'No logged time.':''}</td>
+  </tr>`))}
+ </section>`;
+}
+let refreshing=false;
+async function refreshStaffMetrics(){
+ const target=document.querySelector('#staffLiveMetrics'), staff=target&&data?.staff;
+ if(document.hidden||refreshing||!staff||!can('staff.view')||target.dataset.practice==='true')return;
+ refreshing=true;
+ try{
+  const response=await fetch('/api/staff-summary',{cache:'no-store'});
+  if(data?.staff!==staff||!target.isConnected)return;
+  if(response.status===401||response.status===403){target.replaceChildren();return;}
+  if(!response.ok)return;
+  const next=await response.json();
+  if(data?.staff!==staff||!target.isConnected||next.email!==staff.profile.email||!next.weeklyTime)return;
+  if(JSON.stringify([staff.contribution,staff.weeklyTime])===JSON.stringify([next.contribution,next.weeklyTime]))return;
+  Object.assign(staff,{contribution:next.contribution,weeklyTime:next.weeklyTime});
+  target.innerHTML=staffLiveContent(staff);
+ }catch{/* A connection failure should not discard the last loaded summary. */}
+ finally{refreshing=false;}
+}
+function staffLiveContent(staff){
+ return contributionPanel(staff.contribution,staff.projects||[])+weeklyTimePanel(staff.weeklyTime,Array.isArray(staff.staffProfiles)&&can('staff.manage'));
+}
+document.addEventListener('visibilitychange',refreshStaffMetrics);
+if(typeof setInterval==='function')setInterval(refreshStaffMetrics,30000);
+
 export function staffPage() {
  const staff=data.staff;
  if(!staff)return head('My Time & Profile','Staff','This section is not available in the current session.');
@@ -38,7 +78,7 @@ export function staffPage() {
    </div>
    ${table(['Project','Work orders','Logged hours'],(staff.projects||[]).map(row=>`<tr><td>${row.id&&can('projects.view')?`<button type="button" class="rowlink" data-staff-action="project" data-staff-id="${esc(row.id)}">${esc(row.name)}</button>`:esc(row.name)}</td><td>${number(row.workorders)}</td><td>${number(row.hours)}</td></tr>`))}
    </section>`
-  +contributionPanel(staff.contribution,staff.projects||[])
+  +`<div id="staffLiveMetrics" data-practice="${practiceMode?'true':'false'}">${staffLiveContent(staff)}</div>`
   +`   <section class="panel"><h2>My time by date</h2><form id="myTimeFilter" class="filters">
     ${f('start','Week or pay period start',{type:'date',value:firstDay})}
     ${f('end','Week or pay period end',{type:'date',value:lastDay})}
@@ -74,6 +114,11 @@ document.addEventListener('click',event=>{
  if(!button||!can('staff.view')||!data.staff)return;
  const id=button.dataset.staffId,staff=data.staff;
  switch(button.dataset.staffAction){
+  case 'workweek': if(Array.isArray(staff.staffProfiles)&&can('staff.manage')){
+   modal('Set staff profile workweek',f('workweekStart','Established workweek starts',{required:true,value:String(staff.weeklyTime?.workweekStart??''),
+    select:[['','Choose a day'],...weekdays.map((day,i)=>[String(i),day])],hint:'Use the first day your payroll already uses. This changes the estimate display only.'}),
+    values=>send('staff.manage',{workweekStart:values.workweekStart===''?null:Number(values.workweekStart)}));
+  }break;
   case 'profile': if(can('staff.profile')){
    modal('Profile Studio',personalProfileFields(staff.profile),async values=>send('staff.profile',await personalProfilePayload(values)));
    const form=document.querySelector('#actionForm');

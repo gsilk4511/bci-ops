@@ -935,7 +935,7 @@ function openForm(kind,entryId){if(formPermissions[kind]&&!can(formPermissions[k
  }
  case 'log-materials':return openWorkEntry(w,true);
  case 'close':return modal('Submit completed work order','',()=>send('workorder.close',{workorderId:w.id}),'<div class="notice green">A snapshot of every entry and signed change will be preserved for review.</div>');
- case 'other-time':return modal('Log shop time or leave',f('tech','Employee name',{required:true})+f('date','Date',{type:'date',required:true,value:today()})+
+ case 'other-time':return modal('Log shop time or leave',f('employeeEmail','Employee Team sign-in email',{type:'email',required:true,hint:'Use the account’s sign-in email so the hours appear on the right staff profile.'})+f('date','Date',{type:'date',required:true,value:today()})+
   f('type','Category',{select:[['shop','Shop / non-job work'],['pto','PTO'],['sick','Sick'],['holiday','Holiday']]})+
   f('quantity','Hours',{type:'number',min:0.01,step:'0.01',required:true})+f('description','Notes'),x=>send('payroll.other',x));
  case 'workorder-print':return w&&can('workorders.view')?printDocument(workOrderDocument(w)):undefined;
