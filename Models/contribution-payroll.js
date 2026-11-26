@@ -16,7 +16,7 @@ const allocateOvertime=(rows,total,output)=>{
 };
 // The payroll ledger is the authoritative source for payable time. Invoice
 // status is applied separately as a Cash eligibility filter to billable jobs.
-export function contributionPayroll(state,email,{today,year,mode,wages,fallbackWage,isCashJob,asOf}){
+export function contributionPayroll(state,email,{today,year,mode,wages,fallbackWage,profileWageEntered,isCashJob,asOf}){
  const runs=state.payrollRuns||[];
  const live=mode==='cash'?payrollEntries({...state,projects:state.projects||[],workorders:state.workorders||[]})
   .filter(row=>employeeKey(row.employeeEmail||row.tech)===email&&types.has(row.type)&&row.date<=today):[];
@@ -73,7 +73,7 @@ export function contributionPayroll(state,email,{today,year,mode,wages,fallbackW
  let grossWages=0, hours=0, incomplete=false;
  for(const row of source){
   const wage=wages.find(wage=>wage.date<=row.date);
-  const fallback=mode==='accrual'&&!wage&&Number.isSafeInteger(fallbackWage)&&fallbackWage>=0;
+  const fallback=mode==='accrual'&&(!wage||wage.cents===null&&profileWageEntered)&&Number.isSafeInteger(fallbackWage)&&fallbackWage>=0;
   const cents=fallback?fallbackWage:wage?.cents;
   hours+=row.quantity;
   if(cents==null){flag(row,'missing-wage');continue;}

@@ -3,6 +3,9 @@
 const section = (title, ...items) => ({title, items});
 const release = (version, title, summary, ...sections) => ({version, title, summary, sections});
 export const releases = [
+ release('0.10.9','Staff pay scale and holiday requests','See staff pay scales in one place and request Holiday alongside other time off.',
+  section('Staff profiles','Employer-only Pay scale column. Live Accrual uses stored hourly staff pay; Cash wage policies remain unchanged.'),
+  section('Time off','Holiday uses existing review and calendar access. Approval posts a Holiday payroll entry without using vacation or sick balances.')),
  release('0.10.8','Contribution cost follows Worked hours','Accrual uses the same logged hours as your weekly Worked column.',
   section('Accrual','The chart totals Worked hours from January 1 through today at straight-time wages plus 25%. Pay categories shown separately from Worked stay separate. Cash and payroll are unchanged.')),
  release('0.10.7','Live contribution estimates and bonus meter','See your estimated bonus build as hours are logged, with a quick guide to the numbers.',

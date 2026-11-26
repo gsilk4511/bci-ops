@@ -254,3 +254,28 @@ test('YTD Accrual selects the same Worked hours as the profile, plus older same-
  assert.equal(missing.estimate.loggedHours,87);
  assert.equal(missing.totalEmploymentCostCents,null);
 });
+
+test('Accrual uses the saved hourly Pay scale without replacing a dated rate or changing Cash',()=>{
+ const s=fixture(),w=s.workorders[0];
+ w.entries=[row('early-saved','labor','2026-11-17',2),row('late-saved','labor','2026-11-24',2)];
+ s.payrollOther=[];
+ const fields={email,name:'Simon',contactEmail:email,vacationHours:30,sickHours:10};
+ s.staffProfiles[0]={email};
+ staffAction(s,'staff.manage',{...fields,payScale:'31.50',wageEffectiveDate:'2026-11-23',hourlyWage:'35'},admin);
+ const profile=staffView(s,admin).staffProfiles.find(row=>row.email===email);
+ assert.equal(profile.payScale,'31.50');
+ assert.equal(profile.payScaleHourlyCents,3150);
+ assert.equal(staffView(s,tech).staffProfiles,undefined);
+ const result=metrics(s).contribution;
+ assert.equal(result.totalEmploymentCostCents,16625);
+ assert.equal(result.estimate.fallbackRows,1);
+ assert.equal(result.cash.totalEmploymentCostCents,0);
+ for(const payScale of ['31.50/hr','$31.5 / h','$31.50']){
+  staffAction(s,'staff.manage',{...fields,payScale},admin);
+  assert.equal(metrics(s).contribution.totalEmploymentCostCents,16625,payScale);
+ }
+ for(const payScale of ['Tier 2','$65,000','65000','31-35/hr','35.00/year']){
+  s.staffProfiles[0]={email,payScale};
+  assert.equal(metrics(s).contribution.totalEmploymentCostCents,null,payScale);
+ }
+});

@@ -20,7 +20,7 @@ test('My Time shows the five-week grid and refreshes the current session without
  const exports={
   '../app.js':app,
   './staff-profile.js':{profileCard:()=>'',directoryProfile:()=>'',personalProfileFields:()=>'',personalProfilePayload:()=>'',bindProfileEditor:()=>''},
-  './staff-contribution.js':{contributionPanel:(d,_p,mode)=>'bonus:'+(mode==='cash'?d?.cash:d)?.bonus?.projectedCents},
+  './staff-contribution.js':{contributionCurrency:c=>String(c),contributionPanel:(d,_p,mode)=>'bonus:'+(mode==='cash'?d?.cash:d)?.bonus?.projectedCents},
   './staff-contribution-admin.js':{contributionYear:()=>2026,openCompensationProfile:()=>'',rateLabel:()=>''},
   './business-manager.js':{businessManagerPanel:()=>''},
   './profile-weather.js':{profileWeatherCard:()=>'<aside>Weather · Barre</aside>'},

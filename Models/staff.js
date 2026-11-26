@@ -2,7 +2,7 @@ import {attributedEmail} from './time-attribution.js';
 import {createHmac,randomBytes,randomUUID} from 'node:crypto';
 import {addOtherTime, validDate} from './payroll.js';
 import {businessManagerView} from './business-manager.js';
-import {changedWageHistory,explicitProfileHourlyCents,contributionWageHistory,contributionYear,profileProfitShare,rateForYear,updatedProfitRates,verifiedWageHistory} from './staff-profit-settings.js';
+import {changedWageHistory,accrualProfileHourlyCents,contributionWageHistory,contributionYear,profileProfitShare,rateForYear,updatedProfitRates,verifiedWageHistory} from './staff-profit-settings.js';
 import {liveTechnicianContribution,liveContributionToday,ownLiveLabor,possibleLiveDay} from './technician-contribution.js';
 import {internalOrder} from './project-workflow.js';
 import {staffWeeklyTime,workweekStart} from './staff-weekly-time.js';
@@ -177,7 +177,7 @@ export function staffMetrics(state,actor,metricsState,year=contributionYear(),vi
   const visible=new Map((metricsState.workorders||[]).map(order=>[order.id,order]));
   const scopeIncomplete=(state.workorders||[]).some(order=>!order.billingHidden&&!internalOrder(state,order)&&
    (!visible.has(order.id)||visible.get(order.id).billingHidden)&&(order.entries||[]).some(row=>ownLiveLabor(row,email)&&possibleLiveDay(row.date,year,today)));
-  const options={year,now,profitShareBps:rateForYear(profile,year),wageHistory:contributionWageHistory(profile),accrualWageHistory:contributionWageHistory({...profile,payScale:''}),profileHourlyCents:explicitProfileHourlyCents(profile),scopeIncomplete,payrollState:state};
+  const options={year,now,profitShareBps:rateForYear(profile,year),wageHistory:contributionWageHistory(profile),accrualWageHistory:contributionWageHistory({...profile,payScale:''}),profileHourlyCents:accrualProfileHourlyCents(profile),scopeIncomplete,payrollState:state};
   const named=new Map((state.projects||[]).filter(p=>has(actor,'projects.view')&&(!visibleProjectIds||visibleProjectIds.has(p.id))).map(p=>[p.id,p]));
   const scopedSummary=mode=>{
    const view=liveTechnicianContribution(metricsState,email,{...options,mode});
@@ -228,7 +228,7 @@ export function staffView(state,actor,visibleOrderIds,visibleProjectIds,metricsS
  const internalProject=has(actor,'staff.internal')&&has(actor,'workorder.create')&&has(actor,'workorders.view')?internalChoice(state):null;
  return {entryTargets:delegatedTargets(state,actor),businessManager:businessManagerView(state,actor),weeklyTime,contribution,profile:{...safeProfile(state,email),...publicProfile(state,email)},directory:directoryEmails(state,actor).map(email=>publicProfile(state,email)).sort((a,b)=>a.displayName.localeCompare(b.displayName)),
   overview:{workorders:ordersWorked.size,projects:projectsWorked.size},projects:[...projects.values()].map(project=>({...project,hours:Math.round(project.hours*100)/100})),time,leave:records.filter(row=>row.email===email),
-  ...(admin?{staffProfiles:[...new Set([email,...(state.users||[]).map(user=>staffKey(user.email))])].filter(Boolean).map(key=>({...safeProfile(state,key),profitShareByYear:profileProfitShare(profileAt(state,key)),hourlyWages:verifiedWageHistory(profileAt(state,key))})),
+  ...(admin?{staffProfiles:[...new Set([email,...(state.users||[]).map(user=>staffKey(user.email))])].filter(Boolean).map(key=>({...safeProfile(state,key),profitShareByYear:profileProfitShare(profileAt(state,key)),hourlyWages:verifiedWageHistory(profileAt(state,key)),payScaleHourlyCents:accrualProfileHourlyCents(profileAt(state,key))})),
    requests:records.filter(row=>row.status==='Pending')}:{}),internalAvailable:Boolean(internalProject)};
 }
 
@@ -273,7 +273,7 @@ export function staffAction(state,action,data,actor, createOrder) {
  if (action==='staff.leave') {
   const date=validDate(data.date);
   const category=data.type;
-  if (!['vacation','sick'].includes(category)) throw Error('Select vacation or sick time');
+  if (!['vacation','sick','holiday'].includes(category)) throw Error('Select vacation, sick time, or holiday');
   const quantity=hours(data.quantity,'leave hours',24);
   if (quantity<=0) throw Error('Enter leave hours greater than zero');
   if ((state.payrollRuns||[]).some(run=>date>=run.start&&date<=run.end)) throw Error('This pay period is finalized. Ask payroll to make the correction.');
@@ -291,12 +291,16 @@ export function staffAction(state,action,data,actor, createOrder) {
   if (!['approve','decline'].includes(data.decision)) throw Error('Choose a review decision');
   if (data.decision==='approve') {
    const profile=profileAt(state,row.email);
+   const holiday=row.type==='holiday';
    const bucket=row.type==='sick'?'sickHours':'vacationHours';
-   if (!profile||profile[bucket]<row.quantity) throw Error('Insufficient available leave balance');
-   const entry=addOtherTime(state,{tech:staffName(state,row.email),date:row.date,type:row.type==='sick'?'sick':'pto',quantity:row.quantity,description:'Approved staff leave'},actor);
+   if(!holiday&&(!profile||profile[bucket]<row.quantity))throw Error('Insufficient available leave balance');
+   if(holiday&&(state.payrollOther||[]).some(time=>time.type==='holiday'&&time.date===row.date&&staffKey(attributedEmail(time)||time.tech)===staffKey(row.email)))
+    throw Error('Holiday time already exists in payroll for this employee and date');
+   const entry=addOtherTime(state,{tech:staffName(state,row.email),date:row.date,type:holiday?'holiday':row.type==='sick'?'sick':'pto',
+    quantity:row.quantity,description:holiday?'Approved staff holiday':'Approved staff leave'},actor);
    entry.employeeEmail=row.email;
    row.payrollEntryId=entry.id;
-   profile[bucket]=Math.round((profile[bucket]-row.quantity)*100)/100;
+   if(!holiday)profile[bucket]=Math.round((profile[bucket]-row.quantity)*100)/100;
   }
   Object.assign(row,{status:data.decision==='approve'?'Approved':'Declined',reviewedAt:new Date().toISOString(),reviewedBy:email});
   return row;

@@ -1,3 +1,9 @@
+# 0.10.9 — Staff pay scale and holiday requests
+
+- Add Pay scale to the employer-only Staff profiles table. Accrual reads the staff profile’s effective-dated wage first, then a usable entered hourly Pay scale (such as 31.50 or $31.50/hr); do not derive hourly pay from an annual salary or tier label.
+- Add Holiday under Add Time Off. Upon approval, create a Holiday payroll entry, show the approved day on the schedule under existing visibility rules, and leave vacation and sick balances alone.
+- No change to Cash wage policy, pay-period locks, or data import/migration.
+
 # 0.10.8 — Contribution cost follows Worked hours
 
 - Accrual cost uses the same Worked calculation as Last Five Weeks, extended from January 1 through today. Use straight-time hourly wages plus 25%, including worked travel and shop hours; no PTO, sick, holiday or overtime premium in Accrual.

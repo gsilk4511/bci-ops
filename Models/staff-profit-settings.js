@@ -41,6 +41,16 @@ export function explicitProfileHourlyCents(profile){
  const match=/^\s*\$(\d{1,5}(?:\.\d{1,2})?)\s*(?:\/\s*(?:hr|hour)|(?:an?|per)\s+hour)\s*$/i.exec(profile?.payScale||'');
  return match&&Number(match[1])<=wageMax/100?Math.round(Number(match[1])*100):null;
 }
+// Existing staff Pay scale values are accepted as hourly only for the live estimate.
+export function accrualProfileHourlyCents(profile){
+ const strict=explicitProfileHourlyCents(profile);
+ if(strict!==null)return strict;
+ const raw=String(profile?.payScale??'').trim();
+ const hourly=/^\$?\s*(\d{1,5}(?:\.\d{1,2})?)\s*(?:\/\s*(?:hour|hr|h)|(?:an?|per)\s+hour)$/i.exec(raw);
+ const standalone=/^\$?\s*(\d{1,3}(?:\.\d{1,2})?)$/.exec(raw);
+ const value=Number((hourly||standalone)?.[1]);
+ return Number.isFinite(value)&&value<=wageMax/100?Math.round(value*100):null;
+}
 export function contributionWageHistory(profile){
  const rows=Array.isArray(profile?.hourlyWages)?profile.hourlyWages:[];
  // Transitional input: only an explicit legacy hourly dollar rate, never a pay tier,

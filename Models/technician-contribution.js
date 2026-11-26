@@ -255,7 +255,7 @@ export function liveTechnicianContribution(state,identity,options={}){
  const fallbackWage=options.profileHourlyCents??wages.find(row=>row.date<=today&&row.cents!==null)?.cents;
  const scopedOrders=new Map((state.workorders||[]).map(order=>[order.id,order]));
  const payrollState=options.payrollState||state;
- const payroll=contributionPayroll(payrollState,email,{today,year,mode,wages,fallbackWage,asOf,isCashJob:(order,row)=>{
+ const payroll=contributionPayroll(payrollState,email,{today,year,mode,wages,fallbackWage,profileWageEntered:options.profileHourlyCents!=null,asOf,isCashJob:(order,row)=>{
   if(internalOrder(payrollState,order))return true;
   const visible=scopedOrders.get(order.id);
   return visible&&!visible.billingHidden?invoiceSource(visible,[row]):null;

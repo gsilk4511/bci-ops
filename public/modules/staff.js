@@ -1,14 +1,14 @@
 import {can, data, esc, f, head, me, modal, practiceMode, render, send, show, table, today} from '../app.js';
 
 import {profileCard, directoryProfile, personalProfileFields, personalProfilePayload, bindProfileEditor} from './staff-profile.js';
-import {contributionPanel} from './staff-contribution.js';
+import {contributionPanel,contributionCurrency} from './staff-contribution.js';
 import {contributionYear,openCompensationProfile,rateLabel} from './staff-contribution-admin.js';
 import {businessManagerPanel} from './business-manager.js';
 import {profileWeatherCard} from './profile-weather.js';
 import {staffWorkspaceTheme} from './staff-workspace-theme.js';
 
 let firstDay='',lastDay='';
-const categories={work:'Customer work',travel:'Travel',internal:'Internal work',vacation:'Vacation',sick:'Sick'};
+const categories={work:'Customer work',travel:'Travel',internal:'Internal work',vacation:'Vacation',sick:'Sick',holiday:'Holiday'};
 const number=value=>Number(value || 0).toLocaleString(undefined,{maximumFractionDigits:2});
 const inRange=record=>(!firstDay||record.date>=firstDay)&&(!lastDay||record.date<=lastDay);
 const ordered=rows=>rows.slice().sort((a,b)=>String(b.date||'').localeCompare(String(a.date||''))||String(a.type||'').localeCompare(String(b.type||'')));
@@ -156,13 +156,22 @@ export function staffPage() {
    <section class="panel"><h2>Time off</h2>${table(['Date','Category','Hours','Status'],leave.map(row=>`<tr><td>${esc(row.date)}</td><td>${esc(categories[row.type])}</td><td>${number(row.quantity)}</td><td>${esc(row.status)}</td></tr>`))}</section>`
   +`<section class="panel"><h2>Team directory</h2><p>Expand a coworker’s card, then select their photo to open their profile.</p>
    ${staff.directory?.length?`<div class="bci-staff-directory">${staff.directory.map(peer=>directoryProfile(peer,!practiceMode&&openDirectoryCards.has(peer.id))).join('')}</div>`:'<p>No other team profiles are available.</p>'}</section>`
-  +(admin?`<section class="panel"><h2>Staff profiles</h2>${table(['Employee','Sign-in','Vacation','Sick',rateYear+' profit share',''],staff.staffProfiles.map(row=>`<tr><td>${esc(row.name)}</td><td>${esc(row.email)}</td><td>${number(row.vacationHours)} h</td><td>${number(row.sickHours)} h</td><td>${esc(rateLabel(row,rateYear))}</td><td>${can('staff.manage')?action('manage','Edit staff profile',row.email):''}</td></tr>`))}</section>
+  +(admin?`<section class="panel"><h2>Staff profiles</h2>${table(['Employee','Sign-in','Pay scale','Vacation','Sick',rateYear+' profit share',''],staff.staffProfiles.map(row=>`<tr><td>${esc(row.name)}</td><td>${esc(row.email)}</td><td>${staffPayScaleCell(row)}</td><td>${number(row.vacationHours)} h</td><td>${number(row.sickHours)} h</td><td>${esc(rateLabel(row,rateYear))}</td><td>${can('staff.manage')?action('manage','Edit staff profile',row.email):''}</td></tr>`))}</section>
    <section class="panel"><h2>Pending time off</h2>${table(['Employee','Date','Category','Hours',''],staff.requests.map(row=>`<tr><td>${esc(staff.staffProfiles.find(member=>member.email===row.email)?.name||row.email)}</td><td>${esc(row.date)}</td><td>${esc(categories[row.type])}</td><td>${number(row.quantity)}</td><td>${can('staff.leaveReview')?action('review','Review',row.id):''}</td></tr>`))}</section>`:'');
  return staffWorkspaceTheme(profile.style,heading+`<div class="bci-staff-columns${practiceMode?'':' has-weather'}">${practiceMode?'':profileWeatherCard()}<div class="bci-staff-primary">${content}</div></div>`);
 }
+function staffPayScaleCell(row){
+ const label=String(row.payScale??'').trim();
+ const date=new Intl.DateTimeFormat('en-CA',{timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
+ const dated=row.hourlyWages?.find(record=>record.effectiveDate<=date);
+ const amount=dated?.hourlyCents??row.payScaleHourlyCents;
+ if(!Number.isFinite(amount))return label?esc(label)+' <small>· No hourly rate</small>':'<small>Not set</small>';
+ const displayed=contributionCurrency(amount)+' / hr';
+ return label&&(dated&&row.payScaleHourlyCents!==amount||row.payScaleHourlyCents==null)?esc(label)+'<br><small>'+esc(displayed)+'</small>':esc(displayed);
+}
 function profileFields(row,admin) {
  const common=f('name','Name',{required:true,value:row.name})+f('contactEmail','Contact email',{type:'email',required:true,value:row.contactEmail});
- return common+(admin?f('payScale','Pay scale',{value:row.payScale})+
+ return common+(admin?f('payScale','Pay scale',{value:row.payScale,hint:'Enter an hourly amount such as $31/hr for the Accrual estimate, or use a pay-tier label and set a dated base hourly wage below.'})+
   f('vacationHours','Available vacation hours',{type:'number',required:true,min:0,step:'0.01',value:String(row.vacationHours)})+
   f('sickHours','Available sick hours',{type:'number',required:true,min:0,step:'0.01',value:String(row.sickHours)}):'');
 }
@@ -223,7 +232,7 @@ document.addEventListener('click',event=>{
    const row=staff.staffProfiles?.find(item=>item.email===id);
    if(row&&can('staff.manage'))openCompensationProfile(row,contributionYear(staff),profileFields(row,true));break;
   }
-  case 'leave': if(can('staff.leave'))modal('Add time off',f('type','Type',{select:[['vacation','Vacation'],['sick','Sick time']]})+
+  case 'leave': if(can('staff.leave'))modal('Add time off',f('type','Type',{select:[['vacation','Vacation'],['sick','Sick time'],['holiday','Holiday']]})+
    f('date','Date',{type:'date',required:true,value:today()})+f('quantity','Hours',{type:'number',required:true,min:'0.01',step:'0.01'}),
    values=>send('staff.leave',values));break;
   case 'review': if(can('staff.leaveReview')&&staff.requests?.some(row=>row.id===id))modal('Review time off',

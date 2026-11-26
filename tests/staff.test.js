@@ -5,6 +5,7 @@ import {authorizePermission,effectivePermissions} from '../Models/permissions.js
 import {visibleState} from '../Models/visibility.js';
 import {defaultProfileStyle,profileStyleOptions} from '../public/modules/profile-style-catalog.js';
 import {payrollPreview} from '../Models/payroll.js';
+import {calendarView} from "../Models/calendar.js";
 
 const a='worker@example.com',b='other@example.com',o='admin@example.com';
 const tech={role:'tech',email:a,permissions:['staff.view','staff.profile','staff.leave','staff.internal','workorder.create','workorders.view']};
@@ -137,4 +138,37 @@ test('staff technician icons use stable employee identity not display name or ac
  assert.equal(staffTechnicianIcons(s,{...tech,email:b,permissions:['staff.view']},orders),orders);
  s.users[0].active=false;
  assert.equal(staffTechnicianIcons(s,{...tech,email:b},orders)[0].entries[0].technicianIcon,undefined);
+});
+
+test('approved Holiday adds the paid holiday and appears on calendar without reducing either leave balance',()=>{
+ const s=state(),date='2026-11-25';
+ staffAction(s,'staff.manage',{email:a,name:'Worker',contactEmail:a,payScale:'Tier 1',vacationHours:40,sickHours:16},manager);
+ const holiday=staffAction(s,'staff.leave',{type:'holiday',date,quantity:8},tech);
+ const viewer={...tech,permissions:[...tech.permissions,'calendar.view']};
+ assert.equal(s.payrollOther,undefined);
+ assert.equal(calendarView(s,s,viewer).daysOff.length,0);
+ assert.throws(()=>staffAction(s,'staff.leaveReview',{id:holiday.id,decision:'approve'},tech),/permission/i);
+ staffAction(s,'staff.leaveReview',{id:holiday.id,decision:'approve'},manager);
+ assert.equal(payrollPreview(s,date,date).rows[0].holiday,8);
+ assert.equal(s.payrollOther[0].employeeEmail,a);
+ assert.deepEqual(calendarView(s,s,viewer).daysOff.map(row=>row.date),[date]);
+ const view=staffView(s,tech);
+ assert.equal(view.profile.vacationHours,40);
+ assert.equal(view.profile.sickHours,16);
+ assert.equal(view.leave[0].status,'Approved');
+ const duplicate=staffAction(s,'staff.leave',{type:'holiday',date,quantity:4},tech);
+ assert.throws(()=>staffAction(s,'staff.leaveReview',{id:duplicate.id,decision:'approve'},manager),/already exists/);
+ assert.equal(s.payrollOther.length,1);
+});
+
+test('Holiday does not need an existing PTO profile and cannot be posted to a finalized pay period',()=>{
+ const s=state(),date='2026-11-25';
+ const holiday=staffAction(s,'staff.leave',{type:'holiday',date,quantity:8},tech);
+ s.payrollRuns=[{start:date,end:date}];
+ assert.throws(()=>staffAction(s,'staff.leaveReview',{id:holiday.id,decision:'approve'},manager),/approved/);
+ assert.equal(holiday.status,'Pending');
+ assert.equal(s.payrollOther,undefined);
+ s.payrollRuns=[];
+ staffAction(s,'staff.leaveReview',{id:holiday.id,decision:'approve'},manager);
+ assert.equal(s.payrollOther[0].quantity,8);
 });
