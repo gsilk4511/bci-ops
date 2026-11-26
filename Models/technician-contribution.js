@@ -223,7 +223,7 @@ export function liveTechnicianContribution(state,identity,options={}){
  const today=daysOf(asOf);
  const year=options.year??Number(today.slice(0,4));
  const mode=options.mode==='cash'?'cash':'accrual';
- const basis=mode==='cash'?'Invoiced customer labor with locked payroll confirmed paid. Paid nonbillable payroll time contributes cost, not revenue.':'Current logged customer labor and payroll-eligible hours, including paid leave.';
+ const basis=mode==='cash'?'Invoiced customer labor with locked payroll confirmed paid. Paid nonbillable payroll time contributes cost, not revenue.':'Current logged customer labor and year-to-date Worked hours at straight time.';
  const invoiceActive=invoice=>!!invoiceKey(invoice)&&!invoice.voidedAt&&!invoice.void&&!['void','draft','cancelled','canceled'].includes(invoice.status);
  const explicitlyVoid=invoice=>invoice&&(invoice.voidedAt||invoice.void||['void','cancelled','canceled'].includes(invoice.status));
  const invoiceGroups=new Map();

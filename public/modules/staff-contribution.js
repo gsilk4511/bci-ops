@@ -36,7 +36,7 @@ function bonusPanel(view,cash){
  const gross=bonus?.status==='available'&&Number.isSafeInteger(bonus.projectedCents)?bonus.projectedCents:null;
  const net=gross===null?null:Number((BigInt(gross)*70n+50n)/100n);
  const milestone=gross===null?null:Math.max(25000,Math.ceil(gross/25000)*25000);
- const partial=estimate?.partial?'Partial estimate':estimate?.straightTimeOnly?'Straight-time estimate':'';
+ const partial=estimate?.partial?'Partial estimate':estimate?.straightTimeOnly?'Worked hours · straight time':'';
  return `<section class="bci-profit-bonus" aria-labelledby="bonusHeading">
   <div class="bci-profit-bonus-copy">
    <p>${cash?'Invoiced work · payroll paid':'Live estimate · year to date'}</p>
@@ -62,15 +62,15 @@ function helpPanel(view,cash){
   <p><strong>Accrual:</strong> Logged time counts right away. Review, submission, invoicing and payroll payment aren’t required. Edits can change the estimate.</p>
   <p><strong>Cash:</strong> Invoiced work counts after its locked payroll is marked paid. Customer payment is not required. Paid nonbillable payroll time contributes cost, not revenue.</p>
   <p><strong>Labor revenue:</strong> Customer work hours × recorded labor charge. Materials and travel don’t earn labor revenue.</p>
-  <p><strong>Employment cost:</strong> Wages × 1.25, including payable travel, internal work and paid leave. Accrual uses the rate effective on the work date, or an available profile hourly rate when no older rate is on file.</p>
+  <p><strong>Employment cost:</strong> Accrual uses the same Worked hours shown in Last Five Weeks, but for the whole year to date. Work, travel and shop time count; PTO, sick time and holidays do not. Each worked hour is priced at straight time with the effective or fallback hourly wage, then loaded by 25%. Cash still uses eligible paid payroll costs.</p>
   <p><strong>Labor profit after tax reserve:</strong> BCI sets aside an estimated 30% of positive labor profit after employment cost. Your profit-share percentage applies to the positive amount remaining.</p>
   <p><strong>Estimated take-home:</strong> For example, $1,000 gross is roughly $700 using the separate 30% employee-tax assumption. Actual withholding and final tax can differ. This is not a payroll calculation or a payment promise. Meter milestones are display guides, not payout goals.</p>
   <h4>${cash?'Cash coverage':'Accrual coverage'}</h4>
   <p>${Number(coverage?.includedOrders)||0} work orders included · ${Number(coverage?.excludedOrders)||0} work orders with revenue that couldn’t be used.</p>
   ${coverage?.scopeIncomplete?'<p>Some work is outside this profile’s view. A full profit or bonus is unavailable.</p>':''}
-  ${estimate?`<p>${Number(estimate.loggedHours||0).toLocaleString(undefined,{maximumFractionDigits:2})} logged payroll hours.
-   ${estimate.fallbackRows?Number(estimate.fallbackRows)+' entries use a fallback hourly rate. ':''}
-   ${estimate.straightTimeOnly?'A workweek is not set. This estimate excludes overtime premiums.':''}</p>
+  ${estimate?`<p>${Number(estimate.loggedHours||0).toLocaleString(undefined,{maximumFractionDigits:2})} year-to-date Worked hours.
+   ${estimate.fallbackRows?Number(estimate.fallbackRows)+(estimate.fallbackRows===1?' entry uses':' entries use')+' a fallback hourly rate. ':''}
+   ${estimate.straightTimeOnly?'Accrual prices all Worked hours at straight time, even when a workweek is set; it excludes overtime premiums.':''}</p>
    ${estimate.partial?'<p>Some data is missing or unusable. The profit and bonus estimates do not treat labor without a usable wage as free.</p>':''}
    ${estimate.issueCount?`<p>${Number(estimate.issueCount)} checks need attention (dates and categories only):</p><ul>
     ${(estimate.issues||[]).map(issue=>`<li>${esc(issue.date||'Date unavailable')} · ${esc(typeLabels[issue.type]||'Time')} · ${esc(issueLabels[issue.reason]||'Needs review')}</li>`).join('')}</ul>
@@ -82,6 +82,9 @@ export function contributionPanel(data, projects=[], mode='accrual'){
  const cash=mode==='cash'&&!!data.cash;
  const view=cash?data.cash:data;
  const {status,totalAttributedCents,totalEmploymentCostCents,totalAfterTaxProfitCents,coverage}=view;
+ const workedHours=view.estimate?.loggedHours;
+ const missingWage=!cash&&workedHours>0&&!Number.isFinite(totalEmploymentCostCents)&&view.estimate?.issues?.some(row=>row.reason==='missing-wage');
+ const costCaption=cash?'Payroll wages plus 25%.':Number.isFinite(workedHours)?workedHours.toLocaleString(undefined,{maximumFractionDigits:2})+' h worked year to date · '+(missingWage?'hourly wage needed.':'straight-time wages plus 25%.'):'Straight-time wages plus 25%.';
  const names=new Map(projects.map(row=>[row.id,row.name]));
  const amounts=Array.isArray(view.projects)?view.projects:[];
  const metric=field=>amounts.map((row,i)=>({
@@ -99,7 +102,7 @@ export function contributionPanel(data, projects=[], mode='accrual'){
   ${bonusPanel(view,cash)}
   <div class="bci-profit-grid">
    ${pie('Labor revenue','Qualifying hours at the recorded customer labor rate.',totalAttributedCents,metric('attributedCents'))}
-   ${pie('Employment cost','Payroll wages plus 25%.',totalEmploymentCostCents,metric('employmentCostCents'))}
+   ${pie('Employment cost',costCaption,totalEmploymentCostCents,metric('employmentCostCents'))}
    ${pie('Labor profit after tax reserve','After BCI’s estimated reserve.',totalAfterTaxProfitCents,metric('afterTaxProfitCents'),true)}
   </div>
   ${helpPanel(view,cash)}

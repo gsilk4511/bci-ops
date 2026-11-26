@@ -3,6 +3,8 @@
 const section = (title, ...items) => ({title, items});
 const release = (version, title, summary, ...sections) => ({version, title, summary, sections});
 export const releases = [
+ release('0.10.8','Contribution cost follows Worked hours','Accrual uses the same logged hours as your weekly Worked column.',
+  section('Accrual','The chart totals Worked hours from January 1 through today at straight-time wages plus 25%. Pay categories shown separately from Worked stay separate. Cash and payroll are unchanged.')),
  release('0.10.7','Live contribution estimates and bonus meter','See your estimated bonus build as hours are logged, with a quick guide to the numbers.',
   section('Accrual','Use logged, unreviewed time for cost and profit. Clearly label fallback wage and overtime assumptions and any partial totals.'),
   section('Technician contribution','Gross bonus meter first, estimated take-home second. Keep the three charts and put calculation details behind the question-mark button. Cash and payroll rules are unchanged.')),

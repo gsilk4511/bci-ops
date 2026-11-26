@@ -62,7 +62,7 @@ test('employee-only dashboard uses five configured workweeks, with compensable s
  assert.equal(metrics(s,tech,s,new Date('2026-11-23T05:00:00Z')).weeklyTime.rows[0].start,'2026-11-23');
 });
 
-test('Simon example: live payroll includes paid holiday and uses a 30% reserve on positive labor profit',()=>{
+test('Simon example: Accrual excludes paid holiday and uses a 30% reserve on positive labor profit',()=>{
  const s=fixture(),w=s.workorders[0];
  s.staffProfiles[0]={email,payScale:'$31/hour',profitShareBpsByYear:{2026:1000}};
  w.entries=[row('work-1','labor','2026-11-23',20,{rate:2750}),row('work-2','labor','2026-11-24',14,{rate:45000/14}),
@@ -72,11 +72,11 @@ test('Simon example: live payroll includes paid holiday and uses a 30% reserve o
  s.payrollOther=[row('holiday','holiday','2026-11-25',8),row('legacy-unlinked','holiday','2026-11-25',8,{employeeEmail:'',tech:'Simon'})];
  const live=metrics(s).contribution;
  assert.equal(live.totalAttributedCents,10000000);
- assert.equal(live.totalEmploymentCostCents,162750);
- assert.equal(live.totalNetProfitCents,9837250);
- assert.equal(live.taxReserveCents,2951175);
- assert.equal(live.totalAfterTaxProfitCents,6886075);
- assert.equal(live.bonus.projectedCents,688608);
+ assert.equal(live.totalEmploymentCostCents,131750);
+ assert.equal(live.totalNetProfitCents,9868250);
+ assert.equal(live.taxReserveCents,2960475);
+ assert.equal(live.totalAfterTaxProfitCents,6907775);
+ assert.equal(live.bonus.projectedCents,690778);
  assert.equal(live.cash.bonus.projectedCents,0);
  const {cash:initialCash,...initialAccrual}=live;
  w.invoice={number:'QB-1',status:'sent',sentAt:'2026-11-25T10:00:00Z',amountPaid:0};
@@ -109,7 +109,7 @@ test('Simon example: live payroll includes paid holiday and uses a 30% reserve o
  const scoped=scopeState(s,{...tech,recordScopes:{workorders:'own'}});
  assert.equal(metrics(s,tech,scoped).contribution.bonus.projectedCents,null);
  assert.ok(metrics(s,tech,scoped).contribution.coverage.scopeIncomplete);
- assert.equal(metrics(s,tech,scoped).contribution.totalEmploymentCostCents,162750);
+ assert.equal(metrics(s,tech,scoped).contribution.totalEmploymentCostCents,131750);
 });
 
 test('correction recomputes the live estimate without rewriting an approved payroll snapshot',()=>{
@@ -120,7 +120,7 @@ test('correction recomputes the live estimate without rewriting an approved payr
  s.workorders[0].entries[0].quantity=23; // Fixture represents a later source reconciliation, not a payroll write path.
  const view=metrics(s);
  assert.deepEqual(amounts(view.weeklyTime.rows[0]),[40,6,0,0,8]);
- assert.equal(view.contribution.bonus.projectedCents,8260);
+ assert.equal(view.contribution.bonus.projectedCents,13860);
  assert.deepEqual(s.payrollRuns,[locked]);
 });
 
@@ -151,7 +151,7 @@ test('Cash uses matched frozen invoice labor and paid payroll, not current rates
  s.workorders.push({...w,id:'new-unbilled',invoice:null,entries:[row('new-labor','labor','2026-11-25',2)]});
  const result=metrics(s).contribution;
  assert.equal(result.totalAttributedCents,540000);
- assert.equal(result.totalEmploymentCostCents,290000);
+ assert.equal(result.totalEmploymentCostCents,204000);
  assert.equal(result.cash.totalAttributedCents,400000);
  assert.equal(result.cash.totalEmploymentCostCents,202000);
  assert.equal(result.cash.bonus.projectedCents,13860);
@@ -231,7 +231,26 @@ test('unset workweek uses straight time even over 40 worked hours, without chang
  const snapshot=payrollPreview(s,'2026-11-23','2026-11-29');
  const {contribution:live}=metrics(s);
  assert.equal(live.estimate.straightTimeOnly,true);
- assert.equal(live.totalEmploymentCostCents,264000); // 47 worked + 19 paid leave/shop hours over YTD.
+ assert.equal(live.totalEmploymentCostCents,196000); // 47 work and travel hours + 2 shop hours; excludes leave.
  assert.equal(live.bonus.status,'available');
  assert.deepEqual(payrollPreview(s,'2026-11-23','2026-11-29'),snapshot);
+});
+
+test('YTD Accrual selects the same Worked hours as the profile, plus older same-year work at straight time',()=>{
+ const s=fixture(),w=s.workorders[0];s.meta.staffWorkweekStart=1;
+ s.staffProfiles[0]={email,payScale:'$31/hr'};
+ w.entries=[row('week-current-a','labor','2026-11-23',20),row('week-current-b','labor','2026-11-24',19.5),
+  row('week-last-a','labor','2026-11-16',20),row('week-last-b','travel','2026-11-17',25.5,{sharedTravel:true}),
+  row('before-week-window','labor','2026-01-01',2),row('last-year','labor','2025-12-31',10),
+  row('future','labor','2026-11-26',10),row('other','labor','2026-11-25',10,{employeeEmail:other})];
+ s.payrollOther=[row('paid-leave','holiday','2026-11-25',8)];
+ const view=metrics(s);
+ assert.deepEqual(view.weeklyTime.rows.map(x=>x.worked),[39.5,45.5,0,0,0]);
+ assert.equal(view.weeklyTime.rows[1].overtime,5.5);
+ assert.equal(view.contribution.estimate.loggedHours,87);
+ assert.equal(view.contribution.totalEmploymentCostCents,337125);
+ s.staffProfiles[0].payScale='';
+ const missing=metrics(s).contribution;
+ assert.equal(missing.estimate.loggedHours,87);
+ assert.equal(missing.totalEmploymentCostCents,null);
 });

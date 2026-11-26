@@ -1,4 +1,4 @@
-# Update existing BCI Operations staging to 0.10.7
+# Update existing BCI Operations staging to 0.10.8
 
 ## Greg: use the existing staging stack
 
@@ -10,7 +10,7 @@
    `mariadb.env`, MariaDB database name, named volume, bridge, and service
    hostname `db`. Do not replace these with bundled examples.
 4. Confirm the app build context points to the updated source. In the active
-   Compose file, change the app image tag to `bci-operations:0.10.7`. Do not
+   Compose file, change the app image tag to `bci-operations:0.10.8`. Do not
    change the database service. Use the actual app service name if different.
    This release excludes bundled catalog photos. Its .dockerignore also excludes
    any old Server/CatalogPhotos directory left from a previous extraction. This
@@ -24,12 +24,24 @@ docker compose -f compose.bci-operations-fixed.yml up -d --build --no-deps --for
 docker compose -f compose.bci-operations-fixed.yml exec -T bci-operations node -e "fetch('http://127.0.0.1:3100/api/health').then(r=>r.json()).then(console.log)"
 ```
 
-Recreate by itself does not build a new image. Verify `0.10.7` in the health
+Recreate by itself does not build a new image. Verify `0.10.8` in the health
 response and beside the BCI logo. Do not import or reseed the app database for this update. To test optional User Security separately, follow USER_SECURITY.md.
 If you roll back, restore the previous source, restore its former image tag
 and rebuild only the app. Keep the database and its volume in place.
 
-## Randy: accept 0.10.7 on staging
+## Randy: accept 0.10.8 on staging
+
+- Compare Last Five Weeks → Worked and Technician Contribution → Employment
+  cost. When the visible weeks show 39.5 and 45.5 hours and there are no older
+  entries in the year, the contribution chart should show 85 h worked. Add
+  any older same-year Worked hours to that check; exclude future dates and
+  last year's hours. The total is based on logged precision, without rounding
+  each week before adding it to the year.
+- Accrual uses straight time and excludes PTO, sick and holiday hours even if
+  the employee has confirmed payroll rules. Cash and locked payroll still use
+  their original calculations. No database import or migration.
+
+## Earlier release: accept 0.10.7 on staging
 
 - Open My Time & Profile → Technician contribution in Accrual. Logged time
   counts without review or an invoice. Check the gross bonus, its milestone,

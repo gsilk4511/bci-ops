@@ -1,3 +1,9 @@
+# 0.10.8 — Contribution cost follows Worked hours
+
+- Accrual cost uses the same Worked calculation as Last Five Weeks, extended from January 1 through today. Use straight-time hourly wages plus 25%, including worked travel and shop hours; no PTO, sick, holiday or overtime premium in Accrual.
+- Show year-to-date Worked hours directly above the employment-cost chart, even if the wage needed for the dollar total is missing.
+- Cash, payroll approvals, employer settings and the weekly display are unchanged. No database import or migration.
+
 # 0.10.7 — Live contribution estimates and bonus meter
 
 - Accrual shows employment cost, after-reserve labor profit and the estimated bonus as time is logged, before review, invoicing or payment.

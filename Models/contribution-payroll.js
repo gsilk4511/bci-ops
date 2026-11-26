@@ -1,5 +1,5 @@
 import {employeeKey,payrollEntries,validDate} from './payroll.js';
-import {workweekStart} from './staff-weekly-time.js';
+import {isWorkedTime,profileTimeRows} from './staff-weekly-time.js';
 
 const types=new Set(['labor','travel','shop','pto','sick','holiday']);
 const worked=new Set(['labor','travel','shop']);
@@ -14,18 +14,12 @@ const allocateOvertime=(rows,total,output)=>{
   remaining-=overtime;
  }
 };
-const weekOf=(date,starts)=>{
- const stamp=new Date(date+'T00:00:00Z');
- stamp.setUTCDate(stamp.getUTCDate()-((stamp.getUTCDay()-starts+7)%7));
- return stamp.toISOString().slice(0,10);
-};
-
 // The payroll ledger is the authoritative source for payable time. Invoice
 // status is applied separately as a Cash eligibility filter to billable jobs.
 export function contributionPayroll(state,email,{today,year,mode,wages,fallbackWage,isCashJob,asOf}){
  const runs=state.payrollRuns||[];
- const live=payrollEntries({...state,projects:state.projects||[],workorders:state.workorders||[]})
-  .filter(row=>employeeKey(row.employeeEmail||row.tech)===email&&types.has(row.type)&&(row.date<=today||mode==='accrual'&&!day(row.date)));
+ const live=mode==='cash'?payrollEntries({...state,projects:state.projects||[],workorders:state.workorders||[]})
+  .filter(row=>employeeKey(row.employeeEmail||row.tech)===email&&types.has(row.type)&&row.date<=today):[];
  const cashRevenueIds=new Set(), currentById=new Map(), duplicates=new Set(), source=[];
  const workToOrder=new Map();
  for(const order of state.workorders||[])for(const row of order.entries||[]){
@@ -35,7 +29,6 @@ export function contributionPayroll(state,email,{today,year,mode,wages,fallbackW
  for(const row of live){if(currentById.has(row.id))duplicates.add(row.id);else currentById.set(row.id,row);}
  const valid=row=>day(row.date)&&Boolean(row.id)&&!duplicates.has(row.id)&&Number.isFinite(row.quantity)&&row.quantity>0&&
   (!row.unit||/^(hr|hour|hours|h)$/i.test(row.unit));
- const workweek=workweekStart(state.meta?.staffWorkweekStart);
  let missingHours=0, fallbackRows=0;
  const issues=[], pricedIds=new Set();
  const flag=(row,reason)=>{
@@ -70,20 +63,11 @@ export function contributionPayroll(state,email,{today,year,mode,wages,fallbackW
    }
   }
  }else{
-  const grouped=new Map();
-  for(const row of live){
-   if(!valid(row)){if(!day(row.date)||row.date.startsWith(year+'-'))flag(row,'invalid-hours');continue;}
-   if(!worked.has(row.type))continue;
-   const key=weekOf(row.date,workweek??1);
-   if(!grouped.has(key))grouped.set(key,[]);
-   grouped.get(key).push(row);
+  for(const {row,valid:usable} of profileTimeRows(state,email,year+'-01-01',today)){
+   if(!isWorkedTime(row))continue;
+   if(!usable){flag(row,'invalid-hours');continue;}
+   source.push(row);
   }
-  for(const rows of grouped.values()){
-   const hours=rows.reduce((sum,row)=>sum+row.quantity,0);
-   if(workweek!==null)allocateOvertime(rows,Math.max(0,hours-40),overtime);
-
-  }
-  for(const row of live)if(row.date?.startsWith(year+'-')&&valid(row))source.push(row);
  }
  const wagesByOrder=new Map();
  let grossWages=0, hours=0, incomplete=false;
@@ -112,5 +96,5 @@ export function contributionPayroll(state,email,{today,year,mode,wages,fallbackW
  const costs=new Map(allocations.map((row,index)=>[row.key,row.floor+(index<leftover?1:0)]));
  const unassignedCost=costs.get(null)||0;
  costs.delete(null);
- return {hrs:hours,hasRows:source.length>0,total,unassignedCost,costs,cashRevenueIds,missingHours,incomplete,pricedIds,fallbackRows,issues,straightTimeOnly:mode==='accrual'&&workweek===null&&source.some(row=>worked.has(row.type))};
+ return {hrs:hours,hasRows:source.length>0,total,unassignedCost,costs,cashRevenueIds,missingHours,incomplete,pricedIds,fallbackRows,issues,straightTimeOnly:mode==='accrual'&&source.length>0};
 }
