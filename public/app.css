@@ -418,7 +418,16 @@ button.danger{background:#a72323;border:2px solid #8a1818;border-radius:8px;colo
 .bci-profit-ring .bci-staff-total strong{font-size:clamp(.9rem,1.5vw,1.12rem)}
 .bci-profit-loss-note{font-weight:625}
 .bci-profit-bonus{display:grid;gap:12px;grid-template-columns:repeat(2,minmax(0,1fr));margin-top:1rem;}
-.bci-profit-bonus-copy>strong{font-size:clamp(1.25rem,2.8vw,2rem);display:block}
+.bci-profit-bonus-copy>strong{font-size:clamp(2rem,5vw,3.6rem);line-height:1.12;display:block}
+.bci-contribution-head{display:flex;align-items:center;justify-content:space-between;gap:.75rem}
+.bci-contribution-head h2,.bci-contribution-head h3{margin:0}
+.bci-contribution-help-button{min-width:44px;min-height:44px;font-weight:800}
+.bci-bonus-progress{align-self:center;min-width:0}
+.bci-bonus-progress progress{display:block;width:100%;height:1.3rem;accent-color:#24a594;margin:.35rem 0}
+.bci-profit-status{display:inline-block;border:1px solid currentColor;border-radius:1rem;padding:.13rem .5rem;margin-top:.35rem}
+.bci-contribution-help{width:min(36rem,calc(100% - 2rem));max-height:calc(100dvh - 2rem);overflow:auto;padding:1.25rem;border:1px solid var(--staff-workspace-border,#818e8e);border-radius:12px;background:var(--staff-workspace-surface,Canvas);color:var(--staff-workspace-text,CanvasText)}
+.bci-contribution-help::backdrop{background:#061015b8}
+.bci-contribution-help p,.bci-contribution-help li{line-height:1.45}
 .bci-profit-bonus-copy>p:first-child{margin:0 0 .4rem;font-weight:650}
 .bci-profit-bonus p{margin:.35rem 0}
 .bci-profit-meter{width:100%;height:1.2rem;accent-color:#157f76}

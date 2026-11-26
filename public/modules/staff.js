@@ -39,7 +39,7 @@ function renderLiveMetrics(target,staff,focusMode){
 }
 async function refreshStaffMetrics(){
  const target=document.querySelector('#staffLiveMetrics'), staff=target&&data?.staff;
- if(document.hidden||refreshing||!staff||!can('staff.view')||target.dataset.practice==='true')return;
+ if(document.hidden||refreshing||!staff||!can('staff.view')||target.dataset.practice==='true'||target.querySelector?.('.bci-contribution-help[open]')?.open)return;
  refreshing=true;
  try{
   const response=await fetch('/api/staff-summary',{cache:'no-store'});
@@ -47,7 +47,7 @@ async function refreshStaffMetrics(){
   if(response.status===401||response.status===403){target.replaceChildren();return;}
   if(!response.ok)return;
   const next=await response.json();
-  if(data?.staff!==staff||!target.isConnected||next.email!==staff.profile.email||!next.weeklyTime)return;
+  if(data?.staff!==staff||!target.isConnected||target.querySelector?.('.bci-contribution-help[open]')?.open||next.email!==staff.profile.email||!next.weeklyTime)return;
   if(JSON.stringify([staff.contribution,staff.weeklyTime])===JSON.stringify([next.contribution,next.weeklyTime]))return;
   Object.assign(staff,{contribution:next.contribution,weeklyTime:next.weeklyTime});
   const focused=document.activeElement;
@@ -188,6 +188,13 @@ document.addEventListener('click',event=>{
    directoryState=null;render();
    const restored=document.querySelector(`[data-directory-id="${former}"] [data-staff-action="directory-open"]`);
    restored?.focus({preventScroll:true});restored?.scrollIntoView({block:'nearest'});
+   break;
+  }
+  case 'contribution-help': {
+   const dialog=button.closest('.panel')?.querySelector('.bci-contribution-help');
+   if(!dialog||dialog.open)return;
+   dialog.showModal();
+   dialog.addEventListener('close',()=>button.focus({preventScroll:true}),{once:true});
    break;
   }
   case 'contribution-mode': {

@@ -37,13 +37,17 @@ function wageDate(value){
  if(Number(date.slice(0,4))<2000||Number(date.slice(0,4))>2200)throw Error('Choose a wage effective date from 2000 to 2200');
  return date;
 }
+export function explicitProfileHourlyCents(profile){
+ const match=/^\s*\$(\d{1,5}(?:\.\d{1,2})?)\s*(?:\/\s*(?:hr|hour)|(?:an?|per)\s+hour)\s*$/i.exec(profile?.payScale||'');
+ return match&&Number(match[1])<=wageMax/100?Math.round(Number(match[1])*100):null;
+}
 export function contributionWageHistory(profile){
  const rows=Array.isArray(profile?.hourlyWages)?profile.hourlyWages:[];
  // Transitional input: only an explicit legacy hourly dollar rate, never a pay tier,
  // annual salary, or ambiguous free-text number. Dated wages take precedence.
  if(!rows.length){
-  const match=/^\s*\$(\d{1,5}(?:\.\d{1,2})?)\s*(?:\/\s*(?:hr|hour)|(?:an?|per)\s+hour)\s*$/i.exec(profile?.payScale||'');
-  if(match&&Number(match[1])<=wageMax/100)return [{effectiveDate:'2000-01-01',hourlyCents:Math.round(Number(match[1])*100)}];
+  const hourlyCents=explicitProfileHourlyCents(profile);
+  if(hourlyCents!=null)return [{effectiveDate:'2000-01-01',hourlyCents}];
  }
  return rows.flatMap(row=>{
   try{

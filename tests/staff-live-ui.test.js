@@ -89,3 +89,23 @@ test('live profile panels inherit workspace theme and contribution shows both ba
  assert.match(cash,/No invoiced work with confirmed paid payroll yet/);
  assert.doesNotMatch(cash,/\$33\.69/);
 });
+
+test('bonus meter leads with gross, uses a separate take-home estimate, and hides assumptions in a dialog',async()=>{
+ const context=vm.createContext({});
+ const panel=new vm.SourceTextModule(readFileSync(new URL('../public/modules/staff-contribution.js',import.meta.url),'utf8'),{context});
+ await panel.link(()=>new vm.SyntheticModule(['esc'],function(){this.setExport('esc',s=>String(s??''));},{context}));
+ await panel.evaluate();
+ const html=panel.namespace.contributionPanel({
+  bonus:{status:'available',projectedCents:823,profitShareBps:500},
+  estimate:{partial:true,loggedHours:4,straightTimeOnly:true,issueCount:1,issues:[{date:'2026-11-17',type:'labor',reason:'missing-wage'}]}
+ });
+ assert.match(html,/<strong>\$8\.23<\/strong>/);
+ assert.match(html,/~\$5\.76 estimated take-home/);
+ assert.match(html,/<progress[^>]+value="823"/);
+ assert.match(html,/Partial estimate/);
+ assert.match(html,/aria-haspopup="dialog">\?<\/button>/);
+ const [main,help]=html.split('<dialog');
+ assert.doesNotMatch(main,/No usable hourly rate|excludes overtime premiums/);
+ assert.match(help,/No usable hourly rate/);
+ assert.match(help,/excludes overtime premiums/);
+});

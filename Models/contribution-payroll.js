@@ -22,10 +22,10 @@ const weekOf=(date,starts)=>{
 
 // The payroll ledger is the authoritative source for payable time. Invoice
 // status is applied separately as a Cash eligibility filter to billable jobs.
-export function contributionPayroll(state,email,{today,year,mode,wages,isCashJob,asOf}){
+export function contributionPayroll(state,email,{today,year,mode,wages,fallbackWage,isCashJob,asOf}){
  const runs=state.payrollRuns||[];
  const live=payrollEntries({...state,projects:state.projects||[],workorders:state.workorders||[]})
-  .filter(row=>employeeKey(row.employeeEmail||row.tech)===email&&types.has(row.type)&&row.date<=today);
+  .filter(row=>employeeKey(row.employeeEmail||row.tech)===email&&types.has(row.type)&&(row.date<=today||mode==='accrual'&&!day(row.date)));
  const cashRevenueIds=new Set(), currentById=new Map(), duplicates=new Set(), source=[];
  const workToOrder=new Map();
  for(const order of state.workorders||[])for(const row of order.entries||[]){
@@ -36,7 +36,12 @@ export function contributionPayroll(state,email,{today,year,mode,wages,isCashJob
  const valid=row=>day(row.date)&&Boolean(row.id)&&!duplicates.has(row.id)&&Number.isFinite(row.quantity)&&row.quantity>0&&
   (!row.unit||/^(hr|hour|hours|h)$/i.test(row.unit));
  const workweek=workweekStart(state.meta?.staffWorkweekStart);
- let missingHours=0;
+ let missingHours=0, fallbackRows=0;
+ const issues=[], pricedIds=new Set();
+ const flag=(row,reason)=>{
+  missingHours++;
+  if(mode==='accrual')issues.push({date:day(row.date)?row.date:null,type:row.type,reason});
+ };
  if(mode==='cash'){
   const seen=new Set();
   for(const run of runs){
@@ -65,9 +70,9 @@ export function contributionPayroll(state,email,{today,year,mode,wages,isCashJob
    }
   }
  }else{
-  const grouped=new Map(), overtimeMissing=new Set();
+  const grouped=new Map();
   for(const row of live){
-   if(!valid(row)){if(row.date?.startsWith(year+'-'))missingHours++;continue;}
+   if(!valid(row)){if(!day(row.date)||row.date.startsWith(year+'-'))flag(row,'invalid-hours');continue;}
    if(!worked.has(row.type))continue;
    const key=weekOf(row.date,workweek??1);
    if(!grouped.has(key))grouped.set(key,[]);
@@ -76,22 +81,23 @@ export function contributionPayroll(state,email,{today,year,mode,wages,isCashJob
   for(const rows of grouped.values()){
    const hours=rows.reduce((sum,row)=>sum+row.quantity,0);
    if(workweek!==null)allocateOvertime(rows,Math.max(0,hours-40),overtime);
-   else if(hours>40+epsilon)for(const row of rows)overtimeMissing.add(row.id);
+
   }
-  for(const row of live)if(row.date?.startsWith(year+'-')&&valid(row)){
-   if(overtimeMissing.has(row.id)){missingHours++;continue;}
-   source.push(row);
-  }
+  for(const row of live)if(row.date?.startsWith(year+'-')&&valid(row))source.push(row);
  }
  const wagesByOrder=new Map();
  let grossWages=0, hours=0, incomplete=false;
  for(const row of source){
   const wage=wages.find(wage=>wage.date<=row.date);
+  const fallback=mode==='accrual'&&!wage&&Number.isSafeInteger(fallbackWage)&&fallbackWage>=0;
+  const cents=fallback?fallbackWage:wage?.cents;
   hours+=row.quantity;
-  if(wage?.cents==null){missingHours++;continue;}
-  const gross=(row.quantity+(overtime.get(row.id)||0)*.5)*wage.cents;
-  if(!Number.isFinite(gross)||grossWages+gross>Number.MAX_SAFE_INTEGER/2){incomplete=true;continue;}
+  if(cents==null){flag(row,'missing-wage');continue;}
+  const gross=(row.quantity+(overtime.get(row.id)||0)*.5)*cents;
+  if(!Number.isFinite(gross)||grossWages+gross>Number.MAX_SAFE_INTEGER/2){incomplete=true;if(mode==='accrual')flag(row,'cost-overflow');continue;}
   grossWages+=gross;
+  pricedIds.add(row.id);
+  if(fallback)fallbackRows++;
   const order=workToOrder.get(row.id)?.id??null;
   wagesByOrder.set(order,(wagesByOrder.get(order)||0)+gross);
  }
@@ -106,5 +112,5 @@ export function contributionPayroll(state,email,{today,year,mode,wages,isCashJob
  const costs=new Map(allocations.map((row,index)=>[row.key,row.floor+(index<leftover?1:0)]));
  const unassignedCost=costs.get(null)||0;
  costs.delete(null);
- return {hrs:hours,hasRows:source.length>0,total,unassignedCost,costs,cashRevenueIds,missingHours,incomplete};
+ return {hrs:hours,hasRows:source.length>0,total,unassignedCost,costs,cashRevenueIds,missingHours,incomplete,pricedIds,fallbackRows,issues,straightTimeOnly:mode==='accrual'&&workweek===null&&source.some(row=>worked.has(row.type))};
 }

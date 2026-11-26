@@ -1,3 +1,10 @@
+# 0.10.7 — Live contribution estimates and bonus meter
+
+- Accrual shows employment cost, after-reserve labor profit and the estimated bonus as time is logged, before review, invoicing or payment.
+- Prefer dated wages. Older gaps can use an explicitly hourly profile rate or a currently effective dated hourly rate; flag straight-time estimates when the workweek is unset. An unusable row no longer hides the correctly matched subtotal.
+- Keep the gross bonus meter prominent, show a separate approximate take-home figure, and put calculation details and data notes under the question-mark guide.
+- No payroll, cash eligibility, data, permission or database migration changes.
+
 # 0.10.6 — Scheduling, Team permissions, and time entry
 
 - Central scheduling: overview, separate project and work order views, combined timeline, crew and technician views; multiday appointments with per-day hours; fleet and staff dates.

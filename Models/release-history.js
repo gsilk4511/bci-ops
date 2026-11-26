@@ -3,6 +3,9 @@
 const section = (title, ...items) => ({title, items});
 const release = (version, title, summary, ...sections) => ({version, title, summary, sections});
 export const releases = [
+ release('0.10.7','Live contribution estimates and bonus meter','See your estimated bonus build as hours are logged, with a quick guide to the numbers.',
+  section('Accrual','Use logged, unreviewed time for cost and profit. Clearly label fallback wage and overtime assumptions and any partial totals.'),
+  section('Technician contribution','Gross bonus meter first, estimated take-home second. Keep the three charts and put calculation details behind the question-mark button. Cash and payroll rules are unchanged.')),
  release('0.10.6','Scheduling, Team permissions, and time entry','Plan your crew, review access, and log on behalf of your team.',
   section('Calendar','All-business overview and dedicated scheduling views. Schedule from a project or work order, export booked days, and prepare separate Outlook client invitations.'),
   section('Work Orders','Time, Travel, and Parts in Original Field Journal; All entries or My entries; a single Actions menu; authorized delegated time entry with audit attribution.'),

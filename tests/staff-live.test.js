@@ -184,3 +184,54 @@ test('tax reserve is on positive annual profit after losses; project totals reco
  assert.equal(loss.totalAfterTaxProfitCents,-494);
  assert.equal(loss.bonus.projectedCents,0);
 });
+
+test('unreviewed Accrual uses profile fallback for a dated gap without changing Cash',()=>{
+ const s=fixture(),w=s.workorders[0];
+ w.entries=[row('early','labor','2026-11-17',2),row('late','labor','2026-11-24',2)];
+ s.payrollOther=[];
+ s.staffProfiles[0]={email,payScale:'$31/hr',hourlyWages:[{effectiveDate:'2026-11-23',hourlyCents:3500}]};
+ delete w.approvedAt;
+ const live=metrics(s).contribution;
+ assert.equal(live.totalAttributedCents,40000);
+ assert.equal(live.totalEmploymentCostCents,16500);
+ assert.equal(live.taxReserveCents,7050);
+ assert.equal(live.totalAfterTaxProfitCents,16450);
+ assert.equal(live.bonus.projectedCents,823);
+ assert.equal(live.estimate.fallbackRows,1);
+ assert.equal(live.estimate.loggedHours,4);
+ assert.equal(live.estimate.partial,false);
+ assert.equal(live.cash.bonus.projectedCents,0);
+ assert.equal(live.cash.estimate,undefined);
+});
+
+test('a missing wage or bad row does not mask priced work or pad the bonus',()=>{
+ const s=fixture(),w=s.workorders[0];
+ s.staffProfiles[0]={email,payScale:'Grade 3',hourlyWages:[
+  {effectiveDate:'2026-01-01',hourlyCents:null},{effectiveDate:'2026-11-23',hourlyCents:3500}]};
+ w.entries=[row('early','labor','2026-11-17',2),row('late','labor','2026-11-24',2),
+  row('bad','labor','2026-11-24',-2)];
+ s.payrollOther=[];
+ const live=metrics(s).contribution;
+ assert.equal(live.status,'partial');
+ assert.equal(live.totalAttributedCents,40000);
+ assert.equal(live.estimate.matchedRevenueCents,20000);
+ assert.equal(live.totalEmploymentCostCents,8750);
+ assert.equal(live.totalAfterTaxProfitCents,7875);
+ assert.equal(live.bonus.projectedCents,394);
+ assert.ok(live.estimate.issues.some(row=>row.reason==='missing-wage'&&row.date==='2026-11-17'));
+ s.staffProfiles[0]={email,payScale:'Grade 3'};
+ const empty=metrics(s).contribution;
+ assert.equal(empty.estimate.loggedHours,4);
+ assert.equal(empty.totalEmploymentCostCents,null);
+ assert.equal(empty.bonus.projectedCents,null);
+});
+
+test('unset workweek uses straight time even over 40 worked hours, without changing payroll',()=>{
+ const s=fixture();
+ const snapshot=payrollPreview(s,'2026-11-23','2026-11-29');
+ const {contribution:live}=metrics(s);
+ assert.equal(live.estimate.straightTimeOnly,true);
+ assert.equal(live.totalEmploymentCostCents,264000); // 47 worked + 19 paid leave/shop hours over YTD.
+ assert.equal(live.bonus.status,'available');
+ assert.deepEqual(payrollPreview(s,'2026-11-23','2026-11-29'),snapshot);
+});

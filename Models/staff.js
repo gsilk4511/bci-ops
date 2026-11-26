@@ -2,7 +2,7 @@ import {attributedEmail} from './time-attribution.js';
 import {createHmac,randomBytes,randomUUID} from 'node:crypto';
 import {addOtherTime, validDate} from './payroll.js';
 import {businessManagerView} from './business-manager.js';
-import {changedWageHistory,contributionWageHistory,contributionYear,profileProfitShare,rateForYear,updatedProfitRates,verifiedWageHistory} from './staff-profit-settings.js';
+import {changedWageHistory,explicitProfileHourlyCents,contributionWageHistory,contributionYear,profileProfitShare,rateForYear,updatedProfitRates,verifiedWageHistory} from './staff-profit-settings.js';
 import {liveTechnicianContribution,liveContributionToday,ownLiveLabor,possibleLiveDay} from './technician-contribution.js';
 import {internalOrder} from './project-workflow.js';
 import {staffWeeklyTime,workweekStart} from './staff-weekly-time.js';
@@ -177,7 +177,7 @@ export function staffMetrics(state,actor,metricsState,year=contributionYear(),vi
   const visible=new Map((metricsState.workorders||[]).map(order=>[order.id,order]));
   const scopeIncomplete=(state.workorders||[]).some(order=>!order.billingHidden&&!internalOrder(state,order)&&
    (!visible.has(order.id)||visible.get(order.id).billingHidden)&&(order.entries||[]).some(row=>ownLiveLabor(row,email)&&possibleLiveDay(row.date,year,today)));
-  const options={year,now,profitShareBps:rateForYear(profile,year),wageHistory:contributionWageHistory(profile),scopeIncomplete,payrollState:state};
+  const options={year,now,profitShareBps:rateForYear(profile,year),wageHistory:contributionWageHistory(profile),accrualWageHistory:contributionWageHistory({...profile,payScale:''}),profileHourlyCents:explicitProfileHourlyCents(profile),scopeIncomplete,payrollState:state};
   const named=new Map((state.projects||[]).filter(p=>has(actor,'projects.view')&&(!visibleProjectIds||visibleProjectIds.has(p.id))).map(p=>[p.id,p]));
   const scopedSummary=mode=>{
    const view=liveTechnicianContribution(metricsState,email,{...options,mode});
