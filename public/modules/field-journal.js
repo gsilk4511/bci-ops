@@ -1,3 +1,5 @@
+import {byJournalDate} from './journal-date-order.js';
+
 const sections=[['labor','Time'],['travel','Travel'],['material','Parts']];
 const batch=10;
 
@@ -21,7 +23,7 @@ export function fieldJournal(entries,email,renderRow,empty){
    </div>
   </div>
   ${sections.map(([key,label])=>{
-   const rows=entries.filter(row=>row.type===key);
+   const rows=byJournalDate(entries.filter(row=>row.type===key));
    return `<div role="tabpanel" tabindex="0" id="field-journal-panel-${key}" aria-labelledby="field-journal-tab-${key}" data-journal-panel="${key}"${key===primary?'':' hidden'}>
     <ul class="field-journal-list" data-journal-rows${rows.length?'':' hidden'}>${rows.map((row,i)=>renderRow(row,isOriginalSubmitter(row,email),i>=batch)).join('')}</ul>
     <div data-journal-empty${rows.length?' hidden':''}>${empty('No '+label.toLowerCase()+' entries to show')}</div>

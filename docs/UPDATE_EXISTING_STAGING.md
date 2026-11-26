@@ -1,4 +1,4 @@
-# Update existing BCI Operations staging to 0.10.11
+# Update existing BCI Operations staging to 0.10.12
 
 ## Greg: use the existing staging stack
 
@@ -10,7 +10,7 @@
    `mariadb.env`, MariaDB database name, named volume, bridge, and service
    hostname `db`. Do not replace these with bundled examples.
 4. Confirm the app build context points to the updated source. In the active
-   Compose file, change the app image tag to `bci-operations:0.10.11`. Do not
+   Compose file, change the app image tag to `bci-operations:0.10.12`. Do not
    change the database service. Use the actual app service name if different.
    This release excludes bundled catalog photos. Its .dockerignore also excludes
    any old Server/CatalogPhotos directory left from a previous extraction. This
@@ -24,12 +24,18 @@ docker compose -f compose.bci-operations-fixed.yml up -d --build --no-deps --for
 docker compose -f compose.bci-operations-fixed.yml exec -T bci-operations node -e "fetch('http://127.0.0.1:3100/api/health').then(r=>r.json()).then(console.log)"
 ```
 
-Recreate by itself does not build a new image. Verify `0.10.11` in the health
+Recreate by itself does not build a new image. Verify `0.10.12` in the health
 response and beside the BCI logo. Do not import or reseed the app database for this update. To test optional User Security separately, follow USER_SECURITY.md.
 If you roll back, restore the previous source, restore its former image tag
 and rebuild only the app. Keep the database and its volume in place.
 
-## Randy: accept 0.10.11 on staging
+## Randy: accept 0.10.12 on staging
+
+- On an editable sample order, log a newer date, then an older date. Verify the
+  older date appears first in the Original Field Journal and Print Work Order.
+  Edit a work date and confirm the rows reposition. No database migration.
+
+## Verify travel billing from 0.10.11
 
 - Log a driver’s actual round-trip time and select No → Base trip. Keep its
   $120 default. Have the passenger log their own time and select Yes. Payroll

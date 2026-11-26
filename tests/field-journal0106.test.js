@@ -38,3 +38,25 @@ test('all journal types begin with all authors and ten rows per category',()=>{
  assert.match(markup,/data-journal-more>Show more \(1 remaining\)/);
  assert.equal(entries.length,13);
 });
+
+test('journal groups sort by work date before applying the ten-row limit',()=>{
+ const day=n=>'2026-11-'+String(n).padStart(2,'0');
+ const entries=[
+  ...Array.from({length:10},(_,i)=>({type:'labor',id:'L'+(i+10),date:day(i+10)})),
+  {type:'labor',id:'L01',date:day(1)},
+  {type:'travel',id:'T15',date:day(15)}, {type:'travel',id:'T12',date:day(12)},
+  {type:'material',id:'M14',date:day(14)}, {type:'material',id:'M05',date:day(5)},
+  {type:'material',id:'M00',date:''}, {type:'material',id:'M05b',date:day(5)}
+ ];
+ const original=structuredClone(entries);
+ const render=(row,owned,hidden)=>`<li data-row="${row.id}"${hidden?' hidden':''}></li>`;
+ const ids=()=>[...fieldJournal(entries,'',render,text=>text).matchAll(/data-row="([^"]+)"( hidden)?/g)];
+ let rows=ids();
+ assert.deepEqual(rows.map(m=>m[1]),['L01',...Array.from({length:10},(_,i)=>'L'+(i+10)),'T12','T15','M05','M05b','M14','M00']);
+ assert.deepEqual(rows.filter(m=>m[2]).map(m=>m[1]),['L19']);
+ assert.deepEqual(entries,original);
+ entries[10].date=day(20);
+ rows=ids();
+ assert.equal(rows[0][1],'L10');
+ assert.deepEqual(rows.filter(m=>m[2]).map(m=>m[1]),['L01']);
+});

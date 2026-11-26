@@ -3,6 +3,8 @@
 const section = (title, ...items) => ({title, items});
 const release = (version, title, summary, ...sections) => ({version, title, summary, sections});
 export const releases = [
+ release('0.10.12','Sort the Original Field Journal by work date','Backdated entries appear where they belong.',
+  section('Work orders','Time, Travel and Parts sort by recorded work date, oldest first. Print Work Order sorts across all entries. Saved records and issued invoices are unchanged.')),
  release('0.10.11','Vehicle trip and hourly travel charges','Record time for payroll separately from the vehicle’s travel charge.',
   section('Log Travel','Choose Shared travel Yes or No. For the employee recording the vehicle charge, choose Base trip ($120 default per vehicle round trip) or Hourly. Work orders, print and invoicing use the selected charge; payroll keeps the actual logged hours.')),
  release('0.10.10','Prevent duplicate Holiday time','Check both places you can enter the same holiday.',

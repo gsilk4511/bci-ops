@@ -1,3 +1,7 @@
+# 0.10.12 — Sort the Original Field Journal by work date
+
+- Time, Travel and Parts display oldest work date first, including backdated entries and date edits. The work-order printout uses the same order across all entries. This changes display only, not dates, billing or saved snapshots.
+
 # 0.10.11 — Vehicle trip and hourly travel charges
 
 - Travel requires a Shared Yes or No choice. Shared travel records the employee’s time with no client charge. Select a Base trip charge (defaults to $120 per vehicle round trip) or an hourly travel charge for billable travel. Enter one vehicle charge per round trip and log each staff member’s own hours.

@@ -30,8 +30,8 @@ test('the shipped app handles counts, field receipts and warehouse receipts with
   const get=path=>fetch('http://'+address+path);
   const act=(action,data)=>fetch('http://'+address+(action.startsWith('catalog.pack')?'/api/catalog-pack':'/api/action'),{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({action,data})});
   const health=await (await get('/api/health')).json();
-  assert.equal(health.release,'0.10.11');
-  assert.match(await (await get('/')).text(),/id="appRelease">v0\.10\.11<\/span>/);
+  assert.equal(health.release,'0.10.12');
+  assert.match(await (await get('/')).text(),/id="appRelease">v0\.10\.12<\/span>/);
   for(const path of ['/security','/security.html','/security.js','/security.css','/signin.js','/modules/agent-api.js','/api/security/session','/api/security/agent-credentials','/api/agent/v1/status']){
    assert.equal((await get(path)).status,404,path+' must stay disabled by default');
   }

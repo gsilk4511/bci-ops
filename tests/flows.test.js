@@ -162,3 +162,20 @@ test('itemized invoice presents a flat travel charge as one trip, while legacy t
  assert.match(html,/2 hr<\/td>\s*<td>\$65\.00<\/td><td>\$130\.00/);
  assert.match(html,/<strong>\$250\.00<\/strong>/);
 });
+
+test('printed Original Field Journal sorts across types without rewriting closeout or corrected notes',()=>{
+ const entries=[
+  {id:'time',type:'labor',date:'2026-11-21',description:'Old in snapshot'},
+  {id:'trip',type:'travel',date:'2026-11-14',description:'Trip'},
+  {id:'part',type:'material',date:'2026-11-17',description:'Part'}
+ ];
+ const order={entries:[{...entries[0],journalNote:'Corrected description'},...entries.slice(1)]};
+ const openPrint=printJournalEntries(order);
+ assert.deepEqual(openPrint.map(e=>e.id),['trip','part','time']);
+ order.closeout={originalEntries:entries};
+ const before=JSON.stringify(order);
+ const closedPrint=printJournalEntries(order);
+ assert.deepEqual(closedPrint.map(({id,date,description})=>[id,date,description]),openPrint.map(({id,date,description})=>[id,date,description]));
+ assert.equal(closedPrint[2].description,'Corrected description');
+ assert.equal(JSON.stringify(order),before);
+});
