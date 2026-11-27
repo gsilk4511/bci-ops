@@ -25,7 +25,7 @@ function baseRates({showHeader = true} = {}) {
    grid(['Group','Item / SKU','Type','Base','Change order',...(can('finance.view')?['Cost']:[]),''],{sorts:itemSort})+'</section>').join('');
 }
 function baseRateRow(x){
- return tableRow(`<tr><td>${esc(x.group)}</td><td><b>${esc(x.name)}</b><div class="tiny muted">${esc(x.sku)}</div></td><td>${esc(x.type)}${x.needsPricing?'<div class="warn tiny">Needs pricing</div>':''}</td><td>${fmt(x.price)}</td><td>${fmt(x.changePrice)}</td>${can('finance.view')?'<td>'+fmt(x.cost)+'</td>':''}<td>${can('catalog.update')?`<button class="secondary small" data-edit-catalog="${esc(x.id)}">Edit rates</button>`:''}${x.type==='material'&&can('pricing.part')?` <button class="secondary small" data-part-pricing="${esc(x.id)}">Client price</button>`:''}</td></tr>`);
+ return tableRow(`<tr><td>${esc(x.group)}</td><td><b>${esc(x.name)}</b><div class="tiny muted">${esc(x.sku)}</div></td><td>${esc(x.type)}${x.needsPricing?'<div class="warn tiny">Needs pricing</div>':''}</td><td>${fmt(x.price)}</td><td>${x.changePrice==null?'Not set':fmt(x.changePrice)}</td>${can('finance.view')?'<td>'+(x.needsUnitCost?'Not set':fmt(x.cost))+'</td>':''}<td>${can('catalog.update')?`<button class="secondary small" data-edit-catalog="${esc(x.id)}">Edit rates</button>`:''}${x.type==='material'&&can('pricing.part')?` <button class="secondary small" data-part-pricing="${esc(x.id)}">Client price</button>`:''}</td></tr>`);
 }
 
 const profileAccess = () => can('pricing.profile.save');

@@ -1283,8 +1283,9 @@ document.addEventListener('click',event=>{
 function openCatalogEditor(item){
  if(!item) return;
  const categoryFields=item.type==='material'?'':serviceCategories.map((category,i)=>priceField('service'+i,category+' (blank = base rate)',item.serviceRates?.[category])).join('');
- modal('Edit catalog rates',priceField('price','Base selling rate',item.price,true)+priceField('changePrice','Change-order rate',item.changePrice,true)+categoryFields+
-  (can('finance.view')?priceField('cost','Unit cost including purchase tax',item.cost,true):''),values=>{
+ modal('Edit catalog rates',priceField('price','Base selling rate',item.price,true)+priceField('changePrice','Change-order rate',item.changePrice,item.warehouseImportV2!==true)+categoryFields+
+  (can('finance.view')?priceField('cost','Unit cost including purchase tax',item.needsUnitCost?'':item.cost,item.warehouseImportV2!==true):''),values=>{
+   if(item.warehouseImportV2===true)for(const k of ['changePrice','cost'])if(values[k]==='')delete values[k];
    const serviceRates=item.type==='material'?undefined:Object.fromEntries(serviceCategories.map((category,i)=>[category,values['service'+i]]));
    return send('catalog.update',{...values,catalogId:item.id,serviceRates});
   });

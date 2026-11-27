@@ -156,7 +156,7 @@ async function update(action, data, actor) {
         }else if(data.active!==false)restoreAccountAccess(securityState,result.email);
       },{missingTableAllowed:!securityStore});
     }
-    if(action==='warehouse.patchApply'&&(result.existing||!result.updated))return result;
+    if(action==='warehouse.patchApply'&&(result.existing||!(result.updated||result.added||result.groupsUpdated)))return result;
     stampRecordOwner(action,data,s,result,principal);
     if(action==='customers.import'&&result.conflicts.length)throw Error('Import blocked by conflicts. Run preview and resolve the listed matches.');
     if(['users.set','users.remove','profiles.save','record.assign'].includes(action)){

@@ -1,4 +1,4 @@
-# Update existing BCI Operations staging to 0.10.12
+# Update existing BCI Operations staging to 0.10.13
 
 ## Greg: use the existing staging stack
 
@@ -10,7 +10,7 @@
    `mariadb.env`, MariaDB database name, named volume, bridge, and service
    hostname `db`. Do not replace these with bundled examples.
 4. Confirm the app build context points to the updated source. In the active
-   Compose file, change the app image tag to `bci-operations:0.10.12`. Do not
+   Compose file, change the app image tag to `bci-operations:0.10.13`. Do not
    change the database service. Use the actual app service name if different.
    This release excludes bundled catalog photos. Its .dockerignore also excludes
    any old Server/CatalogPhotos directory left from a previous extraction. This
@@ -24,12 +24,12 @@ docker compose -f compose.bci-operations-fixed.yml up -d --build --no-deps --for
 docker compose -f compose.bci-operations-fixed.yml exec -T bci-operations node -e "fetch('http://127.0.0.1:3100/api/health').then(r=>r.json()).then(console.log)"
 ```
 
-Recreate by itself does not build a new image. Verify `0.10.12` in the health
+Recreate by itself does not build a new image. Verify `0.10.13` in the health
 response and beside the BCI logo. Do not import or reseed the app database for this update. To test optional User Security separately, follow USER_SECURITY.md.
 If you roll back, restore the previous source, restore its former image tag
 and rebuild only the app. Keep the database and its volume in place.
 
-## Randy: accept 0.10.12 on staging
+## Randy: accept 0.10.13 on staging
 
 - On an editable sample order, log a newer date, then an older date. Verify the
   older date appears first in the Original Field Journal and Print Work Order.
@@ -259,3 +259,21 @@ can be expanded if wanted. Check a client printout remains unchanged. The browse
 must not request geolocation. The container needs outbound HTTPS to
 `api.weather.gov`. A missing feed shows a fallback link and does not block profile
 controls. No new environment variable, database migration or port is needed.
+
+## Randy: preview the separate Warehouse update after 0.10.13 is running
+
+1. Export Warehouse & Catalog to retain a pre-import reference. Keep Greg's database backup.
+2. Go to Warehouse → Import Warehouse Updates (not Import Catalog). Choose
+   `BCI-Warehouse-Updates-v0.10.13.json`, then Preview updates.
+3. The November 27 reference export produced 340 additions, 182 updates and five
+   shared stock targets, with 52 held rows and zero conflicts. If the live
+   preview reports conflicts, stop and export a fresh snapshot for review. The
+   new JSON does not perform deletion, set counted stock or rewrite past work.
+4. Read the held list and review the exact old/new fields. If correct, use
+   Apply updates. Spot-check $0.47/ft on the existing Cat6 ID, or download a new
+   export to verify that its $1.10 change rate and $0.29 cost did not change.
+   The Stock targets panel shows the 245 Signamax target across five groups
+   without setting any opening counts.
+5. Optional CommScope jacks, tentative blank inserts and composite cable with an
+   unconfirmed billing unit are held. No historical price is copied to a new
+   item. Unpriced items need a standard rate before normal billing.

@@ -2,7 +2,20 @@
 // Historical packaging is not proof of deployment or current feature availability.
 const section = (title, ...items) => ({title, items});
 const release = (version, title, summary, ...sections) => ({version, title, summary, sections});
+const releaseDates={
+ '0.10.13':'2026-11-27','0.10.12':'2026-11-26','0.10.11':'2026-11-26','0.10.10':'2026-11-26',
+ '0.10.9':'2026-11-26','0.10.8':'2026-11-26','0.10.7':'2026-11-26','0.10.6':'2026-11-26',
+ '0.10.5':'2026-11-26','0.10.4':'2026-11-26','0.10.3':'2026-11-26','0.10.2':'2026-11-26',
+ '0.10.1':'2026-11-26','0.10.0':'2026-11-25',
+};
+// Planning/build/check effort, not elapsed time between versions.
+const developmentHours={'0.10.13':0.25};
 export const releases = [
+ release('0.10.13','Warehouse catalog import and stock targets','Preview catalog updates and new parts without touching physical counts.',
+  section('Import Warehouse Updates','Match existing items by ID and SKU, preview proposed changes and show held rows. Add new catalog items with explicit prices, units, categories and stocking targets. No deletion, receipt or work-order rewrite.'),
+  section('Stock and pricing','Shared Signamax targets are per port count across colors. The existing generic Cat6 remains per-foot. A standard sell price does not silently set a change-order price.'),
+  section('Admin Changelog','Release dates appear where recorded. Hours worked and the running development time include only releases with available entries.')),
+
  release('0.10.12','Sort the Original Field Journal by work date','Backdated entries appear where they belong.',
   section('Work orders','Time, Travel and Parts sort by recorded work date, oldest first. Print Work Order sorts across all entries. Saved records and issued invoices are unchanged.')),
  release('0.10.11','Vehicle trip and hourly travel charges','Record time for payroll separately from the vehicle’s travel charge.',
@@ -208,4 +221,5 @@ export const releases = [
   section('Branding','Near-black header, warm white screens, orange action buttons and green statuses. Refined the desktop work-order list and shortened the approval wording on phones.')),
  release('Pilot','First runnable BCI Operations pilot','The original sample-data work order and manual QuickBooks workflow.',
   section('Pilot scope','Work-order scope approval, T&M changes, log labor/material/travel, submit for review, and preserve the original field entries. Negative stock was allowed.','Money separates unbilled, invoiced and paid work. Browser PDF groups time, materials and travel for a manual QuickBooks handoff.','Desktop and phone layouts. The first sample build used typed acknowledgment and did not claim deployed MariaDB, production permissions, offline sync or automated QuickBooks sending.'))
-];
+].map(item=>({...item,...(releaseDates[item.version]?{releaseDate:releaseDates[item.version]}:{}),
+ ...(developmentHours[item.version]!=null?{developmentHours:developmentHours[item.version]}:{})}));

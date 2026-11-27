@@ -665,13 +665,14 @@ export function applyAction(state, action, data={}, actor={email:'system'}) {
           patch[field]=warehouseNumber(data[field],field==='cost'?'Unit cost':field==='price'?'Base rate':'Change rate');
         if('cost' in patch){patch.warehouseUnitCostOverride=true;patch.needsUnitCost=false;}
         if(('price' in patch||'changePrice' in patch)&&item.needsPricing)
-          patch.needsPricing=!((patch.price??item.price)>0&&(patch.changePrice??item.changePrice)>0);
+          patch.needsPricing=!((patch.price??item.price)>0&&(item.warehouseImportV2===true||(patch.changePrice??item.changePrice)>0));
         // Inventory edits only set defaults for future entries, never existing work or invoices.
         Object.assign(item,patch);
         event(state,action,item.id,item.name);result=item;break;
       }
       for(const field of ['price','changePrice','cost'])if(data[field]!==undefined)item[field]=nonneg(data[field],field);
-      if(data.price!==undefined && item.price > 0 && item.changePrice > 0) item.needsPricing = false;
+      if(item.warehouseImportV2===true&&data.cost!==undefined){item.needsUnitCost=false;item.warehouseUnitCostOverride=true;}
+      if(data.price!==undefined && (item.warehouseImportV2===true || item.price > 0 && item.changePrice > 0)) item.needsPricing = !(item.price > 0);
       if(data.serviceRates!==undefined){
         if(item.type==='material'||!data.serviceRates||typeof data.serviceRates!=='object'||Array.isArray(data.serviceRates))throw Error('Invalid service rates');
         const rates={};

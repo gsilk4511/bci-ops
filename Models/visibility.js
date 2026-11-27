@@ -13,6 +13,7 @@ export function visibleState(current,role,permissions) {
  delete state.materialDrafts;
  delete state.workorderReceiptData;
  delete state.warehousePatchReceipts;
+ if(!has('inventory.view'))delete state.warehouseStockGroups;
  delete state.timeCorrections;
  delete state.timeAttributionHistory;
  if(!has('estimates.view'))delete state.estimates;

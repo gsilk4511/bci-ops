@@ -1,3 +1,4 @@
+import {warehouseImportFormat,planWarehouseImport,applyWarehouseImport} from './warehouse-import.js';
 import {createHash,randomUUID} from 'node:crypto';
 import {stockProjection} from './stock-demand.js';
 import {serviceCategories} from './pricing.js';
@@ -10,8 +11,8 @@ const internalPatchHistory='warehousePatchReceipts';
 const limits={name:250,description:1500,system:120,partType:120,color:100};
 const editable=Object.keys(limits);
 const topFields=['id','sku','type','group','name','description','unit','manufacturer','manufacturerPartNumber',
- 'warehouseArchived','warehouseArchiveBatch','needsPricing','needsUnitCost','needsUnitReview','packageLengthFt','warehouseUnitCostOverride','price','changePrice'];
-const metadataFields=['brand','mpn','name','system','partType','spec','grade','tradeSize','length','lengthUnit','ports','packQty',
+ 'stockTarget','warehouseArchived','warehouseArchiveBatch','needsPricing','needsUnitCost','needsUnitReview','packageLengthFt','warehouseUnitCostOverride','price','changePrice'];
+const metadataFields=['brand','mpn','name','system','serviceCategory','partType','spec','grade','tradeSize','length','lengthUnit','ports','packQty',
  'catalogUnit','family','color','shielding','addedInRound','documentedFit','workType','installMethod','finishCode',
  'monitoringOption','photoStatus','photoId'];
 const fitsFields=['brand','mpn','part','fits','relationship','limit'];
@@ -60,7 +61,7 @@ export function exportWarehouse(state,{release,finance=false,now=new Date()}){
   if(finance&&own(item,'cost')&&(item.cost==null||Number.isFinite(item.cost)))result.cost=item.cost;
   return result;
  });
- return {format:formats.export,release,exportedAt:now.toISOString(),items};
+ return {format:formats.export,release,exportedAt:now.toISOString(),items,...(state.warehouseStockGroups?.length?{stockGroups:structuredClone(state.warehouseStockGroups)}:{})};
 }
 function cleanPatch(patch){
  if(!object(patch)||!exactKeys(patch,['format','items'])||patch.format!==formats.patch||!Array.isArray(patch.items)||
@@ -112,12 +113,14 @@ function patchPlan(state,patch){
  return {update,summary};
 }
 export function previewWarehousePatch(state,data){
+ if(data.patch?.format===warehouseImportFormat)return planWarehouseImport(state,data.patch,metadataRevision).summary;
  const {summary,update}=patchPlan(state,cleanPatch(data.patch));
  return {...summary,changes:update.map(({id,sku,fields,changes,target})=>({id,sku,fields,
   details:Object.fromEntries(fields.map(field=>[field,{before:String(getField(target,field)),after:changes[field]}]))}))};
 }
 export function applyWarehousePatch(state,data,actor){
  if(actor.role!=='admin')throw Error('Admin access required');
+ if(data.patch?.format===warehouseImportFormat)return applyWarehouseImport(state,data,actor,metadataRevision);
  const patch=cleanPatch(data.patch), patchHash=hash(patch);
  const repeat=(state[internalPatchHistory]||[]).find(row=>row.fingerprint===data.fingerprint&&row.patchHash===patchHash&&row.actor===actor.email);
  if(repeat)return {...repeat.result,existing:true};

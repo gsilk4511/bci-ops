@@ -7,12 +7,16 @@ const validRelease=release=>Boolean(release&&validText(release.version,80)&&vali
  release.sections.every(section=>section&&validText(section.title,200)&&Array.isArray(section.items)&&
   section.items.length<=100&&section.items.every(item=>validText(item,2500))));
 const versionText=version=>/^\d/.test(version)?'v'+version:version;
+const dateText=r=>typeof r.releaseDate==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(r.releaseDate)?r.releaseDate:'Date not recorded';
+const hasHours=r=>Number.isFinite(r.developmentHours)&&r.developmentHours>=0;
+const hoursText=r=>hasHours(r)?`${r.developmentHours} h`:'Not recorded';
 
 export function changelogPage(){
  if(!allowed())return '';
  return head('Changelog','Admin','Browse BCI Operations releases, including earlier staging and test builds. An entry does not mean that build was deployed.')+`
  <section class="bci-changelog" data-changelog aria-label="Release history">
   <p class="muted" data-changelog-status role="status">Loading release history…</p>
+  <p class="muted" data-changelog-hours aria-live="polite"></p>
   <div data-changelog-cards></div>
   <dialog class="bci-release-dialog" aria-labelledby="bciReleaseTitle">
    <div class="bci-release-dialog-shell">
@@ -47,7 +51,8 @@ export function wireChangelog(root){
   const release=releases[Number(button.dataset.changelogRelease)];
   if(!release)return;
   opener=button;
-  detail.innerHTML=`<div class="eyebrow">${esc(versionText(release.version))}</div>
+  detail.innerHTML=`<div class="eyebrow">${esc(versionText(release.version))} · ${esc(dateText(release))}</div>
+    <aside aria-label="Hours worked" class="panel"><b>Hours worked</b><p>${esc(hoursText(release))}</p></aside>
     <h2 id="bciReleaseTitle" tabindex="-1">${esc(release.title)}</h2><p class="bci-release-intro">${esc(release.summary)}</p>
     ${release.sections.map(section=>`<section class="bci-release-note"><h3>${esc(section.title)}</h3><ul>${section.items.map(item=>`<li>${esc(item)}</li>`).join('')}</ul></section>`).join('')}`;
   dialog.showModal();
@@ -70,10 +75,16 @@ export function wireChangelog(root){
    if(!root.isConnected||!allowed())return;
    if(!Array.isArray(result?.releases)||result.releases.length>250||!result.releases.every(validRelease))throw Error('Invalid release notes');
    releases=result.releases;
+   const hours=root.querySelector('[data-changelog-hours]');
+   if(hours){
+    const recorded=releases.filter(hasHours);
+    hours.textContent='Running total /developmentTime = '+(recorded.length?`${Math.round(100*recorded.reduce((n,r)=>n+r.developmentHours,0))/100} h`:'Not recorded');
+    if(recorded.length!==releases.length)hours.title='Only releases with available development entries count toward the total.';
+   }
    status.textContent=releases.length?'':'No release notes are available yet.';
    if(releases.length){
     cards.innerHTML=`<ol class="bci-release-cards">${releases.map((release,index)=>`<li class="card bci-release-card">
-      <div class="bci-release-card-top"><span class="tag">${esc(versionText(release.version))}</span>${index===0?'<span class="status approved">Latest</span>':''}</div>
+      <div class="bci-release-card-top"><span class="tag">${esc(versionText(release.version))}</span> <span class="muted tiny">${esc(dateText(release))}</span>${index===0?'<span class="status approved">Latest</span>':''}</div>
       <h2>${esc(release.title)}</h2><p>${esc(release.summary)}</p>
       <button type="button" class="secondary" data-changelog-release="${index}" aria-haspopup="dialog" aria-label="Read more about ${esc(versionText(release.version))}">Read more</button></li>`).join('')}</ol>`;
     if(retry)cards.querySelector('button[data-changelog-release]')?.focus();

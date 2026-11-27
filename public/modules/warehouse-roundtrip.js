@@ -4,12 +4,12 @@ import {can,esc,me,practiceMode,reload,show,today} from '../app.js';
 const allowed=()=>!practiceMode&&me?.role==='admin'&&can('inventory.view');
 const patchLimit=490_000;
 const safeCount=value=>Number.isSafeInteger(value)&&value>=0?value:0;
-const fields={name:'Name',description:'Description',system:'Category',partType:'Type',color:'Color'};
+const fields={name:'Name',description:'Description',system:'Category',partType:'Type',color:'Color',serviceCategory:'Material service category',brand:'Brand',price:'Sell price',cost:'Unit cost',stockTarget:'Stock target'};
 
 export function warehouseFiles(){
  if(!allowed())return '';
  return `<section class="panel bci-wh-files" aria-label="Warehouse files">
- <div><h2>Warehouse files</h2><p class="muted">Export a current snapshot of active and archived records to share with your update instructions. Import the resulting update file to edit existing rows only; use Import Catalog to add parts.</p></div>
+ <div><h2>Warehouse files</h2><p class="muted">Export a current snapshot of active and archived records to share with your update instructions. Preview a prepared Warehouse update file to add parts, update eligible fields and set stock targets.</p></div>
  <div class="gap"><button class="secondary small" type="button" data-warehouse-export>Export Warehouse &amp; Catalog</button>
  <button class="secondary small" type="button" data-warehouse-patch-open aria-haspopup="dialog">Import Warehouse Updates</button>${warehousePurgeAction()}</div>
  <dialog class="bci-release-dialog bci-wh-patch-dialog" data-warehouse-patch aria-labelledby="bciWhPatchTitle">
@@ -17,7 +17,7 @@ export function warehouseFiles(){
    <div class="bci-release-dialog-bar"><h2 id="bciWhPatchTitle">Import Warehouse Updates</h2>
     <button class="secondary small" type="button" data-warehouse-patch-close>Close</button></div>
    <div class="bci-release-dialog-body">
-    <p>Choose the update JSON prepared from a recent Warehouse export. This only changes allowed catalog fields on matching items. It does not add parts, change counts or prices, or edit work orders.</p>
+    <p>Choose the update JSON prepared from a recent Warehouse export. The preview lists new parts, updates, stock targets and held rows. Applying does not change on-hand counts, work orders or invoices, or delete parts.</p>
     <form data-warehouse-patch-form><div class="field"><label for="bciWhPatchFile">Warehouse update JSON</label>
      <input type="file" id="bciWhPatchFile" accept=".json,application/json" required></div>
      <button type="submit" class="primary">Preview updates</button></form>
@@ -61,12 +61,15 @@ function previewMarkup(result,patch){
  const proposed=new Map((patch.items||[]).map(item=>[item.id,item.changes||{}]));
  const previewValue=value=>{
   if(value===''||value==null)return 'Not specified';
-  return typeof value==='string'?value:'Not specified';
+  return ['string','number'].includes(typeof value)?String(value):'Not specified';
  };
  const details=(label,rows)=>rows.length?`<details${label==='Conflicts'?' open':''}><summary>${label} (${rows.length})</summary>
   <ul>${rows.join('')}</ul></details>`:'';
- return `<p><b>${safeCount(result.total)} rows checked</b> · ${safeCount(result.updated)} to update · ${safeCount(result.unchanged)} unchanged · ${conflicts.length} conflicts.</p>
+ return `<p><b>${safeCount(result.total)} rows checked</b> · ${safeCount(result.added)} to add · ${safeCount(result.updated)} to update · ${safeCount(result.groupsUpdated)} shared targets · ${safeCount(result.unchanged)} unchanged · ${conflicts.length} conflicts.</p>
  ${details('Conflicts',conflicts.map(x=>`<li><b>${esc(x.sku||x.id||'Item')}</b>: ${esc(x.reason||'Review this row')}</li>`))}
+ ${details('Held for review (not applied)',(result.held||[]).map(x=>`<li><b>${esc(x.sku)}</b>: ${esc(x.reason)}</li>`))}
+ ${details('Shared stock targets',(result.stockGroups||[]).map(g=>`<li><b>${esc(g.label)}</b>: ${esc(previewValue(g.before))} → ${esc(g.target)} across ${esc(g.skus.length)} variants</li>`))}
+ ${details('New parts',(result.newItems||[]).map(x=>`<li><b>${esc(x.name)}</b> · ${esc(x.sku)} · ${esc(x.unit)} · ${esc([x.info?.system,x.info?.serviceCategory,x.info?.partType,x.info?.brand,x.info?.color].filter(Boolean).join(' / '))} · Sell: ${esc(previewValue(x.price))}; Cost: ${esc(previewValue(x.cost))}; Change: ${esc(previewValue(x.changePrice))}${x.stockTarget!=null?'; Target: '+esc(x.stockTarget):''}</li>`))}
  ${details('Updated fields',changes.map(x=>{
   const row=proposed.get(x.id)||{};
   const deltas=x.details||{};
@@ -77,7 +80,7 @@ function previewMarkup(result,patch){
   });
   return `<li><b>${esc(x.sku||x.id||'Item')}</b><ul>${labels.join('')}</ul></li>`;
  }))}
- ${conflicts.length?'<p>Nothing can be applied until the conflicts are resolved. Export a fresh snapshot if any rows are stale.</p>':result.updated>0?'<p>Review the preview, then select Apply updates to save these changes.</p>':''}`;
+ ${conflicts.length?'<p>Nothing can be applied until the conflicts are resolved. Export a fresh snapshot if any rows are stale.</p>':(result.updated||result.added||result.groupsUpdated)>0?'<p>Review the preview, then select Apply updates to save these changes.</p>':''}`;
 }
 
 function openPatch(dialog,opener){
@@ -111,13 +114,13 @@ function openPatch(dialog,opener){
    if(!selected||selected.size>patchLimit)throw Error('Choose a Warehouse update JSON file under 490 KB.');
    let candidate;
    try{candidate=JSON.parse(await selected.text());}catch{throw Error('This file is not valid JSON.');}
-   if(candidate?.format!=='bci-warehouse-patch-v1')throw Error('Choose a Warehouse update file, not the original Warehouse export or catalog import.');
+   if(!['bci-warehouse-patch-v1','bci-warehouse-updates-v2'].includes(candidate?.format))throw Error('Choose a Warehouse update file, not the original Warehouse export or catalog import.');
    const result=await request('warehouse.patchPreview',{patch:candidate});
    if(!dialog.isConnected||!allowed())return;
    if(!result||!Array.isArray(result.conflicts))throw Error('Could not read the preview. Try again.');
    output.innerHTML=previewMarkup(result,candidate);
    status.textContent='Preview ready. Nothing changed yet.';
-   if(typeof result.fingerprint==='string'&&result.fingerprint&&safeCount(result.updated)>0&&!result.conflicts.length){
+   if(typeof result.fingerprint==='string'&&result.fingerprint&&(safeCount(result.updated)+safeCount(result.added)+safeCount(result.groupsUpdated))>0&&!result.conflicts.length){
     patch=candidate;fingerprint=result.fingerprint;apply.hidden=false;
    }
   }catch(error){if(dialog.isConnected)status.textContent=error.message;}
@@ -132,7 +135,7 @@ function openPatch(dialog,opener){
    const result=await request('warehouse.patchApply',pending);
    if(!dialog.isConnected)return;
    working(false);dialog.close();
-   try{await reload();show(`Saved ${safeCount(result?.updated)} Warehouse item updates.`);}
+   try{await reload();show(pending.patch.format==='bci-warehouse-updates-v2'?`Saved ${safeCount(result?.added)} new parts, ${safeCount(result?.updated)} item updates and ${safeCount(result?.groupsUpdated)} shared stock targets.`:`Saved ${safeCount(result?.updated)} Warehouse item updates.`);}
    catch{show('Warehouse updates saved. Refresh the page to see them.',true);}
   }catch(error){if(dialog.isConnected){status.textContent=error.message+' Preview again before retrying.';output.replaceChildren();}}
   finally{working(false);}

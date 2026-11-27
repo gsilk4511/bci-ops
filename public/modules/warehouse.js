@@ -20,7 +20,7 @@ function partDetails(item){
 }
 export const warehouseName='BCI Warehouse';
 const pageSize=40;
-const filters={query:'',brand:'',category:'',type:'',color:'',stock:'',page:0};
+const filters={query:'',brand:'',category:'',type:'',color:'',service:'',stock:'',page:0};
 let selectionOrder=[];
 const isFiltered=()=>Boolean(filters.query||warehouseFacetKeys.some(key=>filters[key]));
 const options=(values,selected)=>values.map(([value,label,count])=>`<option value="${esc(value)}"${value===selected?' selected':''}>${esc(label)} (${count.toLocaleString()})</option>`).join('');
@@ -71,13 +71,21 @@ function editable({item:c,onHand}){
 const knownNumber=(n,pending)=>n==null||(pending&&Number(n)===0)?'':n;
 const stat=(label,value,warn=false)=>`<div role="cell"><span class="bci-wh-cell-label">${esc(label)}</span><span class="${warn?'warn':''}">${esc(value)}</span></div>`;
 const gridHead=label=>`<span role="columnheader">${esc(label)}</span>`;
+function stockPlans(rows){
+ const rowsBySku=new Map(rows.map(r=>[String(r.item.sku||'').toLowerCase(),r]));
+ const groups=(data.warehouseStockGroups||[]).map(g=>({label:g.label,target:g.target,onHand:qty(g.skus.reduce((n,sku)=>n+num(rowsBySku.get(sku.toLowerCase())?.onHand),0)),unit:'each across colors'}));
+ const individual=rows.filter(r=>r.item.stockTarget!=null).map(r=>({label:r.item.name,target:r.item.stockTarget,onHand:r.onHand,unit:r.item.unit}));
+ const plans=[...groups,...individual];
+ if(!plans.length)return '';
+ return '<details class="panel"><summary><b>Stock targets</b> · '+plans.length+' tracked</summary><p class="muted">Targets are separate from physical counts. Gap is based on on-hand stock only. No orders are placed.</p>'+table(['Item / shared group','Unit','On hand','Target','Gap'],plans.map(p=>`<tr><td>${esc(p.label)}</td><td>${esc(p.unit)}</td><td>${esc(p.onHand)}</td><td>${esc(p.target)}</td><td>${esc(Math.max(0,qty(p.target-p.onHand)))}</td></tr>`))+'</details>';
+}
 function grid(rows){
  if(!rows.length)return '<p class="empty">No matching parts.</p>';
  const layout=[showCost()?'bci-wh-with-cost':'',showPrice()?'bci-wh-with-price':''].join(' ');
  return `<div class="bci-wh-grid ${layout}" role="table" aria-label="BCI Warehouse parts"><div class="bci-wh-row bci-wh-header" role="row">${['Part', 'On hand','Draft demand','Projected',...(showCost()?['Unit cost']:[]),...(showPrice()?['Sell price']:[])].map(gridHead).join('')}</div>
  ${rows.map(row=>{
   const {item:c,onHand,demand,projected,legacy}=row;
-  const detail=[c.sku,partMeta(c),[partFacets.category(c),partFacets.type(c)].filter(x=>x!==unclassified).join(' / '),c.unit].filter(Boolean).map(esc).join(' · ');
+  const detail=[c.sku,partMeta(c),[partFacets.category(c),partFacets.type(c)].filter(x=>x!==unclassified).join(' / '),c.catalogInfo?.serviceCategory,c.unit].filter(Boolean).map(esc).join(' · ');
   return `<div class="bci-wh-record" role="rowgroup"><div class="bci-wh-row" role="row"><div class="bci-wh-part" role="rowheader"><b>${esc(billingName(c))}</b><div class="muted tiny">${detail}</div><div class="bci-wh-variant tiny"><b>Color / Finish:</b> ${esc(partColor(c)||'Not specified')}</div>${partDetails(c)}
   ${legacy.length?`<details class="bci-warehouse-details"><summary>Legacy stock, not in warehouse count</summary><ul>${legacy.map(x=>`<li>${esc(x.location)}: ${esc(x.quantity)} on hand${x.reserved?`, ${esc(x.reserved)} draft demand`:''}</li>`).join('')}</ul></details>`:''}</div>
   ${stat('On hand',onHand,onHand<0)}${stat('Draft demand',demand)}${stat('Projected',projected,projected<0)}${showCost()?stat('Unit cost',moneyText(c.cost,unknownCost(c))):''}${showPrice()?stat('Sell price',moneyText(c.price,c.needsPricing)):''}
@@ -150,7 +158,7 @@ export function warehouse(){
  const select=key=>`<div class="field"><label for="bciWarehouse-${key}">${esc(facetLabels[key][0])}</label><select id="bciWarehouse-${key}" data-bci-wh-filter="${key}">${options(list.available[key],filters[key])}</select></div>`;
  return head('Warehouse','Stock and catalog','Count, price, and filter catalog parts and warehouse stock in one place.',`<div class="gap">${can('pricing.view')&&can('catalog.create')?'<button class="secondary" data-open="warehouse-item">Add Item</button>':''}${me?.role==='admin'?'<button class="secondary" data-open="catalog-import">Import Catalog</button>':''}${receiveParts()?'<button class="primary" data-open="warehouse-receive">Receive Parts</button>':''}</div>`)+
  `<div class="cards">${card('Active material SKUs',materials.length,archived?`${archived.toLocaleString()} archived, history retained`:'All active parts')}${card('Warehouse shortages',rows.filter(x=>x.onHand<0||x.projected<0).length,'Review and reconcile','orange')}${card('Movements',data.movements.length,'Receipts, corrections and issues')}</div>
- ${warehouseFiles()}<section class="panel" data-bci-warehouse><h2>${warehouseName}</h2>
+ ${warehouseFiles()}${stockPlans(rows)}<section class="panel" data-bci-warehouse><h2>${warehouseName}</h2>
  ${legacy?`<p class="muted">${legacy} ${qtyLabel} balances or draft demand at older locations. Choose “Has legacy balance” in the stock filter to review those rows. They are preserved separately and not included in warehouse counts.</p>`:''}
  <div class="bci-wh-filters"><div class="field"><label for="bciWarehouseSearch">Search parts</label><input id="bciWarehouseSearch" data-bci-wh-filter="query" type="search" value="${esc(filters.query)}" placeholder="Name, brand, color, part # or SKU"></div>
  ${warehouseFacetKeys.map(select).join('')}</div>

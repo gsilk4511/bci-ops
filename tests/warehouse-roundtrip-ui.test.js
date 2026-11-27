@@ -5,6 +5,7 @@ import {readFileSync} from 'node:fs';
 
 test('Warehouse files are admin only and updates need a clean preview before an explicit apply',async()=>{
  const requests=[],notices=[], events={},patch={format:'bci-warehouse-patch-v1',items:[{id:'part-1',sku:'SKU-1',revision:'r-1',changes:{color:'White'}}]};
+ let v2=false;
  let conflicts=[{sku:'SKU <1>',reason:'Stale <row>'}], reloads=0, downloaded=false;
  const anchor={click(){downloaded=true;},remove(){}};
  const context=vm.createContext({
@@ -15,6 +16,8 @@ test('Warehouse files are admin only and updates need a clean preview before an 
    requests.push([path,options.body?JSON.parse(options.body):null]);
    if(path==='/api/warehouse-export')return {ok:true,headers:{get:key=>key==='content-type'?'application/json; charset=utf-8':'attachment; filename="Randy-Warehouse.json"'},blob:async()=>({size:100})};
    const action=JSON.parse(options.body).action;
+   if(v2&&action==='warehouse.patchPreview')return {ok:true,json:async()=>({ok:true,result:{total:1,added:1,updated:0,groupsUpdated:1,unchanged:0,conflicts:[],fingerprint:'v2-1',held:[{sku:'TEST-HOLD',reason:'Review stock'}],stockGroups:[{label:'A shared group',target:100,skus:['SKU-2']}],newItems:[{sku:'SKU-2',name:'New part',unit:'each',price:4,cost:1.2,changePrice:null}]} })};
+   if(v2)return {ok:true,json:async()=>({ok:true,result:{added:1,updated:0,groupsUpdated:1}})};
    if(action==='warehouse.patchPreview')return {ok:true,json:async()=>({ok:true,result:{total:1,updated:1,unchanged:0,conflicts,changes:[{id:'part-1',sku:'SKU-1',fields:['color'],details:{color:{before:'<Ivory>',after:'White'}}}],fingerprint:'f-1'}})};
    return {ok:true,json:async()=>({ok:true,result:{updated:1}})};
   }
@@ -71,4 +74,16 @@ test('Warehouse files are admin only and updates need a clean preview before an 
  assert.equal(opener.focused,true);
  assert.equal(reloads,1);
  assert.equal(form.resetCalled,true);
+ v2=true;
+ const newer={format:'bci-warehouse-updates-v2',items:[{sku:'SKU-2',changes:{name:'New part',unit:'each',system:'Cabling',partType:'Cable'}}],stockGroups:[],holds:[]};
+ file.files=[{size:200,text:async()=>JSON.stringify(newer)}];
+ click(opener);
+ await submit();
+ assert.match(output.innerHTML,/1 to add/);
+ assert.match(output.innerHTML,/Held for review \(not applied\)/);
+ assert.match(output.innerHTML,/A shared group[\s\S]*New part[\s\S]*Sell: 4; Cost: 1.2; Change: Not specified/);
+ assert.equal(apply.hidden,false);
+ await apply.handlers.click();
+ assert.deepEqual(requests.at(-1),['/api/action',{action:'warehouse.patchApply',data:{patch:newer,fingerprint:'v2-1'}}]);
+ assert.match(notices.at(-1),/Saved 1 new parts, 0 item updates and 1 shared stock targets/);
 });

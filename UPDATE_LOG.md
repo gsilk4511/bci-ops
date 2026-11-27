@@ -1,3 +1,11 @@
+# 0.10.13 — Warehouse catalog import and stock targets
+
+- Extend Import Warehouse Updates with an admin-only preview and explicit apply for the v2 JSON format. Continue accepting existing metadata-only v1 patches.
+- New parts keep their internal SKU, billing unit, category, material-use category, available color and brand, and explicitly entered prices and costs. Existing records stay on their original IDs.
+- Separate stocking targets from live quantities. Show on-hand-only gaps for individual SKUs and shared Signamax faceplate port-count groups.
+- Never delete a held item or rewrite prior materials, work orders, invoices or receipts. Never derive change-order pricing from normal sell pricing for this import.
+- Changelog cards show release dates where known, Hours worked, and a recorded development-time subtotal. No SQL migration.
+
 # 0.10.12 — Sort the Original Field Journal by work date
 
 - Time, Travel and Parts display oldest work date first, including backdated entries and date edits. The work-order printout uses the same order across all entries. This changes display only, not dates, billing or saved snapshots.

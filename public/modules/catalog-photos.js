@@ -8,7 +8,7 @@ export const partColorValues=item=>[item?.catalogInfo?.color,item?.catalogInfo?.
 export const partColor=item=>partColorValues(item).join(' / ');
 export const partSearch=(item,query)=>{
  const info=item?.catalogInfo||{};
- const text=[item?.name,item?.sku,item?.description,item?.group,info.brand,info.mpn,info.system,info.partType,...partColorValues(item)].join(' ').toLowerCase();
+ const text=[item?.name,item?.sku,item?.description,item?.group,info.brand,info.mpn,info.system,info.serviceCategory,info.partType,...partColorValues(item)].join(' ').toLowerCase();
  return String(query||'').trim().toLowerCase().split(/\s+/).filter(Boolean).every(token=>text.includes(token));
 };
 export function photoThumbnail(item){

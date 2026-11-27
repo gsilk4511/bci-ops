@@ -1,11 +1,12 @@
 import {partColorValues,partSearch} from './catalog-photos.js';
 
-export const warehouseFacetKeys=['brand','category','type','color','stock'];
+export const warehouseFacetKeys=['brand','category','type','color','service','stock'];
 export const unclassified='Unclassified';
 export const partFacets={
  brand:item=>[item.catalogInfo?.brand,item.manufacturer].find(value=>typeof value==='string'&&value.trim())?.trim()||'Not specified',
  category:item=>item.catalogInfo?.system||item.group||unclassified,
  type:item=>item.catalogInfo?.partType||unclassified,
+ service:item=>item.catalogInfo?.serviceCategory||unclassified,
 };
 const stockLabels=[
  ['positive','In stock'],['zero','Zero on hand'],
@@ -13,7 +14,7 @@ const stockLabels=[
 ];
 export const facetLabels={
  brand:['Brand','All brands'],category:['Category','All categories'],type:['Type','All types'],
- color:['Color / Finish','All colors and finishes'],stock:['Stock','All stock levels'],
+ color:['Color / Finish','All colors and finishes'],stock:['Stock','All stock levels'],service:['Material service','All material services'],
 };
 const colorValues=item=>{
  const values=partColorValues(item);
