@@ -3,14 +3,19 @@
 const section = (title, ...items) => ({title, items});
 const release = (version, title, summary, ...sections) => ({version, title, summary, sections});
 const releaseDates={
+ '0.10.14':'2026-11-27',
  '0.10.13':'2026-11-27','0.10.12':'2026-11-26','0.10.11':'2026-11-26','0.10.10':'2026-11-26',
  '0.10.9':'2026-11-26','0.10.8':'2026-11-26','0.10.7':'2026-11-26','0.10.6':'2026-11-26',
  '0.10.5':'2026-11-26','0.10.4':'2026-11-26','0.10.3':'2026-11-26','0.10.2':'2026-11-26',
  '0.10.1':'2026-11-26','0.10.0':'2026-11-25',
 };
 // Planning/build/check effort, not elapsed time between versions.
-const developmentHours={'0.10.13':0.25};
+const developmentHours={'0.10.14':0.15,'0.10.13':0.25};
 export const releases = [
+ release('0.10.14','Compact Warehouse grid','See more parts without rows of edit controls.',
+  section('Warehouse','Compact rows show the part name, available color and unit, and the same stock and price columns. Internal SKUs are hidden from the grid but still searchable.'),
+  section('Editing','Use Edit at the top and select a part name to change counts or pricing with existing permissions. Outside Edit mode, selecting the name opens read-only details. No catalog import or database migration required.')),
+
  release('0.10.13','Warehouse catalog import and stock targets','Preview catalog updates and new parts without touching physical counts.',
   section('Import Warehouse Updates','Match existing items by ID and SKU, preview proposed changes and show held rows. Add new catalog items with explicit prices, units, categories and stocking targets. No deletion, receipt or work-order rewrite.'),
   section('Stock and pricing','Shared Signamax targets are per port count across colors. The existing generic Cat6 remains per-foot. A standard sell price does not silently set a change-order price.'),

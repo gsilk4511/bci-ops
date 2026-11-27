@@ -1,3 +1,9 @@
+# 0.10.14 — Compact Warehouse grid
+
+- Tighten Warehouse rows. Keep the part name, available color and unit, and existing stock and pricing columns. Hide internal SKU in the grid without changing search or exports.
+- Replace inline count and pricing dropdowns with one Edit button at the top. Select a part name in Edit mode to open its editor. Otherwise the name opens read-only details, including any legacy balances.
+- Keep existing permissions and save rules. No catalog re-import or database migration.
+
 # 0.10.13 — Warehouse catalog import and stock targets
 
 - Extend Import Warehouse Updates with an admin-only preview and explicit apply for the v2 JSON format. Continue accepting existing metadata-only v1 patches.

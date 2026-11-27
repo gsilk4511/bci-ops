@@ -1135,7 +1135,7 @@ function openForm(kind,entryId){if(formPermissions[kind]&&!can(formPermissions[k
     const payload={...values,group:values.system,type:'material',inventoryEdit:true};
     for(const key of ['cost','price','changePrice'])if(payload[key]==='')delete payload[key];
     return send('catalog.create',payload);
-   },'<p class="muted">Adds the part to Warehouse. Use Edit count in its row to enter the stock you have at BCI Warehouse. Leave unknown prices blank.</p>');
+   },'<p class="muted">Adds the part to Warehouse. Select Edit at the top, then the part name, to enter the stock you have at BCI Warehouse. Leave unknown prices blank.</p>');
  }
  case 'service':
   if(!can('pricing.view'))return;

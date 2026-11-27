@@ -1,4 +1,4 @@
-# Update existing BCI Operations staging to 0.10.13
+# Update existing BCI Operations staging to 0.10.14
 
 ## Greg: use the existing staging stack
 
@@ -10,7 +10,7 @@
    `mariadb.env`, MariaDB database name, named volume, bridge, and service
    hostname `db`. Do not replace these with bundled examples.
 4. Confirm the app build context points to the updated source. In the active
-   Compose file, change the app image tag to `bci-operations:0.10.13`. Do not
+   Compose file, change the app image tag to `bci-operations:0.10.14`. Do not
    change the database service. Use the actual app service name if different.
    This release excludes bundled catalog photos. Its .dockerignore also excludes
    any old Server/CatalogPhotos directory left from a previous extraction. This
@@ -24,16 +24,17 @@ docker compose -f compose.bci-operations-fixed.yml up -d --build --no-deps --for
 docker compose -f compose.bci-operations-fixed.yml exec -T bci-operations node -e "fetch('http://127.0.0.1:3100/api/health').then(r=>r.json()).then(console.log)"
 ```
 
-Recreate by itself does not build a new image. Verify `0.10.13` in the health
+Recreate by itself does not build a new image. Verify `0.10.14` in the health
 response and beside the BCI logo. Do not import or reseed the app database for this update. To test optional User Security separately, follow USER_SECURITY.md.
 If you roll back, restore the previous source, restore its former image tag
 and rebuild only the app. Keep the database and its volume in place.
 
-## Randy: accept 0.10.13 on staging
+## Randy: accept 0.10.14 on staging
 
-- On an editable sample order, log a newer date, then an older date. Verify the
-  older date appears first in the Original Field Journal and Print Work Order.
-  Edit a work date and confirm the rows reposition. No database migration.
+- Open Warehouse. Confirm compact rows show names without internal SKUs or in-row dropdowns.
+- Search by a known SKU to confirm it remains findable. Open a part before entering Edit mode; it should show read-only details.
+- Select Edit at the top, then a sample part. Verify the count and pricing forms appear only with the relevant permissions. Cancel without changes, or save on a test record. Select Done editing to return to browsing.
+- Verify the same flow on a phone. There is no catalog re-import or database migration for this release.
 
 ## Verify travel billing from 0.10.11
 
@@ -260,11 +261,11 @@ must not request geolocation. The container needs outbound HTTPS to
 `api.weather.gov`. A missing feed shows a fallback link and does not block profile
 controls. No new environment variable, database migration or port is needed.
 
-## Randy: preview the separate Warehouse update after 0.10.13 is running
+## Randy: preview the separate Warehouse update after 0.10.14 is running
 
 1. Export Warehouse & Catalog to retain a pre-import reference. Keep Greg's database backup.
 2. Go to Warehouse → Import Warehouse Updates (not Import Catalog). Choose
-   `BCI-Warehouse-Updates-v0.10.13.json`, then Preview updates.
+   `BCI-Warehouse-Updates-v0.10.14.json`, then Preview updates.
 3. The November 27 reference export produced 340 additions, 182 updates and five
    shared stock targets, with 52 held rows and zero conflicts. If the live
    preview reports conflicts, stop and export a fresh snapshot for review. The

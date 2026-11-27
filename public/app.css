@@ -235,19 +235,26 @@ button.danger{background:#a72323;border:2px solid #8a1818;border-radius:8px;colo
  #bciPrintDocument .work-order-journal-work .ticket-text { widows:2; orphans:2 }
 }
 
-/* Warehouse inventory: keep each part and its edit controls together. */
+/* Compact Warehouse grid; part editing is separate from the rows. */
 .bci-wh-grid{--bci-wh-columns:repeat(3,minmax(4.3rem,1fr));--bci-stock-border:#dce3dc}
 .bci-wh-grid:is(.bci-wh-with-price,.bci-wh-with-cost){--bci-wh-columns:repeat(4,minmax(4.3rem,1fr))}
 .bci-wh-grid.bci-wh-with-price.bci-wh-with-cost{--bci-wh-columns:repeat(5,minmax(4.3rem,1fr))}
 [data-theme=dark] .bci-wh-grid{--bci-stock-border:#3e4942}
-.bci-wh-row{display:grid;grid-template-columns:minmax(13rem,3fr) var(--bci-wh-columns);gap:.65rem;padding:.65rem 0}
+.bci-wh-row{display:grid;grid-template-columns:minmax(13rem,3fr) var(--bci-wh-columns);gap:.25rem .6rem;padding:.24rem 0;align-items:center}
 .bci-wh-row>*{min-width:0;overflow-wrap:anywhere}
 .bci-wh-header{font-weight:700;font-size:.76rem}
-.bci-wh-record{border-top:1px solid var(--bci-stock-border);padding-bottom:.65rem}
+.bci-wh-record{border-top:1px solid var(--bci-stock-border)}
 .bci-wh-cell-label{display:none}
 .bci-wh-editors{display:grid;grid-template-columns:1fr 2fr;align-items:start;gap:.6rem}
-.bci-wh-editors details{min-width:0}
-.bci-wh-editors summary{cursor:pointer;font-weight:700;font-size:.86rem;padding:.45rem 0}
+.bci-wh-editors section{min-width:0}
+.bci-wh-editors h3{margin:.35rem 0}
+.bci-wh-row .bci-wh-part-button{display:inline;padding:0;border:0;min-height:0;background:none;box-shadow:none;color:inherit;font:inherit;font-weight:700;text-align:left;white-space:normal;overflow-wrap:anywhere}
+.bci-wh-row .bci-wh-part-button:hover,.bci-wh-row .bci-wh-part-button:focus-visible,[data-bci-wh-edit][aria-pressed=true]{text-decoration:underline}
+.bci-wh-row .bci-wh-part-button:focus-visible{outline:2px solid currentColor;outline-offset:2px}
+.bci-wh-editor-dialog{box-sizing:border-box;width:min(48rem,calc(100% - 2rem));max-height:calc(100dvh - 2rem);overflow:auto;margin:auto;color:inherit}
+.bci-wh-editor-dialog::backdrop{background:rgba(0,0,0,.55)}
+.bci-wh-dialog-bar{display:flex;align-items:start;justify-content:space-between;gap:.75rem}
+.bci-wh-dialog-bar h2{margin:0}
 .bci-wh-editors form{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,9rem),1fr));gap:.5rem;padding:.55rem 0}
 .bci-wh-editors form .field{margin:0}
 .bci-wh-editors form .field span{font-size:.83rem;font-weight:700}
@@ -297,7 +304,7 @@ button.danger{background:#a72323;border:2px solid #8a1818;border-radius:8px;colo
 [data-theme=dark] .bci-release-dialog-bar{border-color:#3e4942}
 @media(max-width:640px){.bci-release-cards{grid-template-columns:1fr}}
 
-.bci-wh-variant{margin:.28rem 0;overflow-wrap:anywhere}
+.bci-wh-variant{margin-inline-start:.45rem;overflow-wrap:anywhere}
 
 .bci-wh-files{display:flex;justify-content:space-between;align-items:center;gap:.7rem;flex-wrap:wrap}
 .bci-wh-files h2,.bci-wh-patch-dialog h2{margin:0}

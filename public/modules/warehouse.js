@@ -2,8 +2,8 @@
 import { billingName, can, card, catalog, data, esc, fmt, head, me, modal, send, table, wo } from '../app.js';
 import {warehouseFiles} from './warehouse-roundtrip.js';
 import {readReceiptPhoto} from './work-entry.js';
-import {partCategory,partColor,partMeta} from './catalog-photos.js';
-import {facetLabels,partFacets,unclassified,warehouseFacetKeys,warehouseFacets} from './warehouse-facets.js';
+import {partCategory,partColor} from './catalog-photos.js';
+import {facetLabels,warehouseFacetKeys,warehouseFacets} from './warehouse-facets.js';
 
 function sourceLink(raw,label){
  try{const url=new URL(raw);if(!['https:','http:'].includes(url.protocol)||url.username||url.password)return '';
@@ -14,14 +14,15 @@ function partDetails(item){
  const fields=[['Manufacturer',info.brand],['Manufacturer part #',info.mpn],['Category',partCategory(item)],['Family',info.family],['Specifications',info.spec],['Grade',info.grade],['Trade size',info.tradeSize],['Length',[info.length,info.lengthUnit].filter(x=>x!==null&&x!==undefined&&x!=='').join(' ')],['Catalog unit',info.catalogUnit||(item.needsUnitReview?'Not listed. Verify before pricing.':'')],['Pack quantity',info.packQty],['Ports',info.ports],['Color',info.color],['Shielding',info.shielding],['Work type',info.workType],['Installation method',info.installMethod],['Finish',info.finishCode],['Monitoring',info.monitoringOption],['Documented fit',info.documentedFit]];
  const links=[sourceLink(info.sourceUrl,'Manufacturer specifications')].filter(Boolean);
  const fits=Array.isArray(info.fitReferences)?info.fitReferences:[];
- return `<details class="bci-warehouse-details"><summary>Part details<span class="bci-visually-hidden"> for ${esc(item.name)}</span></summary><dl>${fields.filter(([,v])=>v!=null&&v!=='').map(([k,v])=>`<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('')}</dl>
+ return `<div class="bci-warehouse-details"><dl>${fields.filter(([,v])=>v!=null&&v!=='').map(([k,v])=>`<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('')}</dl>
  ${fits.length?`<h3>Manufacturer fit references</h3><ul>${fits.map(f=>`<li>${esc([f.part,f.fits,f.relationship,f.limit].filter(Boolean).join(' · '))}${f.sourceUrl?' '+sourceLink(f.sourceUrl,'Fit source'):''}</li>`).join('')}</ul>`:''}
- ${links.length?`<p class="bci-warehouse-source-links">${links.join(' · ')}</p>`:''}</details>`;
+ ${links.length?`<p class="bci-warehouse-source-links">${links.join(' · ')}</p>`:''}</div>`;
 }
 export const warehouseName='BCI Warehouse';
 const pageSize=40;
 const filters={query:'',brand:'',category:'',type:'',color:'',service:'',stock:'',page:0};
 let selectionOrder=[];
+let editingFor=null;
 const isFiltered=()=>Boolean(filters.query||warehouseFacetKeys.some(key=>filters[key]));
 const options=(values,selected)=>values.map(([value,label,count])=>`<option value="${esc(value)}"${value===selected?' selected':''}>${esc(label)} (${count.toLocaleString()})</option>`).join('');
 const moneyText=(n,pending)=>n==null||(pending&&Number(n)===0)?'—':fmt(n);
@@ -29,6 +30,9 @@ const num=(n,fallback=0)=>n==null||!Number.isFinite(Number(n))?fallback:Number(n
 const qty=n=>Math.round((n+Number.EPSILON)*100)/100;
 const priced=()=>can('inventory.view')&&can('pricing.view')&&can('catalog.update');
 const counts=()=>can('inventory.view')&&can('inventory.adjust');
+const canEdit=()=>counts()||priced();
+const identity=()=>me?.email||me;
+const editing=()=>canEdit()&&editingFor!==null&&editingFor===identity();
 const unknownCost=c=>c.needsUnitCost===true||(c.needsUnitCost!==false&&!c.warehouseUnitCostOverride&&Number(c.cost)===0);
 const showCost=()=>can('finance.view');
 const showPrice=()=>can('pricing.view');
@@ -52,21 +56,20 @@ const input=(key,label,value,max,kind='text')=>`<label class="field"><span>${esc
 const statusLine='<p class="form-error" role="alert" hidden></p>';
 function editable({item:c,onHand}){
  if(!counts()&&!priced())return '';
- const label=esc(billingName(c));
  return `<div class="bci-wh-editors">
- ${counts()?`<details><summary>Edit count<span class="bci-visually-hidden"> for ${label}</span></summary>
+ ${counts()?`<section><h3>Count</h3>
  <form data-bci-wh-form="count" data-id="${esc(c.id)}" data-expected="${onHand}">
  <label class="field"><span>Counted on hand</span><input name="quantity" type="number" step="0.01" min="0" max="1000000" value="${onHand<0?'':onHand}" required></label>
  <label class="field"><span>Reason</span><input name="reason" placeholder="e.g. Physical count" maxlength="400" required></label>
- ${statusLine}<button class="secondary small" type="submit">Save count</button></form></details>`:''}
- ${priced()?`<details><summary>Edit part &amp; pricing<span class="bci-visually-hidden"> for ${label}</span></summary>
+ ${statusLine}<button class="secondary small" type="submit">Save count</button></form></section>`:''}
+ ${priced()?`<section><h3>Part &amp; pricing</h3>
  <form data-bci-wh-form="pricing" data-id="${esc(c.id)}">
  ${input('brand','Brand',c.catalogInfo?.brand,80)}${input('mpn','Manufacturer part #',c.catalogInfo?.mpn,100)}
  ${input('system','Category',c.catalogInfo?.system,100)}${input('partType','Type',c.catalogInfo?.partType,100)}
  ${showCost()?input('cost','Unit cost',knownNumber(c.cost,unknownCost(c)),1000000,'number'):''}
  ${input('price','Sell price',knownNumber(c.price,c.needsPricing),1000000,'number')}
  ${input('changePrice','Change-order price',knownNumber(c.changePrice,c.needsPricing),1000000,'number')}
- ${statusLine}<button class="secondary small" type="submit">Save part &amp; pricing</button></form></details>`:''}</div>`;
+ ${statusLine}<button class="secondary small" type="submit">Save part &amp; pricing</button></form></section>`:''}</div>`;
 }
 const knownNumber=(n,pending)=>n==null||(pending&&Number(n)===0)?'':n;
 const stat=(label,value,warn=false)=>`<div role="cell"><span class="bci-wh-cell-label">${esc(label)}</span><span class="${warn?'warn':''}">${esc(value)}</span></div>`;
@@ -84,13 +87,35 @@ function grid(rows){
  const layout=[showCost()?'bci-wh-with-cost':'',showPrice()?'bci-wh-with-price':''].join(' ');
  return `<div class="bci-wh-grid ${layout}" role="table" aria-label="BCI Warehouse parts"><div class="bci-wh-row bci-wh-header" role="row">${['Part', 'On hand','Draft demand','Projected',...(showCost()?['Unit cost']:[]),...(showPrice()?['Sell price']:[])].map(gridHead).join('')}</div>
  ${rows.map(row=>{
-  const {item:c,onHand,demand,projected,legacy}=row;
-  const detail=[c.sku,partMeta(c),[partFacets.category(c),partFacets.type(c)].filter(x=>x!==unclassified).join(' / '),c.catalogInfo?.serviceCategory,c.unit].filter(Boolean).map(esc).join(' · ');
-  return `<div class="bci-wh-record" role="rowgroup"><div class="bci-wh-row" role="row"><div class="bci-wh-part" role="rowheader"><b>${esc(billingName(c))}</b><div class="muted tiny">${detail}</div><div class="bci-wh-variant tiny"><b>Color / Finish:</b> ${esc(partColor(c)||'Not specified')}</div>${partDetails(c)}
-  ${legacy.length?`<details class="bci-warehouse-details"><summary>Legacy stock, not in warehouse count</summary><ul>${legacy.map(x=>`<li>${esc(x.location)}: ${esc(x.quantity)} on hand${x.reserved?`, ${esc(x.reserved)} draft demand`:''}</li>`).join('')}</ul></details>`:''}</div>
-  ${stat('On hand',onHand,onHand<0)}${stat('Draft demand',demand)}${stat('Projected',projected,projected<0)}${showCost()?stat('Unit cost',moneyText(c.cost,unknownCost(c))):''}${showPrice()?stat('Sell price',moneyText(c.price,c.needsPricing)):''}
-  </div>${editable(row)}</div>`;
+  const {item:c,onHand,demand,projected}=row;
+  const extra=[partColor(c),c.unit].filter(Boolean).map(esc).join(' · ');
+  const label=billingName(c);
+  return `<div class="bci-wh-row bci-wh-record" role="row"><div class="bci-wh-part" role="rowheader"><button type="button" class="bci-wh-part-button" data-bci-wh-part="${esc(c.id)}" title="${esc(label)}" aria-haspopup="dialog" aria-label="${editing()?'Edit':'View details for'} ${esc(label)}">${esc(label)}</button>${extra?`<span class="bci-wh-variant muted tiny">${extra}</span>`:''}</div>
+  ${stat('On hand',onHand,onHand<0)}${stat('Draft demand',demand)}${stat('Projected',projected,projected<0)}${showCost()?stat('Unit cost',moneyText(c.cost,unknownCost(c))):''}${showPrice()?stat('Sell price',moneyText(c.price,c.needsPricing)):''}</div>`;
  }).join('')}</div>`;
+}
+function openPart(trigger){
+ if(!can('inventory.view'))return;
+ const section=trigger.closest('[data-bci-warehouse]');
+ const dialog=section?.querySelector('[data-bci-wh-dialog]');
+ const item=catalog(trigger.dataset.bciWhPart);
+ if(!dialog||dialog.open||!item||item.type!=='material'||item.warehouseArchived===true)return;
+ const row=rowsFor([item])[0];
+ const mode=editing();
+ dialog.innerHTML=`<div class="bci-wh-dialog-bar"><h2 id="bciWhPartTitle">${esc(billingName(item))}</h2><button type="button" class="secondary small" data-bci-wh-dialog-close autofocus>Close</button></div>
+ <p class="muted">${esc([partColor(item),item.unit].filter(Boolean).join(' · '))}</p>
+ ${mode?editable(row):partDetails(item)}
+ ${row.legacy.length?`<h3>Legacy stock, not in warehouse count</h3><ul>${row.legacy.map(x=>`<li>${esc(x.location)}: ${esc(x.quantity)} on hand${x.reserved?`, ${esc(x.reserved)} draft demand`:''}</li>`).join('')}</ul>`:''}`;
+ dialog.showModal();
+}
+function closeEditor(dialog,id){
+ if(!dialog)return;
+ if(dialog.open)dialog.close();
+ if(!dialog.isConnected){
+  const parts=document.querySelectorAll('[data-bci-wh-part]');
+  const next=[...parts].find(button=>button.dataset.bciWhPart===id);
+  (next||document.querySelector('[data-bci-wh-edit]'))?.focus({preventScroll:true});
+ }
 }
 function listPage(rows){
  const {matched,options:available,cleared}=warehouseFacets(rows,filters,selectionOrder);
@@ -156,9 +181,11 @@ export function warehouse(){
  const list=listPage(rows),legacy=rows.filter(x=>x.legacy.length).length;
  const qtyLabel=legacy===1?'part has':'parts have';
  const select=key=>`<div class="field"><label for="bciWarehouse-${key}">${esc(facetLabels[key][0])}</label><select id="bciWarehouse-${key}" data-bci-wh-filter="${key}">${options(list.available[key],filters[key])}</select></div>`;
- return head('Warehouse','Stock and catalog','Count, price, and filter catalog parts and warehouse stock in one place.',`<div class="gap">${can('pricing.view')&&can('catalog.create')?'<button class="secondary" data-open="warehouse-item">Add Item</button>':''}${me?.role==='admin'?'<button class="secondary" data-open="catalog-import">Import Catalog</button>':''}${receiveParts()?'<button class="primary" data-open="warehouse-receive">Receive Parts</button>':''}</div>`)+
+ return head('Warehouse','Stock and catalog','Count, price, and filter catalog parts and warehouse stock in one place.',`<div class="gap">${canEdit()?`<button type="button" class="secondary" data-bci-wh-edit aria-pressed="${editing()}">${editing()?'Done editing':'Edit'}</button>`:''}${can('pricing.view')&&can('catalog.create')?'<button class="secondary" data-open="warehouse-item">Add Item</button>':''}${me?.role==='admin'?'<button class="secondary" data-open="catalog-import">Import Catalog</button>':''}${receiveParts()?'<button class="primary" data-open="warehouse-receive">Receive Parts</button>':''}</div>`)+
  `<div class="cards">${card('Active material SKUs',materials.length,archived?`${archived.toLocaleString()} archived, history retained`:'All active parts')}${card('Warehouse shortages',rows.filter(x=>x.onHand<0||x.projected<0).length,'Review and reconcile','orange')}${card('Movements',data.movements.length,'Receipts, corrections and issues')}</div>
  ${warehouseFiles()}${stockPlans(rows)}<section class="panel" data-bci-warehouse><h2>${warehouseName}</h2>
+ <p class="muted tiny" data-bci-wh-edit-hint role="status" ${editing()?'':'hidden'}>Edit mode: select a part name to update its count, details or pricing.</p>
+ <dialog class="bci-wh-editor-dialog panel" data-bci-wh-dialog aria-labelledby="bciWhPartTitle"></dialog>
  ${legacy?`<p class="muted">${legacy} ${qtyLabel} balances or draft demand at older locations. Choose “Has legacy balance” in the stock filter to review those rows. They are preserved separately and not included in warehouse counts.</p>`:''}
  <div class="bci-wh-filters"><div class="field"><label for="bciWarehouseSearch">Search parts</label><input id="bciWarehouseSearch" data-bci-wh-filter="query" type="search" value="${esc(filters.query)}" placeholder="Name, brand, color, part # or SKU"></div>
  ${warehouseFacetKeys.map(select).join('')}</div>
@@ -199,6 +226,20 @@ function applyFilter(event){
 document.addEventListener('input',event=>{if(event.target.dataset?.bciWhFilter==='query')applyFilter(event);});
 document.addEventListener('change',event=>{if(event.target.dataset?.bciWhFilter!=='query')applyFilter(event);});
 document.addEventListener('click',event=>{
+ const edit=event.target.closest?.('[data-bci-wh-edit]');
+ if(edit&&canEdit()){
+  const section=document.querySelector('[data-bci-warehouse]');
+  if(!section)return;
+  editingFor=editing()?null:identity();
+  edit.setAttribute('aria-pressed',String(editing()));
+  edit.textContent=editing()?'Done editing':'Edit';
+  section.querySelector('[data-bci-wh-edit-hint]').hidden=!editing();
+  update(section,filters.page);return;
+ }
+ const part=event.target.closest?.('[data-bci-wh-part]');
+ if(part)return openPart(part);
+ const close=event.target.closest?.('[data-bci-wh-dialog-close]');
+ if(close){close.closest('[data-bci-wh-dialog]').close();return;}
  const clear=event.target.closest?.('[data-bci-wh-clear]');
  if(clear&&!clear.disabled){
   const section=clear.closest('[data-bci-warehouse]');
@@ -216,7 +257,8 @@ document.addEventListener('submit',async event=>{
  const form=event.target,mode=form.dataset?.bciWhForm;
  if(!['count','pricing'].includes(mode))return;
  event.preventDefault();
- if(form.dataset.saving)return;
+ if(form.dataset.saving||!editing()||!(mode==='count'?counts():priced()))return;
+ const dialog=form.closest('[data-bci-wh-dialog]');
  const error=form.querySelector('[role="alert"]'),button=form.querySelector('button[type=submit]');
  error.hidden=true;form.dataset.saving='true';button.disabled=true;
  try{
@@ -233,9 +275,10 @@ document.addEventListener('submit',async event=>{
    for(const key of ['cost','price','changePrice']){
     if(values[key]!==undefined&&values[key]!==''&&Number(values[key])!==knownNumber(item[key],key==='cost'?unknownCost(item):item.needsPricing))changes[key]=values[key];
    }
-   if(!Object.keys(changes).length){form.closest('details').open=false;return;}
+   if(!Object.keys(changes).length){closeEditor(dialog,catalogId);return;}
    await send('catalog.update',{catalogId,inventoryEdit:true,...changes});
   }
+  closeEditor(dialog,catalogId);
  }catch(e){error.textContent=e.message;error.hidden=false;}
  finally{delete form.dataset.saving;button.disabled=false;}
 });

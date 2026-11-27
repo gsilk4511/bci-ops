@@ -60,7 +60,7 @@ function editRecord(kind,row){
  if(kind==='project')fields=f('name','Project name',{required:true,value:row.name})+f('site','Jobsite',{required:true,value:row.site})+f('po','Client PO',{value:row.po});
  if(kind==='workorder')fields=f('title','Work order title',{required:true,value:row.title})+f('description','Scope',{required:true,textarea:true,value:row.description});
  if(kind==='contact')fields=f('name','Name',{required:true,value:row.name})+f('phone','Phone',{required:true,value:row.phone})+f('email','Email',{type:'email',value:row.email});
- if(!fields){show('Use Receive Parts or Edit count in Warehouse for stock changes.',true);return;}
+ if(!fields){show('Use Receive Parts or Warehouse → Edit, then select the part to adjust its count.',true);return;}
  modal('Edit '+kind,fields,values=>send(kind+'.update',{...values,id:row.id,customerId:row.customerId,expectedUpdatedAt:row.updatedAt??null}),
   kind==='workorder'?'<p>Approved scope changes require a change order.</p>':'');
 }
