@@ -3,15 +3,25 @@
 const section = (title, ...items) => ({title, items});
 const release = (version, title, summary, ...sections) => ({version, title, summary, sections});
 const releaseDates={
- '0.10.14':'2026-11-27',
+ '0.10.17':'2026-11-28','0.10.16':'2026-11-28','0.10.15':'2026-11-27','0.10.14':'2026-11-27',
  '0.10.13':'2026-11-27','0.10.12':'2026-11-26','0.10.11':'2026-11-26','0.10.10':'2026-11-26',
  '0.10.9':'2026-11-26','0.10.8':'2026-11-26','0.10.7':'2026-11-26','0.10.6':'2026-11-26',
  '0.10.5':'2026-11-26','0.10.4':'2026-11-26','0.10.3':'2026-11-26','0.10.2':'2026-11-26',
  '0.10.1':'2026-11-26','0.10.0':'2026-11-25',
 };
 // Planning/build/check effort, not elapsed time between versions.
-const developmentHours={'0.10.14':0.15,'0.10.13':0.25};
+const developmentHours={'0.10.17':0.25,'0.10.16':0.5,'0.10.15':0.25,'0.10.14':0.15,'0.10.13':0.25};
 export const releases = [
+ release('0.10.17','Selectable vehicle card sounds','Give each vehicle its own short engine sound.',
+  section('Vehicles','Customize Profile now has Vehicle click sound and a Preview button. The sound only triggers when the vehicle card is opened. Existing vehicles start silent; the device’s Menu Sounds Off setting mutes automatic playback. No database migration.')),
+
+ release('0.10.16','Admin Spend Clock and profile market feed','Read the national construction clock, then turn a local trade signal into a BCI ELITE campaign.',
+  section('Admin','Open Spend Clock for market selectors, national map, trade assumptions, and low-voltage campaign playbooks. Read-only, unavailable in Test Permissions.'),
+  section('My Time & Profile','The owner sees Market Signals below Weather, with dated Vermont figures and a separate authenticated RSS feed. Labeled estimates never appear as confirmed leads. No schema migration or catalog import.')),
+
+ release('0.10.15','Customizable menu sounds','Pick the sound your workspace tabs make.',
+  section('Navigation','The speaker button offers Mechanical, Soft Tick, Digital or Off. Selecting a sound plays a preview and saves the choice in this browser. Only main workspace tabs play the sound during normal navigation. No database migration.')),
+
  release('0.10.14','Compact Warehouse grid','See more parts without rows of edit controls.',
   section('Warehouse','Compact rows show the part name, available color and unit, and the same stock and price columns. Internal SKUs are hidden from the grid but still searchable.'),
   section('Editing','Use Edit at the top and select a part name to change counts or pricing with existing permissions. Outside Edit mode, selecting the name opens read-only details. No catalog import or database migration required.')),

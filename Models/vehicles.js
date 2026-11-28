@@ -1,3 +1,4 @@
+import {fleetSound} from '../public/modules/fleet-sounds.js';
 import {randomUUID} from 'node:crypto';
 import {validDate} from './payroll.js';
 import {fleetStyle} from '../public/modules/fleet-style.js';
@@ -85,7 +86,7 @@ function view(row,actor,at=today()){
  };
  const schedules=Object.fromEntries(schedulable.map(k=>[k,deadline(row[k])]));
  return {id:row.id,name:row.name,year:row.year??null,make:row.make||'',model:row.model||'',vin:row.vin||'',color:row.color||'',plate:row.plate||'',
-  style:fleetStyle(row.style,row.color),about:row.about??row.notes??'',health:row.health||'',assignedEmail:row.assignedEmail||'',needsCleanup:!!row.needsCleanup,
+  style:fleetStyle(row.style,row.color),clickSound:fleetSound(row.clickSound),about:row.about??row.notes??'',health:row.health||'',assignedEmail:row.assignedEmail||'',needsCleanup:!!row.needsCleanup,
   odometer:current,odometerDate:reading.date,odometerStale:!reading.date||reading.date<dayShift(at,-30),
   photoUrl:row.photoDataUrl?'/api/vehicle-photo/'+encodeURIComponent(row.id):null,
   registration:schedules.registration,oil:schedules.oil,inspection:schedules.inspection,schedules,
@@ -160,6 +161,7 @@ export function vehiclesAction(state,data,actor){
  const finish=()=>{Object.assign(old,row);return view(row,actor);};
  if(data.operation==='saveStyle'){
   row.style=data.style===null?undefined:fleetStyle(data.style,row.color,true);
+  if(own(data,'clickSound'))row.clickSound=fleetSound(data.clickSound,true);
   return finish();
  }
  if(data.operation==='saveSchedule'){

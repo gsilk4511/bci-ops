@@ -1,3 +1,5 @@
+import {fleetSound} from '../public/modules/fleet-sounds.js';
+import {spendRoot,writeSpendClock,readSpendData,profileSpendFeed} from './spend-clock.js';
 import {permissionPreviewSessions,previewEmail,isPreviewOwner} from '../UserSecurity/permission-preview.js';
 import {permissionPreviewFixture} from '../Models/permission-preview-fixture.js';
 import {calendarView} from '../Models/calendar.js';
@@ -405,6 +407,12 @@ const server=http.createServer(async(req,res)=>{
       user={email:previewEmail};
       role=preview.role;
     }
+    if(url.pathname===spendRoot||url.pathname.startsWith(spendRoot+'/')){
+      if(role!=='admin'||previewPresent||previewRequest)return response(res,403,{error:'Admin access required in My View'});
+      if(!['GET','HEAD'].includes(req.method))return response(res,405,{error:'Method not allowed'});
+      if(req.headers['sec-fetch-site']==='cross-site')return response(res,403,{error:'Untrusted request origin'});
+      return await writeSpendClock(req,res,url);
+    }
     if(url.pathname==='/api/changelog'){
       if(role!=='admin')return response(res,403,{error:'Admin access required'});
       if(req.method!=='GET')return response(res,405,{error:'Method not allowed'});
@@ -449,6 +457,28 @@ const server=http.createServer(async(req,res)=>{
       res.writeHead(200,{'content-type':doc.mime,'content-length':doc.bytes.length,'content-disposition':'attachment; filename="vehicle-document.'+ext+'"',
        'cache-control':'private, no-store','x-content-type-options':'nosniff','cross-origin-resource-policy':'same-origin','referrer-policy':'no-referrer','content-security-policy':"default-src 'none'; frame-ancestors 'none'; sandbox"});
       return res.end(req.method==='HEAD'?undefined:doc.bytes);
+    }
+    if(url.pathname.startsWith('/api/vehicle-sound/')){
+      if(req.method!=='GET'&&req.method!=='HEAD')return response(res,405,{error:'Method not allowed'});
+      if(previewPresent||previewRequest||!permissions.includes('vehicles.view'))return response(res,403,{error:'Vehicle access required'});
+      const id=url.pathname.match(/^\/api\/vehicle-sound\/([a-z0-9-]+)\.mp3$/)?.[1];
+      if(fleetSound(id)==='off')return response(res,404,{error:'Sound unavailable'});
+      let body;try{body=await fs.readFile(path.join(root,'Server','VehicleSounds',id+'.mp3'));}catch{return response(res,404,{error:'Sound unavailable'});}
+      const total=body.length,headers={'content-type':'audio/mpeg','content-length':total,'accept-ranges':'bytes','cache-control':'private, no-store',
+       'x-content-type-options':'nosniff','cross-origin-resource-policy':'same-origin','referrer-policy':'no-referrer',
+       'content-security-policy':"default-src 'none'; frame-ancestors 'none'"};
+      const range=req.headers.range?.match(/^bytes=(\d{0,12})-(\d{0,12})$/);
+      let status=200;
+      if(range&&(range[1]||range[2])){
+       const start=range[1]?Number(range[1]):Math.max(0,total-Number(range[2]));
+       const end=range[1]&&range[2]?Math.min(total-1,Number(range[2])):total-1;
+       if(start>end){res.writeHead(416,{...headers,'content-length':0,'content-range':'bytes */'+total});return res.end();}
+       body=body.subarray(start,end+1);status=206;
+       headers['content-range']=`bytes ${start}-${end}/${total}`;
+       headers['content-length']=body.length;
+      }
+      res.writeHead(status,headers);
+      return res.end(req.method==='HEAD'?undefined:body);
     }
     if(url.pathname.startsWith('/api/vehicle-photo/')){
       if(req.method!=='GET'&&req.method!=='HEAD')return response(res,405,{error:'Method not allowed'});
@@ -505,6 +535,12 @@ const server=http.createServer(async(req,res)=>{
       const practice=trainingState(current,{email:user.email,role,permissions});
       if(permissions.includes('invoice.group'))practice.workorders=practice.workorders.map(order=>({...order,crewSummary:crewSummary(order.entries)}));
       return response(res,200,{...practice,liveAccess:{email:user.email,role,accessRevision:current.meta?.accessRevision||0,...access}});
+    }
+    if(url.pathname==='/api/profile-market-feed'){
+      if(req.method!=='GET')return response(res,405,{error:'Method not allowed'});
+      if(!owner||previewPresent||previewRequest||!permissions.includes('staff.view'))return response(res,403,{error:'Owner profile access required'});
+      const {data:economy,refreshing}=readSpendData();
+      return response(res,200,profileSpendFeed(economy,refreshing));
     }
     if(url.pathname==='/api/profile-weather'){
       if(req.method!=='GET')return response(res,405,{error:'Method not allowed'});

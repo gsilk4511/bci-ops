@@ -5,6 +5,7 @@ import {contributionPanel,contributionCurrency} from './staff-contribution.js';
 import {contributionYear,openCompensationProfile,rateLabel} from './staff-contribution-admin.js';
 import {businessManagerPanel} from './business-manager.js';
 import {profileWeatherCard} from './profile-weather.js';
+import {marketFeedCard} from './spend-clock.js';
 import {staffWorkspaceTheme} from './staff-workspace-theme.js';
 
 let firstDay='',lastDay='';
@@ -158,7 +159,9 @@ export function staffPage() {
    ${staff.directory?.length?`<div class="bci-staff-directory">${staff.directory.map(peer=>directoryProfile(peer,!practiceMode&&openDirectoryCards.has(peer.id))).join('')}</div>`:'<p>No other team profiles are available.</p>'}</section>`
   +(admin?`<section class="panel"><h2>Staff profiles</h2>${table(['Employee','Sign-in','Pay scale','Vacation','Sick',rateYear+' profit share',''],staff.staffProfiles.map(row=>`<tr><td>${esc(row.name)}</td><td>${esc(row.email)}</td><td>${staffPayScaleCell(row)}</td><td>${number(row.vacationHours)} h</td><td>${number(row.sickHours)} h</td><td>${esc(rateLabel(row,rateYear))}</td><td>${can('staff.manage')?action('manage','Edit staff profile',row.email):''}</td></tr>`))}</section>
    <section class="panel"><h2>Pending time off</h2>${table(['Employee','Date','Category','Hours',''],staff.requests.map(row=>`<tr><td>${esc(staff.staffProfiles.find(member=>member.email===row.email)?.name||row.email)}</td><td>${esc(row.date)}</td><td>${esc(categories[row.type])}</td><td>${number(row.quantity)}</td><td>${can('staff.leaveReview')?action('review','Review',row.id):''}</td></tr>`))}</section>`:'');
- return staffWorkspaceTheme(profile.style,heading+`<div class="bci-staff-columns${practiceMode?'':' has-weather'}">${practiceMode?'':profileWeatherCard()}<div class="bci-staff-primary">${content}</div></div>`);
+ const marketFeed=!practiceMode&&me?.permissionTestAvailable&&me.role==='admin';
+ const sidebar=practiceMode?'':marketFeed?'<aside class="bci-staff-sidebar">'+profileWeatherCard()+marketFeedCard()+'</aside>':profileWeatherCard();
+ return staffWorkspaceTheme(profile.style,heading+`<div class="bci-staff-columns${practiceMode?'':' has-weather'}">${sidebar}<div class="bci-staff-primary">${content}</div></div>`);
 }
 function staffPayScaleCell(row){
  const label=String(row.payScale??'').trim();

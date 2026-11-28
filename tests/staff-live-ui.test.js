@@ -16,7 +16,7 @@ test('My Time shows the five-week grid and refreshes the current session without
  const doc={hidden:false,addEventListener(type,callback){callbacks[type]=callback;},querySelector(){return lookup;}};
  const context=vm.createContext({document:doc,setInterval(handler,period){timers.push([handler,period]);},
   async fetch(endpoint,options){assert.equal(endpoint,'/api/staff-summary');assert.equal(options.cache,'no-store');fetchCount++;return response;}});
- const app={can:()=>true,data,esc:x=>String(x??''),f:()=>'',head:()=>'',me:{email:'owner@example.test',role:'admin'},modal:()=>{},practiceMode:false,render(){},send(){},show(){},table:(columns,rows)=>columns.join('|')+rows.join(''),today:()=>''};
+ const app={can:()=>true,data,esc:x=>String(x??''),f:()=>'',head:()=>'',me:{email:'owner@example.test',role:'admin',permissionTestAvailable:true},modal:()=>{},practiceMode:false,render(){},send(){},show(){},table:(columns,rows)=>columns.join('|')+rows.join(''),today:()=>''};
  const exports={
   '../app.js':app,
   './staff-profile.js':{profileCard:()=>'',directoryProfile:()=>'',personalProfileFields:()=>'',personalProfilePayload:()=>'',bindProfileEditor:()=>''},
@@ -24,6 +24,7 @@ test('My Time shows the five-week grid and refreshes the current session without
   './staff-contribution-admin.js':{contributionYear:()=>2026,openCompensationProfile:()=>'',rateLabel:()=>''},
   './business-manager.js':{businessManagerPanel:()=>''},
   './profile-weather.js':{profileWeatherCard:()=>'<aside>Weather · Barre</aside>'},
+  './spend-clock.js':{marketFeedCard:()=>'<aside>Market Signals</aside>'},
   './staff-workspace-theme.js':{staffWorkspaceTheme:(_style,content)=>content}
  };
  const screen=new vm.SourceTextModule(readFileSync(new URL('../public/modules/staff.js',import.meta.url),'utf8'),{context});
@@ -33,6 +34,7 @@ test('My Time shows the five-week grid and refreshes the current session without
  });
  await screen.evaluate();
  const html=screen.namespace.staffPage();
+ assert.match(html,/Weather · Barre<\/aside><aside>Market Signals/);
  assert.match(html,/My last five weeks/);
  assert.match(html,/Regular\|Overtime\|PTO\|Sick\|Holiday/);
  assert.match(html,/Weeks start Monday/);

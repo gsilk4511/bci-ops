@@ -4,7 +4,7 @@
 services:
   bci-operations:
     build: /home/gccadmin/docker/bci-operations-secure/source
-    image: bci-operations:0.10.14
+    image: bci-operations:0.10.17
     pull_policy: never
     container_name: bci-operations-secure
     restart: unless-stopped

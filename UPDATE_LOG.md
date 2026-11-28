@@ -1,3 +1,18 @@
+# 0.10.17 — Selectable vehicle sounds
+
+- Choose and preview a Vehicle click sound in Customize Profile. Saved selections play when their vehicle card opens. No assignments are made automatically; Off remains the default. Audio is served behind the existing Vehicles permission. No schema migration.
+
+# 0.10.16 — Admin Spend Clock and profile market feed
+
+- Admin → Spend Clock includes the dashboard, all 50 states plus D.C., local market drilldowns, national map, editable trade assumptions, and eight market-aware low-voltage playbooks.
+- Owner My Time & Profile → Market Signals appears directly below Weather and includes dated Vermont construction indicators, low-voltage scenario figures, and private RSS. Full economic RSS remains available in Spend Clock.
+- Census, BLS, BEA, and FRED checks use outbound HTTPS from the app server, with saved figures when a source is unavailable. No separate ChatGPT sign-in, database migration, or catalog import.
+
+# 0.10.15 — Customizable menu sounds
+
+- Open the speaker button beside Workspace navigation to choose Mechanical (default), Soft Tick, Digital, or Off. Hear a preview on selection. Each browser/device saves its own choice.
+- Main menu tabs play the selected sound for mouse, touch, and keyboard activation. Other controls stay quiet. No audio downloads, database migration, or catalog import.
+
 # 0.10.14 — Compact Warehouse grid
 
 - Tighten Warehouse rows. Keep the part name, available color and unit, and existing stock and pricing columns. Hide internal SKU in the grid without changing search or exports.

@@ -1,4 +1,6 @@
+import {spendClockPage,wireMarketFeed} from './modules/spend-clock.js';
 import './modules/tactile-buttons.js';
+import {bindMenuSounds} from './modules/menu-sounds.js';
 import {entryCharge} from './modules/work-entry-charge.js';
 import {travelEntryFields,bindTravelEntryFields,travelEntryPayload} from './modules/travel-entry-fields.js';
 import {permissionPrerequisitePlan,dependentPermissionRemovals} from './modules/permission-prerequisites.js';
@@ -42,6 +44,10 @@ import { invoiceDocument } from './modules/invoice-document.js';
 
 const $=s=>document.querySelector(s);
 const themeToggle=$('#themeToggle');
+const menuSounds=bindMenuSounds({
+ button:$('#menuSoundSettings'),dialog:$('#menuSounds'),
+ options:$('#menuSoundOptions'),unavailable:$('#menuSoundsUnavailable')
+});
 const isTestDocument=testPermissionsView();
 if(isTestDocument){
  const button=$('#testPermissions'),banner=$('#permissionTestBanner');
@@ -75,7 +81,7 @@ const today=()=>{
  return [now.getFullYear(),pad(now.getMonth()+1),pad(now.getDate())].join('-');
 };
 const roundMoney=value=>Math.round((value+Number.EPSILON)*100)/100;
-const navItems=[['dashboard','◫','Dashboard'],['calendar','▦','Calendar'],['training','▷','Training'],['customers','♙','Customers'],['projects','▦','Projects'],['estimates','≡','Estimates'],['invoices','▤','Invoices'],['workorders','▤','Work Orders'],['tickets','◇','Tickets'],['notifications','◉','Notifications'],['inventory','▣','Warehouse'],['money','◈','Money'],['reports','▥','Reports'],['payroll','▤','Payroll'],['staff','◷','My Time & Profile'],['services','≡','Services'],['catalog','▦','Pricing'],['team','♧','Team'],['fleet','▰','Vehicles'],['testing','▦','Database Testing'],['changelog','▤','Changelog'],['trash','▤','Trash']];
+const navItems=[['dashboard','◫','Dashboard'],['calendar','▦','Calendar'],['training','▷','Training'],['customers','♙','Customers'],['projects','▦','Projects'],['estimates','≡','Estimates'],['invoices','▤','Invoices'],['workorders','▤','Work Orders'],['tickets','◇','Tickets'],['notifications','◉','Notifications'],['inventory','▣','Warehouse'],['money','◈','Money'],['reports','▥','Reports'],['payroll','▤','Payroll'],['staff','◷','My Time & Profile'],['services','≡','Services'],['catalog','▦','Pricing'],['team','♧','Team'],['fleet','▰','Vehicles'],['testing','▦','Database Testing'],['changelog','▤','Changelog'],['spend-clock','◴','Spend Clock'],['trash','▤','Trash']];
 let data=null,me=null,view='dashboard',selectedWO=null,reportType='purchases',reportStart='',reportEnd='',moneyCustomer='all',moneyStatus='all';
 const customer=id=>data.customers.find(c=>c.id===id),project=id=>data.projects.find(p=>p.id===id),catalog=id=>data.catalog.find(c=>c.id===id),wo=id=>data.workorders.find(w=>w.id===id);
 let selectedClientPortal=null;
@@ -87,7 +93,7 @@ const empty=(s)=>`<div class="empty">${esc(s)}</div>`;
 function bill(w){const buckets={labor:0,material:0,travel:0,cost:0};for(const e of w.entries){buckets[e.type]+=entryCharge(e);buckets.cost+=roundMoney((e.cost||0)*e.quantity);}buckets.total=w.internalTask&&!w.invoice?0:roundMoney(buckets.labor+buckets.material+buckets.travel-(w.invoice?.depositCredit||0));buckets.profit=roundMoney(buckets.total-buckets.cost);return buckets;}
 const can=key=>me?.permissions?.includes(key);
 const viewPermissions={fleet:'vehicles.view',staff:'staff.view',estimates:'estimates.view',training:'training.view',notifications:'notification.view',tickets:'tickets.view',dashboard:'dashboard.view',customers:'customers.view',projects:'projects.view',workorders:'workorders.view',inventory:'inventory.view',money:'money.view',reports:'reports.view',payroll:'payroll.view',services:'pricing.view',catalog:'pricing.view',team:'team.view',testing:'database.view'};
-const visibleView=id=>id==='invoices'?!practiceMode&&can('invoices.view')&&can('finance.view')&&can('workorders.view'):practiceMode&&!['training','customers','projects','workorders'].includes(id)?false:id==='calendar'?['projects.view','workorders.view','staff.view','vehicles.view','dashboard.view'].some(can):id==='trash'?me?.role==='admin':['team','changelog'].includes(id)?me?.role==='admin':can(viewPermissions[id]);
+const visibleView=id=>id==='invoices'?!practiceMode&&can('invoices.view')&&can('finance.view')&&can('workorders.view'):practiceMode&&!['training','customers','projects','workorders'].includes(id)?false:id==='calendar'?['projects.view','workorders.view','staff.view','vehicles.view','dashboard.view'].some(can):id==='spend-clock'?me?.role==='admin'&&!isTestDocument:id==='trash'?me?.role==='admin':['team','changelog'].includes(id)?me?.role==='admin':can(viewPermissions[id]);
 
 const formPermissions={customer:'customer.create',contact:'contact.create',project:'project.create','new-project':'project.create','project-contact':'project.contact','clock-setup':'clock.in',
  workorder:'workorder.create',approve:'workorder.approve',change:'change.create','log-time':'entry.add','log-materials':'entry.add','client-markup':'pricing.client','project-rate':'pricing.project','other-time':'payroll.other','project-invoice':'invoice.group',
@@ -96,7 +102,7 @@ const formPermissions={customer:'customer.create',contact:'contact.create',proje
  'warehouse-item':'catalog.create',service:'catalog.create',invoice:'invoice.record',payment:'invoice.pay',catalog:'catalog.create',reserve:'settings.reserve'};
 function nav(){
  const groups=[['Field work',['dashboard','calendar','workorders',...(!can('dashboard.view')?['tickets']:[]),'projects','customers','inventory','notifications','staff']],
-  ['Office',['estimates','invoices','services','catalog','money','reports','payroll']],['Admin',['training','team','fleet','testing','changelog','trash']]];
+  ['Office',['estimates','invoices','services','catalog','money','reports','payroll']],['Admin',['training','team','fleet','testing','changelog','spend-clock','trash']]];
  const rail=$('#nav'), priorScroll=rail.scrollLeft;
  rail.setAttribute('aria-label','Workspace navigation');
  rail.innerHTML=groups.map(([label,ids])=>{
@@ -631,7 +637,7 @@ function openProjectInvoice(w,billingStage='progress'){
 // The shell selects a screen and binds shared UI controls. Each screen owns its markup.
 function render(){
  nav();
- const views={calendar:calendarPage,fleet:fleetPage,staff:staffPage,invoices:invoicesPage,estimates:estimatesPage,training:trainingPage,notifications:notificationsPage,tickets:ticketsPage,dashboard,customers,projects:projectsHub,workorders,inventory:warehouse,money:moneyPage,reports,payroll:payrollPage,services:servicesPage,catalog:catalogPage,team:teamPage,testing:testingPage,changelog:changelogPage,trash:trashPage};
+ const views={calendar:calendarPage,fleet:fleetPage,staff:staffPage,invoices:invoicesPage,estimates:estimatesPage,training:trainingPage,notifications:notificationsPage,tickets:ticketsPage,dashboard,customers,projects:projectsHub,workorders,inventory:warehouse,money:moneyPage,reports,payroll:payrollPage,services:servicesPage,catalog:catalogPage,team:teamPage,testing:testingPage,'spend-clock':spendClockPage,changelog:changelogPage,trash:trashPage};
  const allowed=visibleView(view);
  const content=!allowed?'<section class="panel"><h1>No module access</h1><p>Ask your administrator to assign a permission profile.</p></section>':
   view!=='workorders'&&managingRecords()?recordManager():
@@ -644,7 +650,7 @@ function render(){
   const permission=button.hasAttribute('data-change')?'change.approve':formPermissions[button.dataset.open];
   if(permission&&!can(permission))button.remove();
  }
- if(view==='staff'&&allowed)wireProfileWeather($('#profileWeather'));
+ if(view==='staff'&&allowed){wireProfileWeather($('#profileWeather'));wireMarketFeed($('#profileMarketFeed'));}
  wireRecords();
  if(view==='workorders'&&allowed&&selectedWO){
   const journal=$('#app').querySelector('[data-field-journal]');
@@ -663,7 +669,7 @@ let initialLink=true;
 let practiceMode=false;
 try{
  const link=new URLSearchParams(window.location.search);
- const liveLink=['ticket','tickets','intake','notifications'].some(key=>link.has(key));
+ const liveLink=['ticket','tickets','intake','notifications','spend-clock'].some(key=>link.has(key));
  practiceMode=!liveLink&&sessionStorage.getItem('bci-practice')==='1';
  if(liveLink)sessionStorage.removeItem('bci-practice');
 }catch{}
@@ -749,6 +755,7 @@ async function reload(){
  if(initialLink&&!practiceMode){
   initialLink=false;
   const query=new URLSearchParams(window.location?.search||'');
+  if(query.has('spend-clock')&&visibleView('spend-clock'))view='spend-clock';
   if(query.has('calendar')&&visibleView('calendar'))view='calendar';
   if(query.has('notifications')&&can('notification.view'))view='notifications';
   if((query.has('ticket')||query.has('tickets')||query.has('intake'))&&can('tickets.view')){
@@ -1159,7 +1166,7 @@ function openForm(kind,entryId){if(formPermissions[kind]&&!can(formPermissions[k
 function signFields(){return `<div class="field"><label>Customer signature (draw below)</label><canvas class="sign-canvas" width="440" height="160" aria-label="Signature drawing area"></canvas><button type="button" class="secondary small" id="clearSig">Clear signature</button></div><label class="signature-terms"><input type="checkbox" name="consent" required> I approve the scope and accept the estimated T&M terms shown above.</label>`;}
 function initSignature(){const c=document.querySelector('.sign-canvas');if(!c)return;const form=c.closest('form'),ctx=c.getContext('2d');ctx.strokeStyle='#182022';ctx.lineWidth=2.6;ctx.lineCap='round';ctx.lineJoin='round';let drawing=false;function point(e){const b=c.getBoundingClientRect();return {x:(e.clientX-b.left)*c.width/b.width,y:(e.clientY-b.top)*c.height/b.height};}c.addEventListener('pointerdown',e=>{c.setPointerCapture(e.pointerId);drawing=true;const p=point(e);ctx.beginPath();ctx.moveTo(p.x,p.y);ctx.lineTo(p.x+.15,p.y+.15);ctx.stroke();form.dataset.signed='1';});c.addEventListener('pointermove',e=>{if(!drawing)return;const p=point(e);ctx.lineTo(p.x,p.y);ctx.stroke();});c.addEventListener('pointerup',()=>drawing=false);c.addEventListener('pointercancel',()=>drawing=false);document.getElementById('clearSig').addEventListener('click',()=>{ctx.clearRect(0,0,c.width,c.height);delete form.dataset.signed;});}
 function approveChange(changeId){if(!can('change.approve'))return;const w=wo(selectedWO),co=w.changes.find(c=>c.id===changeId);if(!co)return;modal('Approve change order',`<p><b>${esc(co.description)}</b></p>${co.lines.map(l=>`<div class="list-item">${esc(l.name)} × ${l.quantity} <b>${fmt(l.quantity*l.rate)}</b></div>`).join('')}<p class="lineTotal">Estimated ${fmt(co.estimatedTotal)}</p><div class="notice">BCI ELITE must procure parts within your timeline, which may increase shipping and office coordination costs. This is an elevated time-and-materials estimate, not a fixed price. Final charges may be lower or higher. Supporting receipts are available upon request with the final invoice.</div>`+f('signedBy','Approver full name',{required:true})+signFields(),x=>send('change.approve',{workorderId:w.id,changeId,...x}),'<p class="muted tiny">Drawn signature captured. The app records the technician account, but cannot independently verify the identity or authority of the signer.</p>');initSignature();}
-document.addEventListener('click',e=>{const target=e.target.closest('[data-nav],[data-project],[data-wo],[data-open],[data-change],[data-print],[data-client-portal]');if(!target)return;if(target.dataset.nav&&visibleView(target.dataset.nav)){view=target.dataset.nav;selectedWO=null;selectedProject=null;selectedClientPortal=null;render();if(e.detail===0&&target.classList.contains('nav-item'))$('#nav').querySelector?.('[aria-current="page"]')?.focus({preventScroll:true});}if(target.dataset.clientPortal&&can('customers.view')&&customer(target.dataset.clientPortal)){selectedClientPortal=target.dataset.clientPortal;selectedWO=null;selectedProject=null;view='customers';render();}if(target.dataset.project&&can('projects.view')){selectedProject=target.dataset.project;selectedWO=null;view='projects';render();}if(target.dataset.wo&&can('workorders.view')){selectedWO=target.dataset.wo;view='workorders';render();}if(target.dataset.open)openForm(target.dataset.open,target.dataset.entryId);if(target.dataset.change)approveChange(target.dataset.change);if(target.dataset.print)window.print();});
+document.addEventListener('click',e=>{const target=e.target.closest('[data-nav],[data-project],[data-wo],[data-open],[data-change],[data-print],[data-client-portal]');if(!target)return;if(target.dataset.nav&&visibleView(target.dataset.nav)){if(e.isTrusted&&target.matches('#nav .nav-item'))menuSounds.play();view=target.dataset.nav;selectedWO=null;selectedProject=null;selectedClientPortal=null;render();if(e.detail===0&&target.classList.contains('nav-item'))$('#nav').querySelector?.('[aria-current="page"]')?.focus({preventScroll:true});}if(target.dataset.clientPortal&&can('customers.view')&&customer(target.dataset.clientPortal)){selectedClientPortal=target.dataset.clientPortal;selectedWO=null;selectedProject=null;view='customers';render();}if(target.dataset.project&&can('projects.view')){selectedProject=target.dataset.project;selectedWO=null;view='projects';render();}if(target.dataset.wo&&can('workorders.view')){selectedWO=target.dataset.wo;view='workorders';render();}if(target.dataset.open)openForm(target.dataset.open,target.dataset.entryId);if(target.dataset.change)approveChange(target.dataset.change);if(target.dataset.print)window.print();});
 document.addEventListener('keydown',event=>{
  if(event.key==='Escape'&&!$('.bci-photo-viewer[open]')&&!$('#modal').hidden&&!$('#actionForm')?.dataset.saving&&!$('#catalogImport')?.dataset.saving)$('#modal').hidden=true;
 });

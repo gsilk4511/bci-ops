@@ -1,3 +1,4 @@
+import {createFleetSoundPlayer,fleetSound,fleetSoundOptions} from './fleet-sounds.js';
 import {can,data,esc,f,modal,render,send,today} from '../app.js';
 import {receiptPayload} from './work-entry.js';
 import {fleetStyle,fleetStyleFields,fleetStyleVars,profileStyleOptions} from './fleet-style.js';
@@ -21,6 +22,7 @@ const staffOptions=(board,row,key='assignedEmail')=>{
 };
 const manageOnly=(set,html)=>set?html:'';
 
+const vehiclePlayer=createFleetSoundPlayer();
 let selectedVehicle='',fleetFilter='all',fleetScroll=0;
 const sections=new Map();
 const sectionOpen=(row,key,defaultOpen=false)=>((sections.get(row.id)?.[key]??defaultOpen)?' open':'');
@@ -155,10 +157,12 @@ document.addEventListener('click',event=>{
  const row=(board.records||[]).find(item=>item.id===id);
  if(id&&!row)return;
  if(key==='open'&&row){
+  vehiclePlayer.play(row.clickSound);
   fleetScroll=typeof window==='undefined'?0:window.scrollY;
   selectedVehicle=id;showFleetLocation('#fleetProfileHeading',0);return;
  }
  if(key==='back'){
+  vehiclePlayer.stop();
   const returnId=selectedVehicle;
   selectedVehicle='';showFleetLocation('[data-fleet-action="filter"][aria-pressed="true"]',fleetScroll,returnId);return;
  }
@@ -197,13 +201,16 @@ document.addEventListener('click',event=>{
   const draft=values=>Object.fromEntries(fields.map(field=>[field,values[prefix+field]]));
   modal('Customize vehicle profile',`<div class="fleet-style-fields">${fields.map(field=>f(prefix+field,fleetStyleFields[field],{
    select:profileStyleOptions[field].map(option=>[option.id,option.label]),value:chosen[field]
-  })).join('')}</div><p class="muted">Fleet card preview</p><div data-fleet-preview>${miniCard(row,now,true)}</div>
+  })).join('')}</div><div class="actions">${f('clickSound','Vehicle click sound',{select:fleetSoundOptions,value:fleetSound(row.clickSound)})}<button type="button" class="secondary small" data-fleet-sound-preview>Preview sound</button></div><p class="muted">Fleet card preview</p><div data-fleet-preview>${miniCard(row,now,true)}</div>
    <button type="button" class="secondary small" data-fleet-reset>Reset appearance</button>`,
-   values=>submit('saveStyle',{style:draft(values)}),
-   '<p>These choices apply to this vehicle’s page and its fleet card.</p>');
+   values=>submit('saveStyle',{style:draft(values),clickSound:fleetSound(values.clickSound,true)}),
+   '<p>The selected sound plays when someone opens this vehicle’s card. Menu Sounds → Off mutes automatic playback on this device.</p>');
   const form=document.querySelector('#actionForm');
   const redraw=()=>{const preview=form?.querySelector('[data-fleet-preview]');if(preview)preview.innerHTML=miniCard({...row,style:draft(Object.fromEntries(new FormData(form)))},now,true);};
   form?.addEventListener('change',redraw);
+  form?.querySelector('[data-fleet-sound-preview]')?.addEventListener('click',()=>{
+   vehiclePlayer.play(form.elements.namedItem('clickSound').value,{preview:true});
+  });
   form?.querySelector('[data-fleet-reset]')?.addEventListener('click',()=>{
    const defaults=fleetStyle(null,row.color);
    for(const field of fields)form.elements.namedItem(prefix+field).value=defaults[field];

@@ -699,3 +699,40 @@ button.fleet-mini:hover{border-color:var(--fleet-text);box-shadow:0 4px 16px #00
 @media print{#permissionTestBanner:not([hidden]){display:block!important}}
 .bci-directory-open{background:transparent!important;border:0!important;padding:0!important;border-radius:50%;min-width:44px;min-height:44px}
 .bci-directory-open:focus-visible{outline:3px solid currentColor;outline-offset:4px}
+
+/* Keep audio settings visible without taking over the horizontal phone tabs. */
+.workspace-nav{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:4px;min-width:0}
+.workspace-nav>.sidebar-label{padding-block:0}
+.workspace-nav>#nav{grid-column:1/-1}
+.menu-sound-toggle{width:44px;min-height:44px;padding:9px;display:grid;place-items:center;border:1px solid #52615b;border-radius:8px;background:#263331;color:#f4f7f5}
+.menu-sound-toggle svg{width:22px;height:22px}
+.menu-sound-toggle .sound-off,.menu-sound-toggle[data-sound=off] .sound-waves{display:none}
+.menu-sound-toggle[data-sound=off] .sound-off{display:inline}
+.menu-sounds-dialog{width:min(390px,calc(100% - 32px));margin:auto;padding:20px;border:1px solid #687a71;border-radius:14px;background:#f7f7f4;color:#182022;box-shadow:0 12px 36px #0005}
+.menu-sounds-dialog::backdrop{background:#0c1519aa}
+[data-theme=dark] .menu-sounds-dialog{background:#202824;color:#ebf2ed}
+.menu-sounds-dialog h2{margin:0}
+.menu-sound-options{display:grid;gap:8px;margin:16px 0}
+.menu-sound-option{text-align:left;display:grid;gap:3px;padding:8px 12px;min-height:48px;color:inherit;background:transparent;border:1px solid #687a71;border-radius:8px}
+.menu-sound-option[aria-pressed=true]{border-color:#ef8b34;box-shadow:inset 3px 0 #ef8b34}
+.menu-sound-option:disabled{opacity:.5}
+.menu-sounds-dialog form{display:flex;justify-content:flex-end}
+@media(max-width:740px){
+ .workspace-nav{grid-template-columns:auto minmax(0,1fr);padding-inline-start:max(5px,env(safe-area-inset-left))}
+ .workspace-nav>#nav{grid-column:2;padding-inline-start:1px}
+}
+
+
+/* Admin Spend Clock and the owner's market feed directly after Weather. */
+.bci-spend-clock iframe{display:block;width:100%;height:clamp(40rem,78vh,80rem);border:1px solid #52685a;border-radius:.55rem;background:#111816}
+.bci-staff-sidebar{min-width:0}
+@media screen and (min-width:1440px){.bci-staff-columns.has-weather>.bci-staff-sidebar{grid-area:1/2}}
+.bci-market-feed h2{margin:0;font-size:1.12rem}
+.bci-market-feed p{margin:.4rem 0}
+.bci-market-feed ul{list-style:none;padding:0;margin:.55rem 0}
+.bci-market-feed li{display:grid;gap:.17rem;padding:.55rem 0;border-bottom:1px solid var(--staff-workspace-border,#788)}
+.bci-market-feed li a{font-weight:700}
+.bci-market-feed .market-feed-period,.bci-market-feed .market-feed-status{font-size:.83rem}
+.bci-market-feed .market-feed-links{display:flex;gap:.45rem .85rem;flex-wrap:wrap}
+.bci-market-feed a{color:inherit;text-decoration:underline}
+@media print{.bci-market-feed{display:none!important}}

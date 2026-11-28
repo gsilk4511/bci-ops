@@ -1,4 +1,4 @@
-# Update existing BCI Operations staging to 0.10.14
+# Update existing BCI Operations staging to 0.10.17
 
 ## Greg: use the existing staging stack
 
@@ -10,7 +10,7 @@
    `mariadb.env`, MariaDB database name, named volume, bridge, and service
    hostname `db`. Do not replace these with bundled examples.
 4. Confirm the app build context points to the updated source. In the active
-   Compose file, change the app image tag to `bci-operations:0.10.14`. Do not
+   Compose file, change the app image tag to `bci-operations:0.10.17`. Do not
    change the database service. Use the actual app service name if different.
    This release excludes bundled catalog photos. Its .dockerignore also excludes
    any old Server/CatalogPhotos directory left from a previous extraction. This
@@ -24,12 +24,39 @@ docker compose -f compose.bci-operations-fixed.yml up -d --build --no-deps --for
 docker compose -f compose.bci-operations-fixed.yml exec -T bci-operations node -e "fetch('http://127.0.0.1:3100/api/health').then(r=>r.json()).then(console.log)"
 ```
 
-Recreate by itself does not build a new image. Verify `0.10.14` in the health
+Recreate by itself does not build a new image. Verify `0.10.17` in the health
 response and beside the BCI logo. Do not import or reseed the app database for this update. To test optional User Security separately, follow USER_SECURITY.md.
 If you roll back, restore the previous source, restore its former image tag
 and rebuild only the app. Keep the database and its volume in place.
 
-## Randy: accept 0.10.14 on staging
+## Randy: verify vehicle card sounds
+
+- Vehicles → open a vehicle → **Customize profile** → **Vehicle click sound**. Pick a clip, use **Preview sound**, then save. Return to Fleet and open the same card. Another vehicle stays silent until assigned its own sound.
+- **Menu Sounds → Off** mutes automatic playback on that device; an explicit Preview can still be played. Test with a click and Enter, then switch cards quickly to check clips do not overlap.
+- Keep the four Most Wanted audition clips in the internal BCI package only. They are extracts from the owner's game files; no redistribution rights have been verified. See `Server/VehicleSounds/CREDITS.md`; remove the `mw-*.mp3` clips before publishing or sharing outside the authorized internal rollout unless rights are confirmed. No schema migration.
+
+## Earlier release: verify the Spend Clock and Market Signals
+
+- In **Admin → Spend Clock**, pick a state, region and town. Open the U.S. map,
+  then return to the dashboard and click **Low Voltage → Campaign ideas**. Open
+  any topic and check that the selected market stays with you. Use **Open full
+  screen** if you want the clock in its own tab.
+- In **My Time & Profile**, check **Market Signals · Vermont** below Weather.
+  Open an item and its **Market RSS**. RSS requires an authenticated app
+  session; it is not an anonymous public feed. An ordinary staff login
+  and a Test Permissions session should not see these admin additions.
+- Allow outbound HTTPS to Census, BLS, BEA, and FRED for refreshes. Saved
+  baseline data remains usable when sources are unavailable. No new port,
+  secret, database migration, or catalog import. Map benchmarks carry
+  their snapshot year. No ad or outreach is sent from this feature.
+
+## Earlier release: check menu sounds on staging
+
+- Open the speaker button beside the tabs and try Mechanical, Soft Tick and Digital. Then choose Off and verify that switching tabs is silent, including after refresh.
+- Try a tab with a mouse, touch or Enter/Space. Scrolling the mobile tab strip, loading the page, and using other controls should stay quiet.
+- The preference is saved in this browser only. No database migration or catalog import.
+
+## Earlier release: accept 0.10.14 on staging
 
 - Open Warehouse. Confirm compact rows show names without internal SKUs or in-row dropdowns.
 - Search by a known SKU to confirm it remains findable. Open a part before entering Edit mode; it should show read-only details.
@@ -261,20 +288,3 @@ must not request geolocation. The container needs outbound HTTPS to
 `api.weather.gov`. A missing feed shows a fallback link and does not block profile
 controls. No new environment variable, database migration or port is needed.
 
-## Randy: preview the separate Warehouse update after 0.10.14 is running
-
-1. Export Warehouse & Catalog to retain a pre-import reference. Keep Greg's database backup.
-2. Go to Warehouse → Import Warehouse Updates (not Import Catalog). Choose
-   `BCI-Warehouse-Updates-v0.10.14.json`, then Preview updates.
-3. The November 27 reference export produced 340 additions, 182 updates and five
-   shared stock targets, with 52 held rows and zero conflicts. If the live
-   preview reports conflicts, stop and export a fresh snapshot for review. The
-   new JSON does not perform deletion, set counted stock or rewrite past work.
-4. Read the held list and review the exact old/new fields. If correct, use
-   Apply updates. Spot-check $0.47/ft on the existing Cat6 ID, or download a new
-   export to verify that its $1.10 change rate and $0.29 cost did not change.
-   The Stock targets panel shows the 245 Signamax target across five groups
-   without setting any opening counts.
-5. Optional CommScope jacks, tentative blank inserts and composite cable with an
-   unconfirmed billing unit are held. No historical price is copied to a new
-   item. Unpriced items need a standard rate before normal billing.
