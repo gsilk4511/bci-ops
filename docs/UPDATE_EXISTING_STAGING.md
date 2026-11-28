@@ -1,4 +1,4 @@
-# Update existing BCI Operations staging to 0.10.17
+# Update existing BCI Operations staging to 0.10.18
 
 ## Greg: use the existing staging stack
 
@@ -10,7 +10,7 @@
    `mariadb.env`, MariaDB database name, named volume, bridge, and service
    hostname `db`. Do not replace these with bundled examples.
 4. Confirm the app build context points to the updated source. In the active
-   Compose file, change the app image tag to `bci-operations:0.10.17`. Do not
+   Compose file, change the app image tag to `bci-operations:0.10.18`. Do not
    change the database service. Use the actual app service name if different.
    This release excludes bundled catalog photos. Its .dockerignore also excludes
    any old Server/CatalogPhotos directory left from a previous extraction. This
@@ -24,12 +24,18 @@ docker compose -f compose.bci-operations-fixed.yml up -d --build --no-deps --for
 docker compose -f compose.bci-operations-fixed.yml exec -T bci-operations node -e "fetch('http://127.0.0.1:3100/api/health').then(r=>r.json()).then(console.log)"
 ```
 
-Recreate by itself does not build a new image. Verify `0.10.17` in the health
+Recreate by itself does not build a new image. Verify `0.10.18` in the health
 response and beside the BCI logo. Do not import or reseed the app database for this update. To test optional User Security separately, follow USER_SECURITY.md.
 If you roll back, restore the previous source, restore its former image tag
 and rebuild only the app. Keep the database and its volume in place.
 
-## Randy: verify vehicle card sounds
+## Randy: verify the corrected changelog
+
+- In Admin → Changelog, verify **v0.10.18** is the newest card and the first pilot is dated **2026-11-07**. The running total reads **167 h**. Each card shows a build-handoff date in Eastern time and its hands-on duration.
+- Open **Read more** and return to the list. The normal staff view and Test Permissions must not expose the changelog. The worksheet lives in the source ZIP, not on the public website.
+- This is a full source ZIP. Do not apply either earlier changelog patch over it.
+
+## Earlier release: verify vehicle card sounds
 
 - Vehicles → open a vehicle → **Customize profile** → **Vehicle click sound**. Pick a clip, use **Preview sound**, then save. Return to Fleet and open the same card. Another vehicle stays silent until assigned its own sound.
 - **Menu Sounds → Off** mutes automatic playback on that device; an explicit Preview can still be played. Test with a click and Enter, then switch cards quickly to check clips do not overlap.

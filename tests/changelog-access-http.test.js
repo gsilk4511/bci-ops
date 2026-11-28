@@ -49,7 +49,9 @@ test('release history is exposed only to authenticated admins on the private GET
   assert.equal(result.status,200,await result.clone().text());
   assert.equal(result.headers.get('cache-control'),'no-store');
   const {releases}=await result.json();
-  assert.ok(Array.isArray(releases)&&releases.length>0);
+  assert.equal(releases.length,87);
+  assert.ok(releases.every(item=>/^2026-11-\d{2}$/.test(item.releaseDate)&&Number.isInteger(item.developmentMinutes)));
+  assert.equal(releases.reduce((sum,item)=>sum+item.developmentMinutes,0),10020);
   for(const {version,title,summary,sections} of releases){
    assert.ok(typeof version==='string'&&version&&typeof title==='string'&&title&&typeof summary==='string'&&summary);
    assert.ok(Array.isArray(sections)&&sections.every(section=>typeof section.title==='string'&&
@@ -58,7 +60,7 @@ test('release history is exposed only to authenticated admins on the private GET
   const {release}=await (await req('/api/health')).json();
   assert.equal(releases[0].version.replace(/^v/,'').toLowerCase(),release.toLowerCase());
   assert.equal((await req('/api/changelog',admin,'POST')).status,405);
-  for(const path of ['/release-history.js','/Models/release-history.js','/api/changelog.js'])
+  for(const path of ['/release-history.js','/Models/release-history.js','/Changelog/release-history.js','/Changelog/BCI-Operations-Time-by-Revision.md','/api/changelog.js'])
    assert.equal((await req(path,tech)).status,404);
   for(const actor of [tech,admin]){
    const snapshot=await (await req('/api/state',actor)).json();

@@ -4,6 +4,7 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm ci --omit=dev --no-audit --no-fund && npm cache clean --force
 COPY Models ./Models
+COPY Changelog/release-history.js ./Changelog/release-history.js
 COPY UserSecurity ./UserSecurity
 COPY Server ./Server
 COPY public ./public

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {readFile} from 'node:fs/promises';
-import {releases} from '../Models/release-history.js';
+import {releases} from '../Changelog/release-history.js';
 
 test('release history has unique readable records and starts with the package version', async()=>{
  const {version}=JSON.parse(await readFile(new URL('../package.json',import.meta.url)));

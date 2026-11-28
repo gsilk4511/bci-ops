@@ -15,7 +15,7 @@ import {listAgentCredentials,issueAgentCredential,revokeAgentCredential,authoriz
 import {vehicleDocument,vehiclePhoto,vehiclesView} from '../Models/vehicles.js';
 import {applyWarehousePurge,previewWarehousePurge} from '../Models/warehouse-purge.js';
 import {applyWarehousePatch,exportWarehouse,previewWarehousePatch} from '../Models/warehouse-export.js';
-import {releases} from '../Models/release-history.js';
+import {releases} from '../Changelog/release-history.js';
 import {catalogPhotoHash,planCatalogPack,importCatalogPack} from '../Models/catalog-pack.js';
 import {recordPrincipal,scopeState,authorizeRecordAction,assignRecord,stampRecordOwner} from '../Models/record-scope.js';
 import {readWorkReceipt} from '../Models/work-entry.js';

@@ -1,3 +1,9 @@
+# 0.10.18 — Complete changelog dates and hands-on time
+
+- Admin → Changelog shows Eastern build handoff dates beside hands-on time for all 87 cards. The 86 earlier time entries are unchanged.
+- The release history and audit worksheet live in `Changelog/`. The worksheet is packaged for the owner and is not served by the app.
+- This full source ZIP supersedes the standalone changelog overlays. No database migration, catalog re-import or replacement of existing server settings.
+
 # 0.10.17 — Selectable vehicle sounds
 
 - Choose and preview a Vehicle click sound in Customize Profile. Saved selections play when their vehicle card opens. No assignments are made automatically; Off remains the default. Audio is served behind the existing Vehicles permission. No schema migration.

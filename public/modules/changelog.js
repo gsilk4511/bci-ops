@@ -8,12 +8,15 @@ const validRelease=release=>Boolean(release&&validText(release.version,80)&&vali
   section.items.length<=100&&section.items.every(item=>validText(item,2500))));
 const versionText=version=>/^\d/.test(version)?'v'+version:version;
 const dateText=r=>typeof r.releaseDate==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(r.releaseDate)?r.releaseDate:'Date not recorded';
-const hasHours=r=>Number.isFinite(r.developmentHours)&&r.developmentHours>=0;
-const hoursText=r=>hasHours(r)?`${r.developmentHours} h`:'Not recorded';
+const minutesFor=r=>Number.isInteger(r.developmentMinutes)&&r.developmentMinutes>=0 ? r.developmentMinutes :
+ Number.isFinite(r.developmentHours)&&r.developmentHours>=0 ? Math.round(r.developmentHours*60) : null;
+const formatTime=minutes=>{const h=Math.floor(minutes/60),m=minutes%60;return [h?`${h} h`:'',m?`${m} m`:''].filter(Boolean).join(' ')||'0 m';};
+const hoursText=r=>minutesFor(r)===null?'Not recorded':formatTime(minutesFor(r));
+const ownerTimeTitle='Modeled hands-on time for idea research, prompting, review and rollout. Not a stopwatch record.';
 
 export function changelogPage(){
  if(!allowed())return '';
- return head('Changelog','Admin','Browse BCI Operations releases, including earlier staging and test builds. An entry does not mean that build was deployed.')+`
+ return head('Changelog','Admin','Browse BCI Operations releases, including earlier staging and test builds. Dates show when builds were shared, in Eastern time, not when they went live.')+`
  <section class="bci-changelog" data-changelog aria-label="Release history">
   <p class="muted" data-changelog-status role="status">Loading release history…</p>
   <p class="muted" data-changelog-hours aria-live="polite"></p>
@@ -77,14 +80,14 @@ export function wireChangelog(root){
    releases=result.releases;
    const hours=root.querySelector('[data-changelog-hours]');
    if(hours){
-    const recorded=releases.filter(hasHours);
-    hours.textContent='Running total /developmentTime = '+(recorded.length?`${Math.round(100*recorded.reduce((n,r)=>n+r.developmentHours,0))/100} h`:'Not recorded');
-    if(recorded.length!==releases.length)hours.title='Only releases with available development entries count toward the total.';
+    const recorded=releases.map(minutesFor).filter(n=>n!==null);
+    hours.textContent='Running total /developmentTime = '+(recorded.length?formatTime(recorded.reduce((n,m)=>n+m,0)):'Not recorded');
+    hours.title=ownerTimeTitle+(recorded.length!==releases.length?' Only releases with time entries count toward the total.':'');
    }
    status.textContent=releases.length?'':'No release notes are available yet.';
    if(releases.length){
     cards.innerHTML=`<ol class="bci-release-cards">${releases.map((release,index)=>`<li class="card bci-release-card">
-      <div class="bci-release-card-top"><span class="tag">${esc(versionText(release.version))}</span> <span class="muted tiny">${esc(dateText(release))}</span>${index===0?'<span class="status approved">Latest</span>':''}</div>
+      <div class="bci-release-card-top"><span class="tag">${esc(versionText(release.version))}</span> <span class="muted tiny">${esc(dateText(release))} · <span data-changelog-card-time title="${ownerTimeTitle}" aria-label="Hours worked: ${esc(hoursText(release))}">${esc(hoursText(release))}</span></span>${index===0?'<span class="status approved">Latest</span>':''}</div>
       <h2>${esc(release.title)}</h2><p>${esc(release.summary)}</p>
       <button type="button" class="secondary" data-changelog-release="${index}" aria-haspopup="dialog" aria-label="Read more about ${esc(versionText(release.version))}">Read more</button></li>`).join('')}</ol>`;
     if(retry)cards.querySelector('button[data-changelog-release]')?.focus();
