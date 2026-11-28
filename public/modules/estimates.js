@@ -1,6 +1,7 @@
+import {estimateWorkspace,startEstimate} from './estimate-workspace.js';
 import {partCategory,partMeta,partSearch,photoThumbnail} from './catalog-photos.js';
 import {normalizeEstimateScopes,scopeLines} from './estimate-scope-math.js';
-import {data,can,esc,fmt,head,table,modal,f,send,billingName,customer,printDocument,show,initSignature} from '../app.js';
+import {data,can,esc,fmt,head,table,modal,f,send,billingName,customer,printDocument,show,initSignature,practiceMode} from '../app.js';
 
 const button=(action,label,id='')=>`<button class="secondary small" data-estimate-action="${action}" data-estimate-id="${esc(id)}">${label}</button>`;
 const linesTable=estimate=>table(['Description','Qty','Rate','Amount'],estimate.lines.map(line=>
@@ -13,7 +14,8 @@ const approvedAmounts=estimate=>{
  return `<p>Estimated cost ${fmt(cost)}${unknown?' · '+unknown+' line(s) lack cost; margin incomplete':' · Gross margin '+fmt(estimate.total-cost)+(estimate.total?' ('+((estimate.total-cost)/estimate.total*100).toFixed(1)+'%)':'')}</p>`;
 };
 export function estimatesPage(){
- return head('Estimates','Sales','Build and sign a whole-job estimate, then release its work orders.',can('estimate.create')?button('new','+ Create Estimate'):'')+
+ const workspace=practiceMode?null:estimateWorkspace();if(workspace)return workspace;
+ return head('Estimates','Sales','Build and sign a whole-job estimate, then release its work orders.',can('estimate.create')?button('new','+ New Estimate'):'')+
   (data.estimates||[]).map(estimate=>`<section class="panel"><h2>${esc(estimate.number)} · ${esc(estimate.title)}</h2>
    <p>${esc(billingName(customer(estimate.clientId)))} · ${esc(estimate.status)} · <b>${fmt(estimate.total)}</b></p>
    <details><summary>Scope and line items</summary><p class="ticket-text">${esc(estimate.scope)}</p>${linesTable(estimate)}</details>
@@ -25,11 +27,11 @@ export function estimatesPage(){
         ${order&&!order.approvedAt&&can('estimate.releaseWorkOrder')&&can('workorder.approve')&&can('workorders.view')?button('release','Release to crew',item.id):''}</div>`;
    }).join('')}</details>`:''}
    ${estimate.acceptedBy?`<p>Accepted by ${esc(estimate.acceptedBy)} · ${esc(estimate.evidence)}</p>`:''}
-   <div class="actions">${button('print','Print / PDF',estimate.id)}
+   <div class="actions">${!estimate.workflow?button('print','Print / PDF',estimate.id):''}
    ${estimate.billingEmail&&(can('estimate.create')||can('estimate.update'))?button('email','Email estimate',estimate.id):''}
-   ${estimate.status==='Draft'&&can('estimate.update')?button('edit','Edit draft',estimate.id):''}
-   ${estimate.status==='Draft'&&can('estimate.accept')&&(!estimate.scopes?.length||can('workorder.create')&&can('workorders.view'))?button('accept','Record acceptance',estimate.id)+button('sign','Sign on this device',estimate.id):''}
-   ${estimate.approvalSnapshot&&estimate.projectId&&can('estimate.create')?button('revise','Draft a revision',estimate.id):''}
+   ${estimate.workflow?button('workspace',estimate.status==='Draft'?'Open estimate':'Open agreement',estimate.id):estimate.status==='Draft'&&can('estimate.update')?button('edit','Edit legacy draft',estimate.id):''}
+   ${!estimate.workflow&&estimate.status==='Draft'&&can('estimate.accept')&&(!estimate.scopes?.length||can('workorder.create')&&can('workorders.view'))?button('accept','Record acceptance',estimate.id)+button('sign','Sign on this device',estimate.id):''}
+   ${!estimate.workflow&&estimate.approvalSnapshot&&estimate.projectId&&can('estimate.create')?button('revise','Draft a revision',estimate.id):''}
    ${estimate.status==='Accepted'&&!estimate.projectId&&can('estimate.convert')&&can('project.create')&&can('projects.view')?button('convert','Create project',estimate.id):''}
    ${estimate.projectId&&can('projects.view')?`<button class="secondary small" data-project="${esc(estimate.projectId)}">Open project</button>`:''}
    </div></section>`).join('');
@@ -300,10 +302,11 @@ document.addEventListener('click',event=>{
  if(!control||!can('estimates.view'))return;
  const {estimateAction:action,estimateId}=control.dataset;
  const estimate=(data.estimates||[]).find(item=>item.id===estimateId);
- if(action==='new'&&can('estimate.create'))return edit();
+ if(action==='new'&&can('estimate.create'))return practiceMode?edit():startEstimate();
  if(action==='release'&&can('estimate.releaseWorkOrder')&&can('workorder.approve')&&can('workorders.view'))
   return modal('Release estimate work order','<p>Release the signed scope for the crew. This does not place purchases or send email.</p>',()=>send('estimate.releaseWorkOrder',{workorderId:estimateId}));
  if(!estimate)return;
+ if(action==='workspace'&&estimate.workflow&&!practiceMode)return startEstimate(estimate.id);
  if(action==='revise'&&can('estimate.create')&&estimate.approvalSnapshot)return edit(undefined,{revisionOf:estimate});
  if(action==='sign'&&can('estimate.accept')){
   modal('Sign estimate '+estimate.number,'<p class="ticket-text">'+esc(estimate.scope)+'</p>'+estimateScopeDetails(estimate)+linesTable(estimate)+'<p><b>Total '+fmt(estimate.total)+'</b></p>'+

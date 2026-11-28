@@ -49,7 +49,7 @@ test('release history is exposed only to authenticated admins on the private GET
   assert.equal(result.status,200,await result.clone().text());
   assert.equal(result.headers.get('cache-control'),'no-store');
   const {releases}=await result.json();
-  assert.equal(releases.length,87);
+  assert.equal(releases.length,89);
   assert.ok(releases.every(item=>/^2026-11-\d{2}$/.test(item.releaseDate)&&Number.isInteger(item.developmentMinutes)));
   assert.equal(releases.reduce((sum,item)=>sum+item.developmentMinutes,0),10020);
   for(const {version,title,summary,sections} of releases){

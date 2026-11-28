@@ -3,7 +3,7 @@
 const section = (title, ...items) => ({title, items});
 const release = (version, title, summary, ...sections) => ({version, title, summary, sections});
 const releaseDates={
- '0.10.18':'2026-11-28','0.10.17':'2026-11-28','0.10.16':'2026-11-28','0.10.15':'2026-11-27','0.10.14':'2026-11-27',
+ '0.10.20':'2026-11-28','0.10.19':'2026-11-28','0.10.18':'2026-11-28','0.10.17':'2026-11-28','0.10.16':'2026-11-28','0.10.15':'2026-11-27','0.10.14':'2026-11-27',
  '0.10.13':'2026-11-27','0.10.12':'2026-11-26','0.10.11':'2026-11-26','0.10.10':'2026-11-26',
  '0.10.9':'2026-11-26','0.10.8':'2026-11-26','0.10.7':'2026-11-26','0.10.6':'2026-11-26',
  '0.10.5':'2026-11-26','0.10.4':'2026-11-26','0.10.3':'2026-11-26','0.10.2':'2026-11-26',
@@ -82,6 +82,8 @@ Object.assign(releaseDates, {
 });
 // Owner time modeled from the release timeline; no previously reported total used.
 const developmentMinutes={
+ "0.10.20": 0,
+ "0.10.19": 0,
  "0.10.18": 20,
  "0.10.17": 135,
  "0.10.16": 235,
@@ -171,6 +173,11 @@ const developmentMinutes={
  "Pilot": 185
 };
 export const releases = [
+ release('0.10.20','A little Christmas cheer','Evergreen trim, gold bells and an occasional short flurry in the app shell.',
+  section('Workspace','Seasonal trim follows the Eastern calendar from Thanksgiving through December 31. Brief snow respects reduced motion and clears while forms or dialogs are active. No new sound, database migration, or account changes.')),
+ release('0.10.19','Guided Estimates workspace','Start with drawings or a site walkthrough, then price mixed trade scopes and sign the reviewed agreement.',
+  section('Estimates','Full-page drafts, one-question navigation and six trade scopes. Reviewed Takeoff Lab imports and private drawing attachments. Separate task hours, parts, commercial terms and signing.'),
+  section('Approval','Client-only agreement preview, immutable acceptance, and draft work orders. Published estimating rules are versioned and do not change prior approvals.')),
  release('0.10.18','Complete changelog dates and hands-on time','The complete, dated BCI Operations history ships in one full source release.',
   section('Admin Changelog','Historical cards now show when each build was shared in Eastern time, with hands-on time beside the date. Handoff dates are not go-live dates.','This packaging checkpoint is counted separately without assuming an additional rollout. Earlier time entries and release descriptions are unchanged.'),
   section('Source packaging','Changelog data and the time worksheet are grouped under source/Changelog. The in-app history remains admin-only. No database migration or changes to active server settings.')),

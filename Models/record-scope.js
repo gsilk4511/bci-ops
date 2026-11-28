@@ -160,7 +160,7 @@ export function authorizeRecordAction(state,actor,action,data={}) {
      ensure('workorders',data.workorderId);
      ensure('estimates',rows(state,'workorders').find(row=>row.id===data.workorderId)?.estimateSource?.estimateId);
    }else{
-     if(!['estimate.rates','estimate.create'].includes(action))ensure('estimates',data.id);
+     if(!['estimate.rates','estimate.create','estimate.rulesRelease'].includes(action))ensure('estimates',data.id);
      const estimate=rows(state,'estimates').find(row=>row.id===data.id);
      if(estimate){optional('customers',estimate.clientId);optional('projects',estimate.projectId);}
      if(action==='estimate.accept'&&estimate?.scopes?.length&&['assigned','none'].includes(mode(actor,'workorders')))deny();

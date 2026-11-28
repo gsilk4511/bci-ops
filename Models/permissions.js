@@ -97,7 +97,7 @@ export const permissionMatrix = {
 permissionGroups['Training']={'training.start':'Start and edit personal training practice'};
 permissionGroups['Edit and delete records']['pricing.profile.archive']='Archive pricing profiles';
 
-const adminOnly = new Set(['calendar.appointment','timeAttribution.preview','timeAttribution.apply','warehouse.purgePreview','warehouse.purgeApply','warehouse.patchPreview','warehouse.patchApply','trash.restore','trash.purge','workorder.delete','workorder.deletePreview','catalog.import','catalog.importPreview','catalog.packPreview','catalog.packImport','access.sync','staff.manage','staff.leaveReview','users.set','users.remove','profiles.save','customers.import','customers.importPreview','record.assign']);
+const adminOnly = new Set(['estimate.rulesRelease','calendar.appointment','timeAttribution.preview','timeAttribution.apply','warehouse.purgePreview','warehouse.purgeApply','warehouse.patchPreview','warehouse.patchApply','trash.restore','trash.purge','workorder.delete','workorder.deletePreview','catalog.import','catalog.importPreview','catalog.packPreview','catalog.packImport','access.sync','staff.manage','staff.leaveReview','users.set','users.remove','profiles.save','customers.import','customers.importPreview','record.assign']);
 const adminOnlyGrants = new Set(['staff.manage','staff.leaveReview','workorder.delete','team.view']);
 const profilePermissions = new Set(Object.values(permissionGroups).flatMap(Object.keys));
 const viewToMode = Object.fromEntries(Object.entries(permissionMatrix).map(([name,descriptor])=>[descriptor.view,name]));
@@ -241,7 +241,7 @@ const aliases={
  'project.schedule':'project.update','workorder.schedule':'workorder.update',
  'workorder.undoCloseout':'workorder.return',
  'inventory.commitFieldPurchase':'inventory.receive','inventory.receiptRead':'inventory.view',
- 'entry.materialDraft':'entry.add','entry.editNote':'entry.update','estimate.rates':'estimates.view',
+ 'entry.materialDraft':'entry.add','entry.editNote':'entry.update','estimate.rates':'estimates.view','estimate.agreement':'estimates.view','estimate.planAttach':'estimate.update',
  'payroll.preview':'payroll.view','payroll.markPaid':'payroll.approve','mail.assign':'mail.intake','mail.sync':'mail.intake','clock.out':'clock.in','clock.cancel':'clock.in'
 };
 export function authorizePermission(action,role,permissions,data) {

@@ -1,6 +1,6 @@
-# Update existing BCI Operations staging to 0.10.18
+# Historical staging and regression checks (0.10.18 and earlier)
 
-## Greg: use the existing staging stack
+## Historical 0.10.18 deployment commands (not for v0.10.20)
 
 1. Back up the existing source and MariaDB staging database first.
 2. Extract the ZIP once. It has exactly one top-level `source/` folder.
@@ -39,7 +39,7 @@ and rebuild only the app. Keep the database and its volume in place.
 
 - Vehicles → open a vehicle → **Customize profile** → **Vehicle click sound**. Pick a clip, use **Preview sound**, then save. Return to Fleet and open the same card. Another vehicle stays silent until assigned its own sound.
 - **Menu Sounds → Off** mutes automatic playback on that device; an explicit Preview can still be played. Test with a click and Enter, then switch cards quickly to check clips do not overlap.
-- Keep the four Most Wanted audition clips in the internal BCI package only. They are extracts from the owner's game files; no redistribution rights have been verified. See `Server/VehicleSounds/CREDITS.md`; remove the `mw-*.mp3` clips before publishing or sharing outside the authorized internal rollout unless rights are confirmed. No schema migration.
+- The v0.10.20 full release ships the licensed Ram and Honda clips only. Earlier game selections display as Off without a data migration. See `Server/VehicleSounds/CREDITS.md`.
 
 ## Earlier release: verify the Spend Clock and Market Signals
 

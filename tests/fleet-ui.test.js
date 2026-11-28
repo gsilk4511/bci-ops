@@ -8,7 +8,7 @@ test('Vehicles screen gives managers separate schedule and booking forms; assign
  let manage=true, opened, saved, renders=0;
  const sounds=[];context.Audio=class {constructor(url){this.url=url;} addEventListener(){} play(){sounds.push(this.url);return Promise.resolve();} pause(){}};
  const data={vehicles:{today:'2026-11-26',staff:[],records:[{id:'test',name:'Test & truck',year:2024,make:'Make',model:'Van',odometer:53000,
-  clickSound:'mw-350z',mayClean:true,needsCleanup:true,schedules:{inspection:{dueDate:'2026-11',status:'soon',appointment:{date:'2026-11-29',time:'09:30'}}},
+  clickSound:'honda-v6',mayClean:true,needsCleanup:true,schedules:{inspection:{dueDate:'2026-11',status:'soon',appointment:{date:'2026-11-29',time:'09:30'}}},
   tireSets:[{name:'Winter',mileage:7000,mountedAt:52000}],documents:[],serviceHistory:[]},{id:'other',name:'Another vehicle',schedules:{}}]}};
  const values={can:key=>key==='vehicles.view'||manage&&key==='vehicles.manage',data,esc:v=>String(v??'').replaceAll('&','&amp;').replaceAll('"','&quot;').replaceAll('<','&lt;'),
   f:(name,label)=>name+': '+label+'\n',modal:(title,fields,submit)=>opened={title,fields,submit},
@@ -26,7 +26,7 @@ test('Vehicles screen gives managers separate schedule and booking forms; assign
  click('filter','soon','');
  assert.doesNotMatch(page(),/Another vehicle/);
  click('open');
- assert.deepEqual(sounds,['/api/vehicle-sound/mw-350z.mp3']);
+ assert.deepEqual(sounds,['/api/vehicle-sound/honda-v6.mp3']);
  assert.match(page(),/Back to Fleet/);assert.match(page(),/Customize profile/);
  assert.doesNotMatch(page(),/Another vehicle/);
  assert.match(page(),/Next due[\s\S]*2026-11[\s\S]*Booked[\s\S]*2026-11-29/);

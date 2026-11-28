@@ -5,6 +5,11 @@ import { profileAccess } from './permissions.js';
 // Always clone first: redacting a response must never mutate live accounting data.
 export function visibleState(current,role,permissions) {
  const state=structuredClone(current);
+ delete state.estimateRuleSets;
+ for(const e of state.estimates||[]){
+  if(e.planFiles)e.planFiles=e.planFiles.map(({privatePlanData,...meta})=>meta);
+  if(!permissions.includes('finance.view'))delete e.priceSnapshot;
+ }
  if(role==='admin')state.permissionProfiles=(state.permissionProfiles||[]).map(profile=>({...profile,...profileAccess(profile)}));
  const has=key=>permissions.includes(key);
  delete state.tickets;
@@ -22,6 +27,7 @@ export function visibleState(current,role,permissions) {
  delete state.mailSeen;
  delete state.mailSync;
  delete state.notificationUsers;
+ if(state.trash)for(const item of state.trash)if(item.record?.planFiles)item.record.planFiles=item.record.planFiles.map(({privatePlanData,...meta})=>meta);
  if(state.trash)state.trash=state.trash.map(item=>item.kind==='ticket'?{...item,record:{id:item.record.id,title:item.record.title}}:item);
  delete state.pricingProfiles;
  delete state.companyPricingProfileId;
@@ -91,7 +97,7 @@ export function visibleState(current,role,permissions) {
  if(!has('finance.view')||!has('invoices.view')&&!has('money.view'))for(const p of state.projects)delete p.depositLedger;
  if(!has('finance.view')){
   // Strip nested costs, including immutable closeout snapshots and invoice summaries.
-  const costFields=new Set(['cost','unitCost','directCost','grossProfit','reserve','quickBooksPurchasePrice']);
+  const costFields=new Set(['cost','unitCost','laborUnitCost','directCost','grossProfit','reserve','quickBooksPurchasePrice']);
   const redact=value=>{
    if(!value||typeof value!=='object')return;
    for(const key of Object.keys(value)){

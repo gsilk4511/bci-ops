@@ -10,3 +10,6 @@ source/
 
 # Catalog images are not shipped with Operations.
 Server/CatalogPhotos
+
+# Game audio is not part of the release.
+Server/VehicleSounds/mw-*.mp3

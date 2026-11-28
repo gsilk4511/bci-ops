@@ -736,3 +736,48 @@ button.fleet-mini:hover{border-color:var(--fleet-text);box-shadow:0 4px 16px #00
 .bci-market-feed .market-feed-links{display:flex;gap:.45rem .85rem;flex-wrap:wrap}
 .bci-market-feed a{color:inherit;text-decoration:underline}
 @media print{.bci-market-feed{display:none!important}}
+
+/* Estimates workspace: guided questions and separately scoped customer document */
+.ew-root {max-width:1500px;margin-inline:auto}
+.ew-layout {display:grid;grid-template-columns:minmax(0,1fr) minmax(15rem,21%);gap:1rem;align-items:start}
+.ew-layout.ew-client {grid-template-columns:minmax(0,1fr);max-width:70rem;margin-inline:auto}
+.ew-main {min-width:0;overflow-wrap:anywhere}
+.ew-save {font-size:.88rem;margin:.25rem 0 .7rem;color:var(--muted,#526163)}
+.ew-outline {position:sticky;top:1rem;min-width:0}
+.ew-outline details {max-height:70vh;overflow:auto}
+.ew-outline button {display:block;width:100%;text-align:left;margin:.35rem 0;white-space:normal}
+.ew-grid,.ew-tiles {display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,14rem),1fr));gap:.8rem;align-items:start;margin:.7rem 0}
+.ew-tile,.ew-tiles button {min-height:3rem;text-align:left}
+.ew-tiles strong,.ew-tiles span {display:block}
+.ew-tiles span {margin-top:.3rem}
+.ew-tiles button[aria-pressed=true] {outline:3px solid var(--accent,#12887d);outline-offset:2px}
+.ew-field {display:grid;gap:.35rem;min-width:0}
+.ew-field :is(input,select,textarea) {box-sizing:border-box;min-width:0;width:100%;font-size:1rem}
+.ew-field textarea {min-height:5.5rem;resize:vertical}
+.ew-field textarea#ewRulesJson {min-height:18rem;font-family:monospace}
+.ew-check {display:flex;align-items:center;gap:.45rem}
+.ew-check input {width:auto}
+.ew-box {padding:.85rem;border:1px solid var(--line,#9caaaa);border-radius:.75rem;margin:.75rem 0;min-width:0}
+.ew-alert {padding:.8rem 1rem;background:#b86d1a1c;border-inline-start:3px solid #bd6d22;border-radius:.25rem}
+.ew-alert li {margin:.4rem 0}
+.ew-count {display:inline-block;margin-inline-start:.5rem;font-size:.8rem;padding:.12rem .35rem;border:1px solid var(--line,#9caaaa);border-radius:.4rem}
+.ew-question {border-block-end:1px solid var(--line,#9caaaa);padding:1rem 0}
+.ew-question h2 {margin-top:.15rem}
+.ew-next {margin-top:1rem}
+.ew-agreement-scope {padding-block:.5rem;border-bottom:1px solid #b9cccc}
+.ew-agreement {overflow-wrap:anywhere}
+.ew-agreement table {width:100%;table-layout:auto}
+.ew-agreement h3 {break-after:avoid}
+.ew-agreement .signed-image {display:block;max-width:100%;height:auto;break-inside:avoid}
+@media(max-width:850px){
+ .ew-layout {grid-template-columns:minmax(0,1fr)}
+ .ew-outline {grid-row:1;position:static}
+ .ew-outline details {max-height:29vh}
+ .ew-outline button {display:inline-block;width:auto;margin:.2rem}
+}
+@media print {
+ .ew-agreement thead {display:table-header-group}
+ .ew-agreement tr,.ew-agreement .invoice-brand {break-inside:avoid}
+ .ew-agreement-scope {break-inside:auto}
+ .ew-agreement .invoice-accent {print-color-adjust:exact}
+}

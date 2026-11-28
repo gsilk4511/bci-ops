@@ -25,6 +25,7 @@ import {validatedContributionYear} from '../Models/staff-profit-settings.js';
 import {staffAvatar,staffDirectoryDetail,staffMetrics,staffTechnicianIcons,staffView} from '../Models/staff.js';
 import {reconcileStock} from '../Models/stock-demand.js';
 import {estimateRates} from '../Models/estimates.js';
+import {agreementView,estimatorRules} from '../Models/estimate-workflow.js';
 import {trainingState,trainingAction} from '../Models/training.js';
 import { createMailbox, importMailboxPage, assignMail } from '../Models/mail-intake.js';
 import { createPush, notificationView, notificationAction, pendingPush, recordPush } from '../Models/notifications.js';
@@ -150,6 +151,15 @@ async function update(action, data, actor) {
     else if(action==='mail.assign')result=assignMail(s,data,principal);
     else if(action.startsWith('notification.'))result=notificationAction(s,action,data,principal);
     else result=applyAction(s,action,data,principal);
+    if(conn&&action==='estimate.planAttach'){
+      const e=s.estimates.find(x=>x.id===data.id);
+      const plan=e?.planFiles?.find(x=>x.id===result.id);
+      if(plan?.privatePlanData){
+        try{await conn.execute('INSERT INTO bci_estimate_plan_files (id,pdf_bytes) VALUES (?,?)',[plan.id,Buffer.from(plan.privatePlanData,'base64')]);}
+        catch(error){if(error.code==='ER_NO_SUCH_TABLE')throw Error('Apply the estimate drawing storage migration before uploading plans');throw error;}
+        delete plan.privatePlanData;
+      }
+    }
     if(conn&&['users.set','users.remove'].includes(action)){
       await mutateSecurityInTransaction(conn,securityState=>{
         if(action==='users.remove'){
@@ -498,6 +508,27 @@ const server=http.createServer(async(req,res)=>{
     }
     const principal=recordPrincipal(current,user,role,permissions,recordScopes);
     const scoped=scopeState(current,principal);
+    if(url.pathname==='/api/estimator/rules'){
+      if(req.method!=='GET')return response(res,405,{error:'Method not allowed'});
+      if(role!=='admin'||preview)return response(res,403,{error:'Admin access required'});
+      return response(res,200,estimatorRules(current));
+    }
+    if(url.pathname.startsWith('/api/estimator/plan/')){
+      if(!['GET','HEAD'].includes(req.method))return response(res,405,{error:'Method not allowed'});
+      if(!permissions.includes('estimates.view')||req.headers['sec-fetch-site']==='cross-site')return response(res,403,{error:'Estimate access required'});
+      const [, , , ,eid,pid]=url.pathname.split('/');
+      const e=scoped.estimates?.find(x=>x.id===eid);
+      const plan=e?.planFiles?.find(x=>x.id===pid);
+      if(!plan)return response(res,404,{error:'Plan unavailable'});
+      let bytes=plan.privatePlanData?Buffer.from(plan.privatePlanData,'base64'):null;
+      if(!bytes&&pool){
+        try{const [row]=await pool.query('SELECT pdf_bytes FROM bci_estimate_plan_files WHERE id=?',[plan.id]);bytes=row?.pdf_bytes;}
+        catch(error){if(error.code==='ER_NO_SUCH_TABLE')return response(res,503,{error:'Estimate drawing storage has not been migrated'});throw error;}
+      }
+      if(!Buffer.isBuffer(bytes)||bytes.length!==plan.bytes)return response(res,404,{error:'Plan unavailable'});
+      res.writeHead(200,{'content-type':'application/pdf','content-disposition':'attachment; filename="Estimate-plan.pdf"','content-length':bytes.length,'cache-control':'private, no-store','x-content-type-options':'nosniff','cross-origin-resource-policy':'same-origin','content-security-policy':"default-src 'none'; sandbox"});
+      return res.end(req.method==='HEAD'?undefined:bytes);
+    }
     const rawDatabaseTesting = Boolean(!preview && pool && testingOwner && role==='admin' && user.email.toLowerCase()===testingOwner);
     if(req.method==='GET'&&url.pathname==='/api/testing/database'){
       const raw=url.searchParams.get('mode')==='raw';
@@ -579,10 +610,12 @@ const server=http.createServer(async(req,res)=>{
           messages:(current.mailQueue||[]).map(({attachments,...message})=>({...message,attachmentCount:attachments.length}))
         }:undefined,ticketOverview:permissions.includes('tickets.view')?ticketOverview(scoped,principal):undefined,pricingOverview:permissions.includes('pricing.view')?pricingOverview(scoped,permissions):undefined,accessSync:role==='admin'&&!preview?accessSync.status():undefined,permissionGroups:role==='admin'?permissionGroups:undefined,modulePermissions:role==='admin'?modulePermissions:undefined,permissionMatrix:role==='admin'?permissionMatrix:undefined,permissionDependencies:role==='admin'?permissionDependencies:undefined,stats:finance?moneyStats(scoped):null,dashboardLayout:dashboardLayout(current,principal),moneyOrders:permissions.includes('money.view')&&permissions.includes('finance.view')?moneyWorkOrderRows(scoped):undefined,vehicles:fleet,staff:staffView(current,principal,new Set(scoped.workorders.map(w=>w.id)),new Set(scoped.projects.map(project=>project.id)),scoped,selectedContributionYear),storage:preview?'test':dbProvider,me:{email:user.email,role,permissionTestAvailable:owner&&!preview,permissionTestMode:Boolean(preview),accessRevision:current.meta?.accessRevision||0,clock:permissions.includes('workorders.view')?(current.activeClocks||[]).find(c=>c.email===user.email&&scoped.workorders.some(w=>w.id===c.workorderId)):undefined,clockDefault:permissions.includes('workorders.view')?(current.clockDefaults||[]).find(c=>c.email===user.email):undefined,databaseTesting:permissions.includes('database.view'),rawDatabaseTesting,...access}});
     }
-    if(req.method==='POST'&&(packRoute||['/api/action','/api/training/action'].includes(url.pathname))){
+    const planUpload=url.pathname==='/api/estimator/plan';
+    if(req.method==='POST'&&(packRoute||planUpload||['/api/action','/api/training/action'].includes(url.pathname))){
       if(req.headers['sec-fetch-site']==='cross-site'||(publicOrigin&&req.headers.origin!==publicOrigin))return response(res,403,{error:'Untrusted request origin'});
       if(String(req.headers['content-type']||'').split(';')[0].trim().toLowerCase()!=='application/json')return response(res,415,{error:'JSON required'});
-      const limit=packRoute?catalogPackLimit:500000;
+      const limit=packRoute?catalogPackLimit:planUpload?13_400_000:500000;
+      if(planUpload&&(!permissions.includes('estimate.update')||!permissions.includes('estimates.view')||preview))return response(res,403,{error:'Estimate update access required'});
       if(Number(req.headers['content-length'])>limit)return response(res,413,{error:'Request too large'});
       const chunks=[];
       let size=0;
@@ -594,6 +627,7 @@ const server=http.createServer(async(req,res)=>{
       const raw=Buffer.concat(chunks).toString('utf8');
       let body;try{body=JSON.parse(raw);}catch{return response(res,400,{error:'Invalid JSON request'});}
       if(!body||typeof body.action!=='string'||!body.data||typeof body.data!=='object'||Array.isArray(body.data))throw new Error('Invalid action');
+      if(planUpload!==(body.action==='estimate.planAttach'))return response(res,400,{error:'Use the estimate plan endpoint'});
       if(packRoute!==catalogPackAction(body.action))return response(res,400,{error:'Use the matching catalog-pack endpoint'});
       if(preview&&previewExcluded.has(body.action))return response(res,403,{error:'This operation is unavailable in Test Permissions.'});
       if(url.pathname==='/api/training/action'){
@@ -620,6 +654,11 @@ const server=http.createServer(async(req,res)=>{
       if(body.action==='inventory.receiptRead')return response(res,200,{ok:true,result:readWarehouseReceipt(current,scoped,principal,body.data)});
       if(body.action==='receipt.read')return response(res,200,{ok:true,result:readWorkReceipt(current,body.data)});
       if(body.action==='workorder.deletePreview')return response(res,200,{ok:true,result:previewWorkorderRemoval(current,body.data.ids)});
+      if(body.action==='estimate.agreement'){
+        const e=scoped.estimates?.find(x=>x.id===body.data.id);
+        if(!e?.workflow)return response(res,404,{error:'Estimate unavailable'});
+        return response(res,200,{ok:true,result:agreementView(e)});
+      }
       if(body.action==='estimate.rates')return response(res,200,{ok:true,result:estimateRates(scoped,body.data)});
       if(body.action==='mail.sync'){
         if(!mailbox.enabled)return response(res,400,{error:'Configure the Microsoft 365 intake mailbox first'});
@@ -679,8 +718,9 @@ const server=http.createServer(async(req,res)=>{
       const latestRole=preview?role:roleFor(latest,user);
       if(!latestRole)return response(res,403,{error:'App access required'});
       const finalPermissions=effectivePermissions(latest,user,latestRole);
-      const hidden=new Set();
-      if(!finalPermissions.includes('finance.view'))for(const key of ['cost','unitCost','directCost','grossProfit','reserve','quickBooksPurchasePrice','depositLedger'])hidden.add(key);
+      const hidden=new Set(['privatePlanData']);
+      if(!finalPermissions.includes('finance.view'))hidden.add('priceSnapshot');
+      if(!finalPermissions.includes('finance.view'))for(const key of ['cost','unitCost','laborUnitCost','directCost','grossProfit','reserve','quickBooksPurchasePrice','depositLedger'])hidden.add(key);
       if(!finalPermissions.includes('invoices.view'))for(const key of ['groupId','amountPaid','depositCredit','depositLedger'])hidden.add(key);
       const safeResult=hidden.size?JSON.parse(JSON.stringify(result,(key,value)=>hidden.has(key)?undefined:value)):result;
       return response(res,200,{ok:true,result:safeResult});
@@ -693,6 +733,7 @@ const server=http.createServer(async(req,res)=>{
     if(!file.startsWith(publicRoot+path.sep))return response(res,403,{error:'Forbidden'});
     let body;try{body=await fs.readFile(file);}catch(e){if(e.code==='ENOENT')return response(res,404,{error:'Not found'});throw e;}
     if(rel==='index.html')body=body.toString('utf8').replace('{{BCI_RELEASE}}',release).replace('{{BCI_SECURITY_LINK}}',securityStore&&!previewPage?'<a href="/security">User Security</a>':'');
+    if(rel==='estimator-tools/BCI-Takeoff-Lab.html')res.setHeader('content-disposition','attachment; filename="BCI-Takeoff-Lab.html"');
     res.writeHead(200,{'content-type':mime[path.extname(file)]||'application/octet-stream','cache-control':'no-store','x-content-type-options':'nosniff','referrer-policy':'no-referrer','x-frame-options':'DENY','content-security-policy':"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'"});
     return res.end(req.method==='HEAD'?undefined:body);
   }catch(e){

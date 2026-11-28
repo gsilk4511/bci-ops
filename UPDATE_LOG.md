@@ -1,3 +1,15 @@
+# 0.10.20 — A little Christmas cheer
+
+- The workspace header gets pine, berries and gold bells, with a brief, silent flurry every few minutes. Decorations turn off automatically outside Thanksgiving through December 31 (Eastern time).
+- Snow respects Reduce Motion, stops while dialogs or text entry are active, and never appears in print. No database changes in this revision. The full source ZIP does not require an overlay. For installation, the Estimates drawing table prerequisite and rollback steps, see docs/RELEASE-01020.md. The full package retains the licensed fleet sounds only and removes private conversation links from its copy of the historical worksheet.
+
+# 0.10.19 — Guided Estimates workspace
+
+- Full-page client/job intake followed by Plan Takeoff or Site Walkthrough. Six scopes, group entry, optional scopes, pricing and payment terms.
+- Reviewed offline Takeoff Lab import; private PDF references. Task labor, purchasing quantities and customer rates tracked separately.
+- Client agreement, onsite acceptance, recorded approval, and draft work-order handoff. Existing signed estimates keep their original rendering.
+- Verify on staging before rollout. No destructive database migration. See docs/ESTIMATES-01019.md.
+
 # 0.10.18 — Complete changelog dates and hands-on time
 
 - Admin → Changelog shows Eastern build handoff dates beside hands-on time for all 87 cards. The 86 earlier time entries are unchanged.

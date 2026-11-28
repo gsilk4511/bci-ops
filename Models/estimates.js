@@ -1,5 +1,6 @@
 import {clientPricingChoices,assignedPricing,profileRate,sellingRate} from './pricing.js';
 import {randomUUID} from 'node:crypto';
+import {resolveWorkflow,workflowScopeRecords,agreementView,saveEstimatePlan,releaseEstimatorRules} from './estimate-workflow.js';
 import {normalizeEstimateScopes,scopeLines} from '../public/modules/estimate-scope-math.js';
 
 function field(value,label,limit,optional=false){
@@ -10,7 +11,8 @@ function context(state,data){
  const client=state.customers.find(item=>item.id===data.clientId);
  if(!client)throw Error('Choose a billing client');
  const profiles=clientPricingChoices(state,client);
- const inherited=assignedPricing(state,null,null,client);
+ const project=data.projectId&&state.projects.find(item=>item.id===data.projectId&&item.customerId===client.id);
+ const inherited=assignedPricing(state,null,project||null,client);
  if(inherited.profile&&!profiles.some(item=>item.id===inherited.profile.id))profiles.unshift(inherited.profile);
  const profile=data.pricingProfileId?profiles.find(item=>item.id===data.pricingProfileId):inherited.profile;
  if(data.pricingProfileId&&!profile)throw Error('Choose an available client pricing profile');
@@ -21,7 +23,7 @@ export function estimateRates(state,data){
  return {profileId:profile?.id||'',profileName:profile?.name||'Client and catalog rates',
   profiles:profiles.map(({id,name})=>({id,name})),
   items:state.catalog.filter(item=>item.type!=='material'||item.warehouseArchived!==true).map(item=>({
-   id:item.id,name:item.name,sku:item.sku,unit:item.unit,type:item.type,
+   id:item.id,name:item.name,sku:item.sku,unit:item.unit,type:item.type,packageLengthFt:item.packageLengthFt,
    catalogInfo:item.catalogInfo?Object.fromEntries(['photoId','photoStatus','brand','mpn','system','partType','spec']
     .filter(key=>Object.hasOwn(item.catalogInfo,key)).map(key=>[key,item.catalogInfo[key]])):undefined,
    rate:profile?profileRate(state,profile,item,null,'standard'):item.needsPricing?null:sellingRate(item,client,null,item.cost)
@@ -49,15 +51,15 @@ function optionalSignature(data){
 }
 function workOrderPlans(estimate){
  const scopes=estimate.approvalSnapshot.scopes;
- if(!scopes.length)return [];
+ if(!scopes.length||estimate.workflow?.relationship==='credit')return [];
  const result=[];
- const materials=estimate.approvalSnapshot.lines.filter(line=>line.type==='material'||line.takeoffType==='material').map(line=>`${line.quantity} × ${line.description}`);
+ const materials=estimate.approvalSnapshot.lines.filter(line=>line.type==='material'||line.takeoffType==='material').map(line=>`${line.quantity} × ${line.description}${line.owner&&line.owner!=='BCI'?' (provided by '+line.owner+')':''}`);
  if(materials.length)result.push({key:'inventory',kind:'inventory',label:'Check inventory and order shortages',internal:true,
   description:'Check stock against the approved takeoff. Flag shortages for ordering; do not assume items are available. Approved takeoff (see signed estimate for full list): '+materials.join('; ')});
  for(const scope of scopes){
-  if(scope.kind==='shared')continue;
+  if(scope.kind==='shared'&&!/lift/i.test(scope.label+' '+scope.requirements))continue;
   result.push({key:scope.key,kind:scope.kind,label:scope.label||(scope.kind==='lift'?'Arrange scissor lift':scope.kind==='fiber'?'Install fiber':'Install copper'),
-   internal:scope.kind==='lift',description:[scopeSummary(scope),scope.options?'Accepted options: '+scope.options:'',scope.exclusions?'Excluded: '+scope.exclusions:''].filter(Boolean).join(' ')});
+   internal:scope.kind==='lift'||scope.kind==='shared',description:[scopeSummary(scope),scope.options?'Accepted options: '+scope.options:'',scope.exclusions?'Excluded: '+scope.exclusions:''].filter(Boolean).join(' ')});
  }
  result.push({key:'closeout',kind:'closeout',label:'Complete closeout',internal:true,
   description:'Collect test reports, as-built drawings, and photos. Prepare the closeout email and submit this work order for review before final billing.'});
@@ -68,6 +70,14 @@ function createEstimateOrders(state,estimate,createWorkOrder){
  if(!project||!createWorkOrder)throw Error('A linked project is required to prepare work orders');
  const plans=workOrderPlans(estimate);
  const previous=estimate.basedOnId&&state.estimates.find(item=>item.id===estimate.basedOnId);
+ if(previous&&estimate.workflow?.relationship==='additive'){
+  estimate.workOrderChanges=plans.map(plan=>({scopeKey:plan.key,before:'',after:plan.description,label:plan.label,change:'Added'}));
+  return;
+ }
+ if(previous&&estimate.workflow?.relationship==='credit'){
+  estimate.workOrderChanges=[{scopeKey:'credit',before:'',after:estimate.workflow.reason,label:'Approved credit · review billing separately',change:'Credit'}];
+  return;
+ }
  if(previous){
   const prior=new Map(workOrderPlans(previous).map(plan=>[plan.key,plan]));
   const current=new Map(plans.map(plan=>[plan.key,plan]));
@@ -88,6 +98,12 @@ function createEstimateOrders(state,estimate,createWorkOrder){
 }
 export function estimateAction(state,action,data,actor,createProject,createWorkOrder){
  const estimates=state.estimates??=[];
+ if(action==='estimate.rulesRelease')return releaseEstimatorRules(state,data,actor);
+ if(action==='estimate.planAttach'){
+  const e=estimates.find(x=>x.id===data.id&&x.workflow);
+  if(!e)throw Error('Estimate unavailable');
+  return saveEstimatePlan(e,data);
+ }
  if(action==='estimate.releaseWorkOrder'){
   if(!officeGrant(actor,'estimate.releaseWorkOrder')||!officeGrant(actor,'workorder.approve')||!officeGrant(actor,'workorders.view'))throw Error('Estimate work order release permission required');
   const order=state.workorders.find(item=>item.id===data.workorderId);
@@ -113,6 +129,27 @@ export function estimateAction(state,action,data,actor,createProject,createWorkO
   const project=projectId&&state.projects.find(item=>item.id===projectId&&item.customerId===client.id);
   if(projectId&&!project)throw Error('Choose a project for this billing client');
   if(previousEstimate&&previousEstimate.projectId!==projectId)throw Error('Revisions must stay on the original project');
+  if(existing?.workflow&&!data.workflow)throw Error('Open this estimate in the new workspace');
+  if(data.workflow){
+   if(!project)throw Error('Choose a project for this estimate');
+   if(data.contactId&&!client.contacts?.some(item=>item.id===data.contactId))throw Error('Choose a contact for this client');
+   const contact=client.contacts?.find(x=>x.id===data.contactId);
+   const {workflow,calc,prices}=resolveWorkflow(state,{...data,appliedProfileId:profile?.id||''},existing,previousEstimate,estimateRates(state,data).items,actor);
+   const stamp=now();
+   const details={workflow,workflowResult:calc,priceSnapshot:prices,scopes:workflowScopeRecords(calc),basedOnId,projectId,
+    clientId:client.id,pricingProfileId:profile?.id||'',pricingProfileName:profile?.name||'Client and catalog rates',
+    billingName:client.business||client.name,billingAddress:client.address,billingEmail:client.email,
+    contactId:data.contactId||'',contactName:contact?.name||'',po:field(data.po||'','a client PO',80,true),
+    title:field(data.title,'a project name',200),site:field(data.site||'','a jobsite',250,true),
+    scope:field(data.scope||'','scope summary',3000,true),options:field(data.options||'','chosen options',1200,true),exclusions:field(data.exclusions||'','exclusions',1200,true),
+    lines:calc.lines,total:calc.total,revision:randomUUID(),updatedAt:stamp
+   };
+   if(existing){Object.assign(existing,details);return existing;}
+   const sequence=state.meta.estimateSequence=(state.meta.estimateSequence||0)+1;
+   const estimate={...details,planFiles:previousEstimate?clone(previousEstimate.planFiles||[]):[],id:randomUUID(),number:'EST-'+String(sequence).padStart(5,'0'),status:'Draft',createdAt:stamp};
+   estimates.unshift(estimate);
+   return estimate;
+  }
   const scopes=normalizeEstimateScopes(data.scopes??existing?.scopes??[]);
   if(scopes.length&&!project)throw Error('Choose a project for the guided estimate');
   if(scopes.length&&scopes.filter(x=>x.kind==='lift').length>1)throw Error('Use one shared scissor lift scope per estimate');
@@ -183,10 +220,17 @@ export function estimateAction(state,action,data,actor,createProject,createWorkO
  if(action==='estimate.accept'){
   if(estimate.approvalSnapshot?.revision===data.revision)return estimate;
   if(estimate.status!=='Draft'||estimate.revision!==data.revision)throw Error('Only the current draft can be accepted');
-  if(!estimate.lines.length||estimate.lines.some(line=>line.rate==null))throw Error('Complete the estimate pricing before recording acceptance');
+  let doc;
+  if(estimate.workflow){
+   doc=agreementView(estimate);
+   if(!doc.ready)throw Error(estimate.workflowResult.issues[0]?.message||'Complete the agreement before accepting');
+   if(data.agreementDigest!==doc.digest)throw Error('Open the current client agreement before accepting');
+   if(!estimate.scope&&!doc.scopes.some(s=>s.scope))throw Error('Add an agreed scope description');
+  }else if(!estimate.lines.length||estimate.lines.some(line=>line.rate==null))throw Error('Complete the estimate pricing before recording acceptance');
   const acceptedBy=field(data.acceptedBy,'the client approver',150);
   const signatureData=optionalSignature(data);
   const evidence=signatureData?'Drawn on device':field(data.evidence,'the approval reference',1000);
+  const signerTitle=estimate.workflow?field(data.signerTitle||'','signer title',120, !signatureData):'';
   if(estimate.scopes?.length){
    if(!officeGrant(actor,'workorder.create')||!officeGrant(actor,'workorders.view'))throw Error('Work-order creation permission required to approve a guided estimate');
    if(!createWorkOrder||!state.projects.some(project=>project.id===estimate.projectId&&project.customerId===estimate.clientId))throw Error('Restore the linked project before approving this estimate');
@@ -194,7 +238,8 @@ export function estimateAction(state,action,data,actor,createProject,createWorkO
   const acceptedAt=now();
   estimate.approvalSnapshot=clone({revision:estimate.revision,number:estimate.number,title:estimate.title,site:estimate.site,po:estimate.po,
    billingName:estimate.billingName,billingAddress:estimate.billingAddress,scope:estimate.scope,scopes:estimate.scopes||[],lines:estimate.lines,total:estimate.total,
-   options:estimate.options||'',exclusions:estimate.exclusions||'',acceptedBy,evidence,signatureData,acceptedAt,recordedBy:actor.email});
+   options:estimate.options||'',exclusions:estimate.exclusions||'',acceptedBy,evidence,signatureData,acceptedAt,recordedBy:actor.email,
+   ...(doc?{agreement:{...doc,acceptedAt,acceptedBy,signerTitle,signatureData,approvalMethod:signatureData?'drawn-on-device':'staff-recorded'},workflow:estimate.workflow}: {})});
   Object.assign(estimate,{status:'Accepted',acceptedBy,evidence,recordedBy:actor.email,acceptedAt,revision:randomUUID()});
   if(estimate.scopes?.length)createEstimateOrders(state,estimate,createWorkOrder);
   return estimate;

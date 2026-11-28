@@ -1,7 +1,5 @@
 export const fleetSoundOptions=Object.freeze([
- ['off','Off (silent)'],['ram-v8','Ram 1500 · V8 startup'],['honda-v6','Honda 3.2L · V6 rev'],
- ['mw-mustang','Most Wanted · Mustang GT V8'],['mw-350z','Most Wanted · Nissan 350Z V6'],
- ['mw-z06','Most Wanted · Corvette Z06 V8'],['mw-s2000','Most Wanted · Honda S2000 four-cylinder']
+ ['off','Off (silent)'],['ram-v8','Ram 1500 · V8 startup'],['honda-v6','Honda 3.2L · V6 rev']
 ].map(Object.freeze));
 const ids=new Set(fleetSoundOptions.map(([id])=>id));
 export function fleetSound(id,strict=false){

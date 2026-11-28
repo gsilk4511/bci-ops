@@ -18,7 +18,7 @@ test('each tab module links and renders with shared live state',async()=>{
  let printed=false;
  const preview={document:{createElement:()=>({style:{},querySelectorAll(){return [];},append(child){this.child=child;}}),head:{append(){}},body:{append(...children){previewChildren.push(...children);}}},print(){printed=true;}};
  const context=vm.createContext({
-  console, Intl, Date, Map, Set, URL, Number, String, Object, Array, Promise,
+  console, Intl, Date, Map, Set, URL, URLSearchParams, Number, String, Object, Array, Promise,
   document:{querySelector(){return node},addEventListener(){},documentElement:{dataset:{}}},
   matchMedia(){return {matches:false,addEventListener(){}}},localStorage:{getItem(){return null}},
   navigator:{},window:{location:{href:'https://ops.example.invalid/'},open(){return preview;}},fetch(){return new Promise(()=>{})},setTimeout(){},
@@ -43,6 +43,13 @@ test('each tab module links and renders with shared live state',async()=>{
  for(const name of ['dashboard','customers','projectsHub','workorders','warehouse','moneyPage','reports','payrollPage','catalogPage','teamPage','testingPage','ticketsPage','notificationsPage','trainingPage','invoicesPage','estimatesPage','changelogPage']){
   assert.equal(typeof entry.namespace[name](),'string',name);
  }
+ context.window.location.search='?estimate=new';
+ const newEstimate=entry.namespace.estimatesPage();
+ assert.match(newEstimate,/Client and site/);
+ assert.match(newEstimate,/Save &amp; Build Estimate/);
+ assert.match(newEstimate,/data-estimator-workspace/);
+ context.window.location.search='';
+
  {
  const order=state.workorders[0];
  const originalOrder={...order};

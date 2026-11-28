@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="156" height="44" viewBox="0 0 156 44" fill="none">
+  <defs>
+    <linearGradient id="gold" x1="0" x2="1" y1="0" y2="1" gradientUnits="objectBoundingBox">
+      <stop stop-color="#fff0b0"/><stop offset=".43" stop-color="#e8b954"/><stop offset="1" stop-color="#9f6427"/>
+    </linearGradient>
+    <g id="sprig" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M1 20Q30 17 63 2" stroke="#aa9256" stroke-width="1.4"/>
+      <path d="m9 19 2-10m4 9 3-13m3 12 4-13m2 11 6-13m1 11 6-12m0 10 9-9m-2 7 9-7M9 19l9 4m-3-5 12 3m-6-4 14 1m-8-3 15 1m-8-3 16-1m-10-1 15-2m-7-1 13-3" stroke="#307957" stroke-width="2"/>
+      <path d="m13 18 4-8m7 5 5-8m5 6 7-9m-28 15 8 2m5-5 12 1m3-6 10-1m-5-3 10-2" stroke="#86ab77" stroke-width="1.1"/>
+    </g>
+    <g id="bell">
+      <path d="M9 7C9 4 13 4 13 7" stroke="#f4cf78" stroke-width="1.5"/>
+      <path d="M5 11c.8-5.1 10.8-5.1 12 0 .8 3.8.5 7.4 3.8 10.8l-19.7.2C4.7 18.6 4.1 14.8 5 11Z" fill="url(#gold)" stroke="#6d431b" stroke-width=".8"/>
+      <path d="M7 13c.2-2.3 2-3.8 4-3.8" stroke="#fff4bc" stroke-width="1.25" stroke-linecap="round"/>
+      <ellipse cx="11" cy="22.6" rx="10" ry="2.1" fill="#ac7432" stroke="#f7d57a"/>
+      <circle cx="11" cy="24.1" r="2" fill="#f4cd71"/>
+    </g>
+  </defs>
+  <use href="#sprig" transform="translate(3 1) rotate(6)"/>
+  <use href="#sprig" transform="translate(150 1) scale(-1 1) rotate(6)"/>
+  <use href="#sprig" transform="translate(48 1) scale(.53 .68) rotate(22)"/>
+  <use href="#sprig" transform="translate(106 1) scale(-.53 .68) rotate(22)"/>
+  <path d="M78 10c-12-11-20-2-10 0l10 1c9-11 20-5 11-.5l-11 1-5 9m5-9 5 9" stroke="#b54547" stroke-width="2" stroke-linecap="round"/>
+  <circle cx="60" cy="9" r="2.6" fill="#cc5953"/><circle cx="95" cy="9" r="2.4" fill="#cc5953"/>
+  <use href="#bell" transform="translate(66 14) rotate(17) scale(.8)"/>
+  <use href="#bell" transform="translate(76 19) rotate(-18) scale(.81)"/>
+</svg>

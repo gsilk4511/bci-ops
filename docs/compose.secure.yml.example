@@ -1,10 +1,10 @@
 # BCI Operations Secure + dedicated MariaDB (same Docker Compose stack)
-# Load bundled image first: docker load -i bci-image.tar
+# Example only. Build the supplied source with Docker Compose; no prebuilt image is bundled.
 # Place .env.secure and mariadb.env alongside this file.
 services:
   bci-operations:
     build: /home/gccadmin/docker/bci-operations-secure/source
-    image: bci-operations:0.10.18
+    image: bci-operations:0.10.20
     pull_policy: never
     container_name: bci-operations-secure
     restart: unless-stopped

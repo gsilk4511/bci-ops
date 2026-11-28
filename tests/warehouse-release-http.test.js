@@ -30,19 +30,24 @@ test('the shipped app handles counts, field receipts and warehouse receipts with
   const get=path=>fetch('http://'+address+path);
   const act=(action,data)=>fetch('http://'+address+(action.startsWith('catalog.pack')?'/api/catalog-pack':'/api/action'),{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({action,data})});
   const health=await (await get('/api/health')).json();
-  assert.equal(health.release,'0.10.18');
-  assert.match(await (await get('/')).text(),/id="appRelease">v0\.10\.18<\/span>/);
+  assert.equal(health.release,'0.10.20');
+  assert.match(await (await get('/')).text(),/id="appRelease">v0\.10\.20<\/span>/);
+  for(const [path,type] of [['/holiday.css','text/css'],['/holiday-sprig.svg','image/svg+xml'],['/modules/holiday.js','text/javascript']]){
+   const asset=await get(path); assert.equal(asset.status,200,path);
+   assert.ok(asset.headers.get('content-type').startsWith(type),path);
+  }
   for(const path of ['/security','/security.html','/security.js','/security.css','/signin.js','/modules/agent-api.js','/api/security/session','/api/security/agent-credentials','/api/agent/v1/status']){
    assert.equal((await get(path)).status,404,path+' must stay disabled by default');
   }
-  const sound=await get('/api/vehicle-sound/mw-350z.mp3');
+  const sound=await get('/api/vehicle-sound/ram-v8.mp3');
   assert.equal(sound.status,200);assert.equal(sound.headers.get('content-type'),'audio/mpeg');
   assert.match(sound.headers.get('cache-control'),/private/);assert.ok((await sound.arrayBuffer()).byteLength>500);
-  const range=await fetch('http://'+address+'/api/vehicle-sound/mw-350z.mp3',{headers:{range:'bytes=0-1'}});
+  const range=await fetch('http://'+address+'/api/vehicle-sound/ram-v8.mp3',{headers:{range:'bytes=0-1'}});
   assert.equal(range.status,206);assert.match(range.headers.get('content-range'),/^bytes 0-1\//);
   assert.equal((await range.arrayBuffer()).byteLength,2);
   assert.equal((await get('/api/vehicle-sound/off.mp3')).status,404);
-  assert.equal((await get('/VehicleSounds/mw-350z.mp3')).status,404);
+  assert.equal((await get('/VehicleSounds/ram-v8.mp3')).status,404);
+  assert.equal((await get('/api/vehicle-sound/mw-350z.mp3')).status,404);
   const photoId='a'.repeat(64);
   const fixturePack={format:'bci-catalog-pack-v1',items:[{brand:'Fixture',mpn:'PHOTO-FREE',name:'Photo-free wall plate',system:'Copper',partType:'Faceplate',photoId,photoStatus:'Exact'}],fitReferences:[]};
   const photoMissing=await get('/api/catalog-photo/'+photoId+'.jpg');

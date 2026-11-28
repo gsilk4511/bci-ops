@@ -1,0 +1,73 @@
+/* The sprig is painted in the header gutter, never in the navigation flow. */
+.operations-header.bci-holiday { position: relative; isolation: isolate; }
+.operations-header.bci-holiday > * { position: relative; z-index: 1; }
+.operations-header.bci-holiday::after {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  inset-block-start: 0;
+  inset-inline-start: 50%;
+  width: 137px;
+  height: 36px;
+  transform: translateX(-50%);
+  background: url("/holiday-sprig.svg") top center / contain no-repeat;
+  pointer-events: none;
+}
+@media (min-width: 741px) and (max-width: 1050px) {
+  .operations-header.bci-holiday::after { width: 100px; height: 28px; inset-inline-start: 43%; }
+}
+@media (max-width: 740px) {
+  .operations-header.bci-holiday::after { width: 72px; height: 20px; inset-inline-start: 53%; }
+}
+@media (max-width: 420px) {
+  .operations-header.bci-holiday::after { width: 55px; height: 15px; }
+}
+
+.bci-snowfall {
+  position: fixed;
+  z-index: 3;
+  inset: 0 0 auto;
+  height: min(205px, 34vh);
+  overflow: hidden;
+  pointer-events: none;
+  user-select: none;
+}
+.bci-snowfall i {
+  position: absolute;
+  inset-block-start: -8px;
+  inset-inline-start: var(--x);
+  height: var(--size, 3px);
+  width: var(--size, 3px);
+  border-radius: 50%;
+  background: #edf7ff;
+  box-shadow: 0 0 2px #466478c4;
+  opacity: 0;
+  animation: bci-snow-drift var(--duration, 3.7s) linear var(--delay, 0s) forwards;
+}
+.bci-snowfall i:nth-child(1) { --x: 3%; --delay: .45s; --drift: 16px; }
+.bci-snowfall i:nth-child(2) { --x: 11%; --size: 4px; --drift: -13px; }
+.bci-snowfall i:nth-child(3) { --x: 20%; --delay: .62s; --drift: -11px; }
+.bci-snowfall i:nth-child(4) { --x: 29%; --duration: 3.4s; --drift: 20px; }
+.bci-snowfall i:nth-child(5) { --x: 38%; --size: 4px; --delay: .21s; --drift: 12px; }
+.bci-snowfall i:nth-child(6) { --x: 46%; --delay: .35s; --drift: -12px; }
+.bci-snowfall i:nth-child(7) { --x: 55%; --size: 4px; --drift: 24px; }
+.bci-snowfall i:nth-child(8) { --x: 63%; --delay: .55s; --drift: 16px; }
+.bci-snowfall i:nth-child(9) { --x: 73%; --duration: 3.3s; --drift: -22px; }
+.bci-snowfall i:nth-child(10) { --x: 83%; --delay: .24s; --drift: -15px; }
+.bci-snowfall i:nth-child(11) { --x: 91%; --size: 4px; --delay: .45s; --drift: 13px; }
+.bci-snowfall i:nth-child(12) { --x: 97%; --duration: 3.2s; --drift: -20px; }
+@keyframes bci-snow-drift {
+  0% { transform: translate3d(0, 0, 0); opacity: 0; }
+  16%, 40% { opacity: .66; }
+  72% { opacity: .32; }
+  100% { transform: translate3d(var(--drift), min(205px, 34vh), 0); opacity: 0; }
+}
+@media (max-width: 740px) {
+  .bci-snowfall i:nth-child(even) { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .bci-snowfall { display: none !important; }
+}
+@media print {
+  .bci-snowfall, .operations-header.bci-holiday::after { display: none !important; }
+}
